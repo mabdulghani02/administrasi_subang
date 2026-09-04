@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MBbDE';
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let DB = {
@@ -294,7 +294,7 @@ function updateDashboardMetrics(yearMonth) {
 }
 
 /* ========================================
-   MODUL PENDAPATAN (DENGAN SUBMENU AKTIF HIJAU)
+   MODUL PENDAPATAN
 ======================================== */
 function renderSales() {
   $('content').innerHTML = `
@@ -314,10 +314,11 @@ function showSalesSub(type) {
   const container = $('salesSubContent');
   if (!container) return;
 
-  // Ubah status tombol hijau submenu aktif
-  if ($('subBtnInput') && $('subBtnReport')) {
-    $('subBtnInput'].classList.toggle('active-sub', type === 'input');
-    $('subBtnReport'].classList.toggle('active-sub', type === 'report');
+  const btnIn = $('subBtnInput');
+  const btnRep = $('subBtnReport');
+  if (btnIn && btnRep) {
+    btnIn.classList.toggle('active-sub', type === 'input');
+    btnRep.classList.toggle('active-sub', type === 'report');
   }
 
   if (type === 'input') {
@@ -479,7 +480,7 @@ function downloadDailyReportImage() {
 }
 
 /* ========================================
-   MODUL PENGELUARAN (DENGAN SUBMENU AKTIF HIJAU)
+   MODUL PENGELUARAN
 ======================================== */
 function renderExpense() {
   $('content').innerHTML = `
@@ -500,10 +501,13 @@ function showExpenseSub(type) {
   const container = $('expenseSubContent');
   if (!container) return;
 
-  if ($('expBtnIn') && $('expBtnRep') && $('expBtnCash')) {
-    $('expBtnIn'].classList.toggle('active-sub', type === 'input');
-    $('expBtnRep'].classList.toggle('active-sub', type === 'report');
-    $('expBtnCash'].classList.toggle('active-sub', type === 'cash');
+  const btnIn = $('expBtnIn');
+  const btnRep = $('expBtnRep');
+  const btnCash = $('expBtnCash');
+  if (btnIn && btnRep && btnCash) {
+    btnIn.classList.toggle('active-sub', type === 'input');
+    btnRep.classList.toggle('active-sub', type === 'report');
+    btnCash.classList.toggle('active-sub', type === 'cash');
   }
 
   if (type === 'input') {
@@ -660,7 +664,7 @@ function downloadExpenseReportImage() {
 }
 
 /* ========================================
-   MODUL ABSENSI (DENGAN SUBMENU AKTIF HIJAU)
+   MODUL ABSENSI
 ======================================== */
 function renderAttendancePage() {
   $('content').innerHTML = `
@@ -681,10 +685,13 @@ function showAttendanceSub(type) {
   const container = $('attendanceSubContent');
   if (!container) return;
 
-  if ($('attBtnLog') && $('attBtnAllow') && $('attBtnHours')) {
-    $('attBtnLog'].classList.toggle('active-sub', type === 'log');
-    $('attBtnAllow'].classList.toggle('active-sub', type === 'allowance');
-    $('attBtnHours'].classList.toggle('active-sub', type === 'hours');
+  const btnLog = $('attBtnLog');
+  const btnAllow = $('attBtnAllow');
+  const btnHours = $('attBtnHours');
+  if (btnLog && btnAllow && btnHours) {
+    btnLog.classList.toggle('active-sub', type === 'log');
+    btnAllow.classList.toggle('active-sub', type === 'allowance');
+    btnHours.classList.toggle('active-sub', type === 'hours');
   }
 
   if (type === 'log') {
@@ -914,7 +921,7 @@ function handleExcelUpload(event) {
 }
 
 /* ========================================
-   MODUL GAJI & SDM (DENGAN SUBMENU AKTIF HIJAU)
+   MODUL GAJI & SDM
 ======================================== */
 function renderPayrollPage() {
   $('content').innerHTML = `
@@ -934,9 +941,11 @@ function showPayrollSub(type) {
   const container = $('payrollSubContent');
   if (!container) return;
 
-  if ($('payBtnRekap') && $('payBtnSlip')) {
-    $('payBtnRekap'].classList.toggle('active-sub', type === 'rekap');
-    $('payBtnSlip'].classList.toggle('active-sub', type === 'slips');
+  const btnRekap = $('payBtnRekap');
+  const btnSlip = $('payBtnSlip');
+  if (btnRekap && btnSlip) {
+    btnRekap.classList.toggle('active-sub', type === 'rekap');
+    btnSlip.classList.toggle('active-sub', type === 'slips');
   }
 
   const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
