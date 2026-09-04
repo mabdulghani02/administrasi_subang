@@ -61,11 +61,25 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatDate(value) {
+function normalizeDate(value) {
   if (!value) return '';
-  let text = String(value).trim();
-  if (text.includes('T')) text = text.split('T')[0];
-  return text;
+  const str = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+    const [d, m, y] = str.split('/');
+    return `${y}-${m}-${d}`;
+  }
+  const date = new Date(str);
+  if (isNaN(date.getTime())) return str.split('T')[0];
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0')
+  ].join('-');
+}
+
+function formatDate(value) {
+  return normalizeDate(value);
 }
 
 function parseTimeMinutes(timeVal) {
@@ -146,6 +160,9 @@ async function loadData(targetPage = null) {
       db.from('master_salary').select('*')
     ]);
 
+    if (sRes.error) throw sRes.error;
+    if (cRes.error) throw cRes.error;
+
     DB.sales = sRes.data || [];
     DB.counter = cRes.data || [];
     DB.expenses = eRes.data || [];
@@ -157,7 +174,7 @@ async function loadData(targetPage = null) {
     showPage(targetPage || 'dashboard');
   } catch (error) {
     console.error(error);
-    showToast('Gagal mengambil data dari Supabase.');
+    showToast('Gagal mengambil data dari Supabase: ' + error.message);
   }
 }
 
@@ -397,72 +414,6 @@ function inputField(name, label, value = '', type = 'number') {
   `;
 }
 
-function loadReport() {
-  const dateEl = $('reportDate');
-  const resultEl = $('reportResult');
-  if (!dateEl || !resultEl) return;
-
-  const selectedDate = formatDate(dateEl.value);
-  const sales = (DB.sales || []).find(r => formatDate(r.tanggal) === selectedDate) || {};
-  const counter = (DB.counter || []).find(r => formatDate(r.tanggal) === selectedDate) || {};
-
-  const totalEsb = totalESB(sales);
-  const totalCounter = totalCounter(counter);
-
-  const diffCash = Number(sales.cash || 0) - Number(counter.cash || 0);
-  const diffDebit = Number(sales.debit_card || 0) - Number(counter.debit_card || 0);
-  const diffGrab = Number(sales.grab || 0) - Number(counter.grab || 0);
-  const diffQris = Number(sales.qris || 0) - Number(counter.qris || 0);
-
-  const dateObject = new Date(selectedDate + 'T00:00:00');
-  const formattedDate = isNaN(dateObject) ? selectedDate : dateObject.toLocaleDateString('id-ID', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  });
-
-  resultEl.innerHTML = `
-    <div class="report-container">
-      <div class="report" id="captureDailyReport">
-        <div class="report-header">
-          RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br>UNIT SUBANG
-        </div>
-        <div class="report-red-line"></div>
-        <div class="report-date">${formattedDate}</div>
-        <div class="report-grid">
-          <section>
-            <div class="report-section-title">LAPORAN PENDAPATAN ESB</div>
-            ${reportRow('MAKANAN', sales.makanan)}
-            ${reportRow('MINUMAN', sales.minuman)}
-            ${reportRow('TAHU', sales.tahu)}
-            ${reportRow('GORENGAN', sales.gorengan)}
-            ${reportRow('LAIN-LAIN', sales.lain_lain)}
-            <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalEsb)}</div>
-            ${reportRow('PAJAK', sales.pajak)}
-            <div class="report-payment">
-              ${reportRow('CASH', sales.cash)}
-              ${reportRow('DEBIT CARD', sales.debit_card)}
-              ${reportRow('GRAB', sales.grab)}
-              ${reportRow('QRIS', sales.qris)}
-            </div>
-          </section>
-          <section>
-            <div class="report-section-title">LAPORAN PENDAPATAN KONTER</div>
-            ${reportRow('CASH', counter.cash)}
-            ${reportRow('DEBIT CARD', counter.debit_card)}
-            ${reportRow('GRAB', counter.grab)}
-            ${reportRow('QRIS', counter.qris)}
-            <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalCounter)}</div>
-            <div class="report-selisih">SELISIH</div>
-            ${reportRow('CASH', diffCash)}
-            ${reportRow('DEBIT CARD', diffDebit)}
-            ${reportRow('GRAB', diffGrab)}
-            ${reportRow('QRIS', diffQris)}
-          </section>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 function reportRow(label, value, forceDash = false) {
   const number = Number(value || 0);
   const isNegative = number < 0;
@@ -476,7 +427,98 @@ function reportRow(label, value, forceDash = false) {
   `;
 }
 
+function loadReport() {
+  const dateEl = $('reportDate');
+  const resultEl = $('reportResult');
+  
+  if (!dateEl) { console.error('Elemen #reportDate tidak ditemukan'); return; }
+  if (!resultEl) { console.error('Elemen #reportResult tidak ditemukan'); return; }
+
+  try {
+    const selectedDate = normalizeDate(dateEl.value);
+    
+    const salesFound = (DB.sales || []).find(r => normalizeDate(r.tanggal) === selectedDate);
+    const counterFound = (DB.counter || []).find(r => normalizeDate(r.tanggal) === selectedDate);
+    
+    const sales = salesFound || {};
+    const counter = counterFound || {};
+
+    const totalEsb = totalESB(sales);
+    const totalKonterVal = totalCounter(counter); // BUG 1 FIXED: Ubah nama variabel agar tidak bentrok dengan fungsi totalCounter
+
+    const diffCash = Number(sales.cash || 0) - Number(counter.cash || 0);
+    const diffDebit = Number(sales.debit_card || 0) - Number(counter.debit_card || 0);
+    const diffGrab = Number(sales.grab || 0) - Number(counter.grab || 0);
+    const diffQris = Number(sales.qris || 0) - Number(counter.qris || 0);
+
+    const dateObject = new Date(selectedDate + 'T00:00:00');
+    const formattedDate = isNaN(dateObject) ? selectedDate : dateObject.toLocaleDateString('id-ID', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+
+    const statusInfo = (!salesFound && !counterFound) 
+      ? `<div style="text-align:center; padding: 10px; color: var(--danger); font-weight: bold; margin-bottom: 10px;">Belum ada data penjualan pada tanggal ini.</div>` 
+      : '';
+
+    resultEl.innerHTML = `
+      <div class="report-container">
+        ${statusInfo}
+        <div class="report" id="captureDailyReport">
+          <div class="report-header">
+            RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br>UNIT SUBANG
+          </div>
+          <div class="report-red-line"></div>
+          <div class="report-date">${formattedDate}</div>
+          <div class="report-grid">
+            <section>
+              <div class="report-section-title">LAPORAN PENDAPATAN ESB</div>
+              ${reportRow('MAKANAN', sales.makanan)}
+              ${reportRow('MINUMAN', sales.minuman)}
+              ${reportRow('TAHU', sales.tahu)}
+              ${reportRow('GORENGAN', sales.gorengan)}
+              ${reportRow('LAIN-LAIN', sales.lain_lain)}
+              <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalEsb)}</div>
+              ${reportRow('PAJAK', sales.pajak)}
+              <div class="report-payment">
+                ${reportRow('CASH', sales.cash)}
+                ${reportRow('DEBIT CARD', sales.debit_card)}
+                ${reportRow('GRAB', sales.grab)}
+                ${reportRow('QRIS', sales.qris)}
+              </div>
+            </section>
+            <section>
+              <div class="report-section-title">LAPORAN PENDAPATAN KONTER</div>
+              ${reportRow('CASH', counter.cash)}
+              ${reportRow('DEBIT CARD', counter.debit_card)}
+              ${reportRow('GRAB', counter.grab)}
+              ${reportRow('QRIS', counter.qris)}
+              <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalKonterVal)}</div>
+              <div class="report-selisih">SELISIH</div>
+              ${reportRow('CASH', diffCash)}
+              ${reportRow('DEBIT CARD', diffDebit)}
+              ${reportRow('GRAB', diffGrab)}
+              ${reportRow('QRIS', diffQris)}
+            </section>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Gagal memuat laporan:', error);
+    resultEl.innerHTML = `
+      <div class="alert alert-danger" style="color:var(--danger); padding: 15px; border: 1px solid var(--danger); border-radius: 8px;">
+        Gagal memuat laporan harian. <br><small>${error.message}</small>
+      </div>
+    `;
+  }
+}
+
 function downloadDailyReportImage() {
+  const target = $('captureDailyReport');
+  if (!target) {
+    showToast('Laporan belum dimuat atau kosong.');
+    return;
+  }
   const date = $('reportDate').value || today();
   downloadElementAsImage('captureDailyReport', 'LAPORAN_PENDAPATAN_' + date);
 }
@@ -661,6 +703,8 @@ function loadExpenseReport() {
 }
 
 function downloadExpenseReportImage() {
+  const target = $('captureExpenseReport');
+  if (!target) { showToast('Laporan pengeluaran belum dimuat.'); return; }
   const date = $('expenseReportDate').value || today();
   downloadElementAsImage('captureExpenseReport', 'LAPORAN_PENGELUARAN_' + date);
 }
