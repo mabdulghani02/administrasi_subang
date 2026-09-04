@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keuangan Subang - Supabase</title>
+  <!-- Pustaka Supabase JS dari CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 20px; background: #f4f6f9; color: #1d2329; }
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+    h2 { color: #d90000; margin-top: 0; }
+    input, button { width: 100%; padding: 12px; margin-top: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+    button { background: #d90000; color: white; border: none; font-weight: bold; cursor: pointer; }
+    button:hover { background: #b80000; }
+    .status { margin-top: 15px; font-weight: bold; font-size: 14px; color: #15803d; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>Uji Koneksi Supabase</h2>
+    <p>Masukkan data pengeluaran operasional untuk diuji langsung ke database Supabase Anda:</p>
+    
+    <form id="testForm">
+      <input type="date" id="tanggal" required>
+      <input type="text" id="sumber" placeholder="Sumber/Nama Barang (Contoh: Gas LPG)" required>
+      <input type="number" id="nominal" placeholder="Nominal (Rp)" required>
+      <button type="submit">Kirim ke Supabase</button>
+    </form>
+    
+    <div id="statusMsg" class="status"></div>
+  </div>
+
+  <script>
+    // 1. Masukkan Project URL dan Anon Key dari Supabase Anda di sini
+    const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
+    const SUPABASE_ANON_KEY = 'MASUKKAN_ANON_KEY_ANDA_DI_SINI';
+
+    // Inisialisasi Supabase
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Set tanggal hari ini secara otomatis
+    document.getElementById('tanggal').value = new Date().toISOString().slice(0, 10);
+
+    // Fungsi ketika form dikirim
+    document.getElementById('testForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const tanggal = document.getElementById('tanggal').value;
+      const sumber = document.getElementById('sumber').value;
+      const nominal = document.getElementById('nominal').value;
+      const statusMsg = document.getElementById('statusMsg');
+
+      statusMsg.textContent = 'Menyimpan data ke Cloud...';
+
+      // Masukkan data ke tabel 'expenses' di Supabase
+      const { data, error } = await supabase
+        .from('expenses')
+        .insert([{ tanggal, sumber, nominal }]);
+
+      if (error) {
+        statusMsg.style.color = '#b91c1c';
+        statusMsg.textContent = 'Gagal: ' + error.message;
+      } else {
+        statusMsg.style.color = '#15803d';
+        statusMsg.textContent = 'Berhasil! Data tersimpan di Supabase.';
+        document.getElementById('sumber').value = '';
+        document.getElementById('nominal').value = '';
+      }
+    });
+  </script>
+
+</body>
+</html>
