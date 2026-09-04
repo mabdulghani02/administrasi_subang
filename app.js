@@ -419,10 +419,12 @@ function reportRow(label, value, forceDash = false) {
   const isNegative = number < 0;
   const displayValue = Math.abs(number).toLocaleString('id-ID');
   const display = forceDash || number === 0 ? '-' : (isNegative ? '-' + displayValue : displayValue);
+  
   return `
-    <div class="report-row">
-      <span>${label}</span><span>:</span><span>Rp</span>
-      <span class="amount">${display}</span>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13.5px;">
+      <span style="flex: 1;">${label}</span>
+      <span style="margin-right: 10px;">: Rp</span>
+      <span style="text-align: right; min-width: 85px;">${display}</span>
     </div>
   `;
 }
@@ -444,7 +446,7 @@ function loadReport() {
     const counter = counterFound || {};
 
     const totalEsb = totalESB(sales);
-    const totalKonterVal = totalCounter(counter); // BUG 1 FIXED: Ubah nama variabel agar tidak bentrok dengan fungsi totalCounter
+    const totalKonterVal = totalCounter(counter);
 
     const diffCash = Number(sales.cash || 0) - Number(counter.cash || 0);
     const diffDebit = Number(sales.debit_card || 0) - Number(counter.debit_card || 0);
@@ -457,56 +459,76 @@ function loadReport() {
     });
 
     const statusInfo = (!salesFound && !counterFound) 
-      ? `<div style="text-align:center; padding: 10px; color: var(--danger); font-weight: bold; margin-bottom: 10px;">Belum ada data penjualan pada tanggal ini.</div>` 
+      ? `<div style="text-align:center; padding: 10px; color: #dc2626; font-weight: bold; margin-bottom: 10px;">Belum ada data penjualan pada tanggal ini.</div>` 
       : '';
 
     resultEl.innerHTML = `
       <div class="report-container">
         ${statusInfo}
-        <div class="report" id="captureDailyReport">
-          <div class="report-header">
-            RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br>UNIT SUBANG
+        <div id="captureDailyReport" style="padding: 20px; background: white; color: black; border-radius: 8px; border: 1px solid #e2e8f0; font-family: Arial, sans-serif;">
+          
+          <div style="text-align: center; font-weight: 800; margin-bottom: 5px; font-size: 15px;">
+            RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br><span style="font-size:12px;">UNIT SUBANG</span>
           </div>
-          <div class="report-red-line"></div>
-          <div class="report-date">${formattedDate}</div>
-          <div class="report-grid">
-            <section>
-              <div class="report-section-title">LAPORAN PENDAPATAN ESB</div>
-              ${reportRow('MAKANAN', sales.makanan)}
-              ${reportRow('MINUMAN', sales.minuman)}
-              ${reportRow('TAHU', sales.tahu)}
-              ${reportRow('GORENGAN', sales.gorengan)}
-              ${reportRow('LAIN-LAIN', sales.lain_lain)}
-              <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalEsb)}</div>
-              ${reportRow('PAJAK', sales.pajak)}
-              <div class="report-payment">
-                ${reportRow('CASH', sales.cash)}
-                ${reportRow('DEBIT CARD', sales.debit_card)}
-                ${reportRow('GRAB', sales.grab)}
-                ${reportRow('QRIS', sales.qris)}
+          <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
+          <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">
+            ${formattedDate}
+          </div>
+
+          <!-- PENDAPATAN PER KATEGORI -->
+          <div style="margin-bottom: 18px;">
+            <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PENDAPATAN PER KATEGORI</div>
+            ${reportRow('MAKANAN', sales.makanan)}
+            ${reportRow('MINUMAN', sales.minuman)}
+            ${reportRow('TAHU', sales.tahu)}
+            ${reportRow('GORENGAN', sales.gorengan)}
+            ${reportRow('LAIN-LAIN', sales.lain_lain)}
+            ${reportRow('PAJAK', sales.pajak)}
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+              ${reportRow('TOTAL PENDAPATAN ESB', totalEsb)}
+            </div>
+          </div>
+
+          <!-- ESB & KONTER BERDAMPINGAN -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
+            <div>
+              <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PEMBAYARAN ESB</div>
+              ${reportRow('CASH', sales.cash)}
+              ${reportRow('DEBIT CARD', sales.debit_card)}
+              ${reportRow('GRAB', sales.grab)}
+              ${reportRow('QRIS', sales.qris)}
+              <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+                ${reportRow('TOTAL ESB', totalEsb)}
               </div>
-            </section>
-            <section>
-              <div class="report-section-title">LAPORAN PENDAPATAN KONTER</div>
+            </div>
+            <div>
+              <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PEMBAYARAN KONTER</div>
               ${reportRow('CASH', counter.cash)}
               ${reportRow('DEBIT CARD', counter.debit_card)}
               ${reportRow('GRAB', counter.grab)}
               ${reportRow('QRIS', counter.qris)}
-              <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalKonterVal)}</div>
-              <div class="report-selisih">SELISIH</div>
-              ${reportRow('CASH', diffCash)}
-              ${reportRow('DEBIT CARD', diffDebit)}
-              ${reportRow('GRAB', diffGrab)}
-              ${reportRow('QRIS', diffQris)}
-            </section>
+              <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+                ${reportRow('TOTAL KONTER', totalKonterVal)}
+              </div>
+            </div>
           </div>
+
+          <!-- SELISIH -->
+          <div>
+            <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px; color: #dc2626;">SELISIH (ESB - KONTER)</div>
+            ${reportRow('CASH', diffCash)}
+            ${reportRow('DEBIT CARD', diffDebit)}
+            ${reportRow('GRAB', diffGrab)}
+            ${reportRow('QRIS', diffQris)}
+          </div>
+          
         </div>
       </div>
     `;
   } catch (error) {
     console.error('Gagal memuat laporan:', error);
     resultEl.innerHTML = `
-      <div class="alert alert-danger" style="color:var(--danger); padding: 15px; border: 1px solid var(--danger); border-radius: 8px;">
+      <div style="color:#dc2626; padding: 15px; border: 1px solid #dc2626; border-radius: 8px;">
         Gagal memuat laporan harian. <br><small>${error.message}</small>
       </div>
     `;
