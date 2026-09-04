@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MBbDE';
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let DB = {
@@ -17,7 +17,6 @@ const RATE_PER_HOUR = 5000;
 let DEFAULT_ALLOWANCE = 10000;
 let DEFAULT_BONUS_LAIN = 40000;
 
-// INISIALISASI TEMA TERANG / GELAP
 document.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('subang_theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
@@ -178,7 +177,7 @@ function showPage(page) {
 }
 
 /* ========================================
-   DASHBOARD DENGAN PILIHAN BULAN (AKUMULASI TANGGAL 1 S.D. HARI INI)
+   DASHBOARD
 ======================================== */
 function renderDashboard() {
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -240,26 +239,12 @@ let categoryChartInstance = null;
 function updateDashboardMetrics(yearMonth) {
   const [targetYear, targetMonth] = yearMonth.split('-');
 
-  const monthCounters = (DB.counter || []).filter(r => {
-    const d = formatDate(r.tanggal);
-    return d.startsWith(yearMonth);
-  });
+  const monthCounters = (DB.counter || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+  const monthExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+  const monthSales = (DB.sales || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
 
-  const monthExpenses = (DB.expenses || []).filter(r => {
-    const d = formatDate(r.tanggal);
-    return d.startsWith(yearMonth);
-  });
-
-  const monthSales = (DB.sales || []).filter(r => {
-    const d = formatDate(r.tanggal);
-    return d.startsWith(yearMonth);
-  });
-
-  const totalOmsetMonth = sum(monthCounters.map(r => totalCounter(r)));
-  const totalExpMonth = sum(monthExpenses.map(r => r.nominal));
-
-  $('cardOmset').textContent = money(totalOmsetMonth);
-  $('cardExpense').textContent = money(totalExpMonth);
+  $('cardOmset').textContent = money(sum(monthCounters.map(r => totalCounter(r))));
+  $('cardExpense').textContent = money(sum(monthExpenses.map(r => r.nominal)));
 
   let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
   monthSales.forEach(s => {
@@ -273,7 +258,6 @@ function updateDashboardMetrics(yearMonth) {
   const ctxMonthly = document.getElementById('monthlySalesChart');
   if (ctxMonthly) {
     if (monthlyChartInstance) monthlyChartInstance.destroy();
-
     const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
     const labels = [];
     const dataOmset = [];
@@ -289,14 +273,7 @@ function updateDashboardMetrics(yearMonth) {
       type: 'line',
       data: {
         labels: labels,
-        datasets: [{
-          label: 'Omset Harian (Rp)',
-          data: dataOmset,
-          borderColor: '#00a884',
-          backgroundColor: 'rgba(0, 168, 132, 0.1)',
-          fill: true,
-          tension: 0.2
-        }]
+        datasets: [{ label: 'Omset Harian (Rp)', data: dataOmset, borderColor: '#00a884', backgroundColor: 'rgba(0, 168, 132, 0.1)', fill: true, tension: 0.2 }]
       },
       options: { responsive: true, maintainAspectRatio: false }
     });
@@ -305,16 +282,11 @@ function updateDashboardMetrics(yearMonth) {
   const ctxCategory = document.getElementById('categorySalesChart');
   if (ctxCategory) {
     if (categoryChartInstance) categoryChartInstance.destroy();
-
     categoryChartInstance = new Chart(ctxCategory, {
       type: 'bar',
       data: {
         labels: ['Makanan', 'Minuman', 'Tahu', 'Gorengan', 'Lain-lain'],
-        datasets: [{
-          label: 'Akumulasi (Rp)',
-          data: [sumMakanan, sumMinuman, sumTahu, sumGorengan, sumLain],
-          backgroundColor: ['#e11d48', '#0284c7', '#f59e0b', '#00a884', '#64748b']
-        }]
+        datasets: [{ label: 'Akumulasi (Rp)', data: [sumMakanan, sumMinuman, sumTahu, sumGorengan, sumLain], backgroundColor: ['#e11d48', '#0284c7', '#f59e0b', '#00a884', '#64748b'] }]
       },
       options: { responsive: true, maintainAspectRatio: false }
     });
@@ -322,18 +294,15 @@ function updateDashboardMetrics(yearMonth) {
 }
 
 /* ========================================
-   MODUL PENDAPATAN
+   MODUL PENDAPATAN (DENGAN SUBMENU AKTIF HIJAU)
 ======================================== */
 function renderSales() {
-  const sales = DB.sales[DB.sales.length - 1] || {};
-  const counter = DB.counter[DB.counter.length - 1] || {};
-
   $('content').innerHTML = `
     <div class="top">
       <div><div class="title">Modul Pendapatan</div></div>
       <div style="display:flex; gap:8px;">
-        <button class="btn btn-primary" onclick="showSalesSub('input')">Input Data</button>
-        <button class="btn btn-secondary" onclick="showSalesSub('report')">Laporan Harian</button>
+        <button id="subBtnInput" class="sub-nav-btn active-sub" onclick="showSalesSub('input')">Input Data</button>
+        <button id="subBtnReport" class="sub-nav-btn" onclick="showSalesSub('report')">Laporan Harian</button>
       </div>
     </div>
     <div id="salesSubContent"></div>
@@ -344,6 +313,12 @@ function renderSales() {
 function showSalesSub(type) {
   const container = $('salesSubContent');
   if (!container) return;
+
+  // Ubah status tombol hijau submenu aktif
+  if ($('subBtnInput') && $('subBtnReport')) {
+    $('subBtnInput'].classList.toggle('active-sub', type === 'input');
+    $('subBtnReport'].classList.toggle('active-sub', type === 'report');
+  }
 
   if (type === 'input') {
     container.innerHTML = `
@@ -405,7 +380,7 @@ function showSalesSub(type) {
           <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--card); color:var(--text);">
           <button class="btn btn-success" onclick="downloadDailyReportImage()"><i class="fa-solid fa-camera"></i> Download Gambar Laporan</button>
         </div>
-        <div id="reportResult"></div>
+        <div id="reportResult" style="margin-top: 15px;"></div>
       </div>
     `;
     loadReport();
@@ -504,16 +479,16 @@ function downloadDailyReportImage() {
 }
 
 /* ========================================
-   MODUL PENGELUARAN
+   MODUL PENGELUARAN (DENGAN SUBMENU AKTIF HIJAU)
 ======================================== */
 function renderExpense() {
   $('content').innerHTML = `
     <div class="top">
       <div><div class="title">Modul Pengeluaran</div></div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="showExpenseSub('input')">Input</button>
-        <button class="btn btn-secondary" onclick="showExpenseSub('report')">Laporan</button>
-        <button class="btn btn-secondary" onclick="showExpenseSub('cash')">Posisi Kas</button>
+        <button id="expBtnIn" class="sub-nav-btn active-sub" onclick="showExpenseSub('input')">Input</button>
+        <button id="expBtnRep" class="sub-nav-btn" onclick="showExpenseSub('report')">Laporan</button>
+        <button id="expBtnCash" class="sub-nav-btn" onclick="showExpenseSub('cash')">Posisi Kas</button>
       </div>
     </div>
     <div id="expenseSubContent"></div>
@@ -524,6 +499,12 @@ function renderExpense() {
 function showExpenseSub(type) {
   const container = $('expenseSubContent');
   if (!container) return;
+
+  if ($('expBtnIn') && $('expBtnRep') && $('expBtnCash')) {
+    $('expBtnIn'].classList.toggle('active-sub', type === 'input');
+    $('expBtnRep'].classList.toggle('active-sub', type === 'report');
+    $('expBtnCash'].classList.toggle('active-sub', type === 'cash');
+  }
 
   if (type === 'input') {
     container.innerHTML = `
@@ -553,7 +534,7 @@ function showExpenseSub(type) {
           <input type="date" id="expenseReportDate" value="${today()}" onchange="loadExpenseReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px;">
           <button class="btn btn-success" onclick="downloadExpenseReportImage()">📷 Download Gambar</button>
         </div>
-        <div id="expenseReportResult"></div>
+        <div id="expenseReportResult" style="margin-top: 15px;"></div>
       </div>
     `;
     loadExpenseReport();
@@ -679,16 +660,16 @@ function downloadExpenseReportImage() {
 }
 
 /* ========================================
-   MODUL ABSENSI
+   MODUL ABSENSI (DENGAN SUBMENU AKTIF HIJAU)
 ======================================== */
 function renderAttendancePage() {
   $('content').innerHTML = `
     <div class="top">
       <div><div class="title">Modul Absensi & SDM</div></div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="showAttendanceSub('log')">Log</button>
-        <button class="btn btn-secondary" onclick="showAttendanceSub('allowance')">Uang Jajan</button>
-        <button class="btn btn-secondary" onclick="showAttendanceSub('hours')">Jam Kerja</button>
+        <button id="attBtnLog" class="sub-nav-btn active-sub" onclick="showAttendanceSub('log')">Log</button>
+        <button id="attBtnAllow" class="sub-nav-btn" onclick="showAttendanceSub('allowance')">Uang Jajan</button>
+        <button id="attBtnHours" class="sub-nav-btn" onclick="showAttendanceSub('hours')">Jam Kerja</button>
       </div>
     </div>
     <div id="attendanceSubContent"></div>
@@ -699,6 +680,12 @@ function renderAttendancePage() {
 function showAttendanceSub(type) {
   const container = $('attendanceSubContent');
   if (!container) return;
+
+  if ($('attBtnLog') && $('attBtnAllow') && $('attBtnHours')) {
+    $('attBtnLog'].classList.toggle('active-sub', type === 'log');
+    $('attBtnAllow'].classList.toggle('active-sub', type === 'allowance');
+    $('attBtnHours'].classList.toggle('active-sub', type === 'hours');
+  }
 
   if (type === 'log') {
     container.innerHTML = `
@@ -927,15 +914,15 @@ function handleExcelUpload(event) {
 }
 
 /* ========================================
-   MODUL GAJI & SDM
+   MODUL GAJI & SDM (DENGAN SUBMENU AKTIF HIJAU)
 ======================================== */
 function renderPayrollPage() {
   $('content').innerHTML = `
     <div class="top">
       <div><div class="title">Modul Gaji & SDM</div></div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="showPayrollSub('rekap')">Rekapitulasi</button>
-        <button class="btn btn-secondary" onclick="showPayrollSub('slips')">Cetak Slip PDF</button>
+        <button id="payBtnRekap" class="sub-nav-btn active-sub" onclick="showPayrollSub('rekap')">Rekapitulasi</button>
+        <button id="payBtnSlip" class="sub-nav-btn" onclick="showPayrollSub('slips')">Cetak Slip PDF</button>
       </div>
     </div>
     <div id="payrollSubContent"></div>
@@ -946,6 +933,11 @@ function renderPayrollPage() {
 function showPayrollSub(type) {
   const container = $('payrollSubContent');
   if (!container) return;
+
+  if ($('payBtnRekap') && $('payBtnSlip')) {
+    $('payBtnRekap'].classList.toggle('active-sub', type === 'rekap');
+    $('payBtnSlip'].classList.toggle('active-sub', type === 'slips');
+  }
 
   const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
   const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
