@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MBbDE';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let DB = {
@@ -292,8 +292,8 @@ function updateDashboardMetrics(yearMonth) {
         datasets: [{
           label: 'Omset Harian (Rp)',
           data: dataOmset,
-          borderColor: '#16a34a',
-          backgroundColor: 'rgba(22, 163, 74, 0.1)',
+          borderColor: '#00a884',
+          backgroundColor: 'rgba(0, 168, 132, 0.1)',
           fill: true,
           tension: 0.2
         }]
@@ -313,7 +313,7 @@ function updateDashboardMetrics(yearMonth) {
         datasets: [{
           label: 'Akumulasi (Rp)',
           data: [sumMakanan, sumMinuman, sumTahu, sumGorengan, sumLain],
-          backgroundColor: ['#e11d48', '#0284c7', '#f59e0b', '#16a34a', '#64748b']
+          backgroundColor: ['#e11d48', '#0284c7', '#f59e0b', '#00a884', '#64748b']
         }]
       },
       options: { responsive: true, maintainAspectRatio: false }
@@ -403,7 +403,7 @@ function showSalesSub(type) {
         <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
           <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
           <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px;">
-          <button class="btn btn-success" onclick="downloadDailyReportImage()">📷 Download Gambar Laporan</button>
+          <button class="btn btn-success" onclick="downloadDailyReportImage()"><i class="fa-solid fa-camera"></i> Download Gambar Laporan</button>
         </div>
         <div id="reportResult"></div>
       </div>
@@ -423,10 +423,12 @@ function inputField(name, label, value = '', type = 'number') {
 
 function loadReport() {
   const dateEl = $('reportDate');
-  if (!dateEl) return;
+  const resultEl = $('reportResult');
+  if (!dateEl || !resultEl) return;
+
   const date = dateEl.value;
-  const sales = DB.sales.find(r => formatDate(r.tanggal) === date) || {};
-  const counter = DB.counter.find(r => formatDate(r.tanggal) === date) || {};
+  const sales = (DB.sales || []).find(r => formatDate(r.tanggal) === date) || {};
+  const counter = (DB.counter || []).find(r => formatDate(r.tanggal) === date) || {};
 
   const totalEsb = totalESB(sales);
   const totalCounter = totalCounter(counter);
@@ -437,11 +439,11 @@ function loadReport() {
   const diffQris = Number(sales.qris || 0) - Number(counter.qris || 0);
 
   const dateObject = new Date(date + 'T00:00:00');
-  const formattedDate = dateObject.toLocaleDateString('id-ID', {
+  const formattedDate = isNaN(dateObject) ? date : dateObject.toLocaleDateString('id-ID', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
 
-  $('reportResult').innerHTML = `
+  resultEl.innerHTML = `
     <div class="report-container">
       <div class="report" id="captureDailyReport">
         <div class="report-header">
@@ -706,7 +708,7 @@ function showAttendanceSub(type) {
           <div style="font-weight: 700; font-size: 15px;">Klik untuk Upload File Log Absensi (.xls / .xlsx)</div>
           <input type="file" id="excelFileInput" accept=".xls,.xlsx" onchange="handleExcelUpload(event)">
         </div>
-        <div id="uploadProgress" style="display:none; margin-top:12px; font-weight:700; color:var(--red);">⏳ Memproses file...</div>
+        <div id="uploadProgress" style="display:none; margin-top:12px; font-weight:700; color:var(--wa-primary);">⏳ Memproses file...</div>
       </div>
       <div class="panel">
         <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
@@ -772,7 +774,7 @@ function renderAttendanceTable() {
       <td class="center">${i+1}</td>
       <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
-      <td class="center" style="font-weight:700; color:${r.masuk ? '#16a34a' : '#dc2626'};">${r.masuk || '-'}</td>
+      <td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td>
       <td class="center" style="font-weight:700;">${r.pulang || '-'}</td>
       <td class="center"><span class="badge ${r.status === 'Hadir' ? 'badge-success' : 'badge-danger'}">${r.status}</span></td>
     </tr>
@@ -802,10 +804,10 @@ function renderAllowanceTable() {
       <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
       <td class="center">${r.c.shift}</td>
-      <td class="center" style="font-weight:700; color:#16a34a;">${r.c.displayTime}</td>
+      <td class="center" style="font-weight:700; color:var(--wa-primary);">${r.c.displayTime}</td>
       <td class="center" style="color:var(--muted); font-size:11px;">Maks ${r.c.batas}</td>
       <td class="center"><span class="badge badge-success">✓ Tepat Waktu</span></td>
-      <td class="right" style="font-weight:700; color:#16a34a;">+${money(DEFAULT_ALLOWANCE)}</td>
+      <td class="right" style="font-weight:700; color:var(--wa-primary);">+${money(DEFAULT_ALLOWANCE)}</td>
     </tr>
   `).join('');
 }
@@ -830,8 +832,8 @@ function renderWorkHoursTable() {
         <td class="center">${r.masuk || '-'}</td>
         <td class="center">${r.pulang || '-'}</td>
         <td class="center">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
-        <td class="center" style="font-weight:700; color:${diff >= 0 ? '#16a34a' : '#dc2626'};">${diff !== 0 ? (diff > 0 ? '+' : '') + diff.toFixed(2) + ' Jam' : 'Pas'}</td>
-        <td class="right" style="font-weight:700; color:${nominal >= 0 ? '#16a34a' : '#dc2626'};">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
+        <td class="center" style="font-weight:700; color:${diff >= 0 ? 'var(--wa-primary)' : 'var(--danger)'};">${diff !== 0 ? (diff > 0 ? '+' : '') + diff.toFixed(2) + ' Jam' : 'Pas'}</td>
+        <td class="right" style="font-weight:700; color:${nominal >= 0 ? 'var(--wa-primary)' : 'var(--danger)'};">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
       </tr>
     `;
   }).join('');
@@ -1070,7 +1072,7 @@ function renderPayrollCards() {
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     return `
-      <div class="panel" style="margin-top:0; border-left: 4px solid var(--info);">
+      <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary);">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
           <div>
             <div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div>
@@ -1078,7 +1080,7 @@ function renderPayrollCards() {
           </div>
           <div style="text-align: right;">
             <div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH</div>
-            <div style="font-size: 16px; font-weight: 800; color: var(--info);">${money(emp.gajiBersih)}</div>
+            <div style="font-size: 16px; font-weight: 800; color: var(--wa-primary);">${money(emp.gajiBersih)}</div>
           </div>
         </div>
         <div style="font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px;">
@@ -1153,6 +1155,17 @@ function renderSlipPages() {
   });
 
   container.innerHTML = html;
+}
+
+function getMonthName(dateStr) {
+  if (!dateStr) return '';
+  const m = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const p = dateStr.split('-');
+  if (p.length >= 2) {
+    const idx = parseInt(p[1], 10) - 1;
+    return (m[idx] || '') + ' ' + p[0];
+  }
+  return '';
 }
 
 async function exportSlipsToPDF() {
