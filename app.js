@@ -17,6 +17,28 @@ const RATE_PER_HOUR = 5000;
 let DEFAULT_ALLOWANCE = 10000;
 let DEFAULT_BONUS_LAIN = 40000;
 
+// INISIALISASI TEMA TERANG / GELAP
+document.addEventListener('DOMContentLoaded', () => {
+  const savedTheme = localStorage.getItem('subang_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeIcon(savedTheme);
+});
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme');
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('subang_theme', newTheme);
+  updateThemeIcon(newTheme);
+}
+
+function updateThemeIcon(theme) {
+  const icon = $('themeIcon');
+  if (icon) {
+    icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+  }
+}
+
 function toggleSidebar() {
   const sb = $('appSidebar');
   const ov = $('sidebarOverlay');
@@ -165,11 +187,11 @@ function renderDashboard() {
     <div class="top">
       <div>
         <div class="title">Dashboard Keuangan</div>
-        <div class="subtitle">Unit Subang - Rumah Makan Tahu Sumedang</div>
+        <div class="subtitle">Sari Kedele - Subang</div>
       </div>
       <div style="display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 13px; font-weight: 700; color: var(--muted);">Pilih Bulan Rekapitulasi:</label>
-        <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; background: white;">
+        <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background: var(--card); color: var(--text);">
       </div>
     </div>
 
@@ -187,10 +209,10 @@ function renderDashboard() {
     <div class="panel">
       <div class="panel-title">Aksi Cepat</div>
       <div class="icon-grid">
-        <div class="icon-btn" onclick="showPage('sales')"><span>💰</span><span>Pendapatan</span></div>
-        <div class="icon-btn" onclick="showPage('expense')"><span>💸</span><span>Pengeluaran</span></div>
-        <div class="icon-btn" onclick="showPage('attendance')"><span>🕒</span><span>Absensi</span></div>
-        <div class="icon-btn" onclick="showPage('payroll')"><span>📑</span><span>Gaji & Slip</span></div>
+        <div class="icon-btn" onclick="showPage('sales')"><i class="fa-solid fa-wallet"></i><span>Pendapatan</span></div>
+        <div class="icon-btn" onclick="showPage('expense')"><i class="fa-solid fa-receipt"></i><span>Pengeluaran</span></div>
+        <div class="icon-btn" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i><span>Absensi</span></div>
+        <div class="icon-btn" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i><span>Gaji</span></div>
       </div>
     </div>
 
@@ -270,8 +292,8 @@ function updateDashboardMetrics(yearMonth) {
         datasets: [{
           label: 'Omset Harian (Rp)',
           data: dataOmset,
-          borderColor: '#15803d',
-          backgroundColor: 'rgba(21, 128, 61, 0.1)',
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22, 163, 74, 0.1)',
           fill: true,
           tension: 0.2
         }]
@@ -291,7 +313,7 @@ function updateDashboardMetrics(yearMonth) {
         datasets: [{
           label: 'Akumulasi (Rp)',
           data: [sumMakanan, sumMinuman, sumTahu, sumGorengan, sumLain],
-          backgroundColor: ['#d90000', '#0369a1', '#f59e0b', '#16a34a', '#64748b']
+          backgroundColor: ['#e11d48', '#0284c7', '#f59e0b', '#16a34a', '#64748b']
         }]
       },
       options: { responsive: true, maintainAspectRatio: false }
@@ -380,7 +402,7 @@ function showSalesSub(type) {
       <div class="panel">
         <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
           <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
-          <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px;">
+          <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px;">
           <button class="btn btn-success" onclick="downloadDailyReportImage()">📷 Download Gambar Laporan</button>
         </div>
         <div id="reportResult"></div>
@@ -506,7 +528,7 @@ function showExpenseSub(type) {
       <div class="panel">
         <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
           <div class="panel-title" style="margin-bottom:0;">Input Pengeluaran Sekaligus</div>
-          <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%;">
+          <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%;">
         </div>
         <div class="table-wrap">
           <table class="table">
@@ -526,7 +548,7 @@ function showExpenseSub(type) {
       <div class="panel">
         <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
           <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
-          <input type="date" id="expenseReportDate" value="${today()}" onchange="loadExpenseReport()" style="padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px;">
+          <input type="date" id="expenseReportDate" value="${today()}" onchange="loadExpenseReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px;">
           <button class="btn btn-success" onclick="downloadExpenseReportImage()">📷 Download Gambar</button>
         </div>
         <div id="expenseReportResult"></div>
@@ -562,9 +584,9 @@ function addExpenseRow() {
   const tr = document.createElement('tr');
   tr.className = 'expense-input-row';
   tr.innerHTML = `
-    <td><input type="text" class="exp-sumber" placeholder="Nama..." style="width:100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;"></td>
-    <td><input type="number" class="exp-nominal" placeholder="0" min="0" style="width:100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;"></td>
-    <td><input type="text" class="exp-keterangan" placeholder="-" style="width:100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;"></td>
+    <td><input type="text" class="exp-sumber" placeholder="Nama..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+    <td><input type="number" class="exp-nominal" placeholder="0" min="0" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+    <td><input type="text" class="exp-keterangan" placeholder="-" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
     <td class="center"><button type="button" class="btn btn-outline-danger" onclick="this.closest('tr').remove()">✕</button></td>
   `;
   $('batchExpenseBody').appendChild(tr);
@@ -689,7 +711,7 @@ function showAttendanceSub(type) {
       <div class="panel">
         <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
           <div class="panel-title" style="margin-bottom:0;">Riwayat Absensi Harian</div>
-          <input type="date" id="attendanceFilterDate" value="${today()}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%;">
+          <input type="date" id="attendanceFilterDate" value="${today()}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%;">
         </div>
         <div class="table-wrap">
           <table class="table">
@@ -705,7 +727,7 @@ function showAttendanceSub(type) {
       <div class="panel">
         <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
           <label style="font-weight:700;">Pilih Tanggal:</label>
-          <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px;">
+          <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;">
         </div>
         <div class="table-wrap">
           <table class="table">
@@ -721,7 +743,7 @@ function showAttendanceSub(type) {
       <div class="panel">
         <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
           <label style="font-weight:700;">Pilih Tanggal:</label>
-          <input type="date" id="workHoursFilterDate" value="${today()}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px;">
+          <input type="date" id="workHoursFilterDate" value="${today()}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;">
         </div>
         <div class="table-wrap">
           <table class="table">
@@ -750,7 +772,7 @@ function renderAttendanceTable() {
       <td class="center">${i+1}</td>
       <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
-      <td class="center" style="font-weight:700; color:${r.masuk ? '#15803d' : '#b91c1c'};">${r.masuk || '-'}</td>
+      <td class="center" style="font-weight:700; color:${r.masuk ? '#16a34a' : '#dc2626'};">${r.masuk || '-'}</td>
       <td class="center" style="font-weight:700;">${r.pulang || '-'}</td>
       <td class="center"><span class="badge ${r.status === 'Hadir' ? 'badge-success' : 'badge-danger'}">${r.status}</span></td>
     </tr>
@@ -780,10 +802,10 @@ function renderAllowanceTable() {
       <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
       <td class="center">${r.c.shift}</td>
-      <td class="center" style="font-weight:700; color:#15803d;">${r.c.displayTime}</td>
+      <td class="center" style="font-weight:700; color:#16a34a;">${r.c.displayTime}</td>
       <td class="center" style="color:var(--muted); font-size:11px;">Maks ${r.c.batas}</td>
       <td class="center"><span class="badge badge-success">✓ Tepat Waktu</span></td>
-      <td class="right" style="font-weight:700; color:#15803d;">+${money(DEFAULT_ALLOWANCE)}</td>
+      <td class="right" style="font-weight:700; color:#16a34a;">+${money(DEFAULT_ALLOWANCE)}</td>
     </tr>
   `).join('');
 }
@@ -808,8 +830,8 @@ function renderWorkHoursTable() {
         <td class="center">${r.masuk || '-'}</td>
         <td class="center">${r.pulang || '-'}</td>
         <td class="center">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
-        <td class="center" style="font-weight:700; color:${diff >= 0 ? '#15803d' : '#b91c1c'};">${diff !== 0 ? (diff > 0 ? '+' : '') + diff.toFixed(2) + ' Jam' : 'Pas'}</td>
-        <td class="right" style="font-weight:700; color:${nominal >= 0 ? '#15803d' : '#b91c1c'};">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
+        <td class="center" style="font-weight:700; color:${diff >= 0 ? '#16a34a' : '#dc2626'};">${diff !== 0 ? (diff > 0 ? '+' : '') + diff.toFixed(2) + ' Jam' : 'Pas'}</td>
+        <td class="right" style="font-weight:700; color:${nominal >= 0 ? '#16a34a' : '#dc2626'};">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
       </tr>
     `;
   }).join('');
@@ -935,15 +957,15 @@ function showPayrollSub(type) {
         <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-            <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+            <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
           </div>
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-            <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+            <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
           </div>
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-            <select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; width: 100%;">
+            <select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
               <option value="ALL">Semua Divisi</option>
               ${deptOptionsHtml}
             </select>
@@ -960,22 +982,22 @@ function showPayrollSub(type) {
         <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-            <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+            <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
           </div>
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-            <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+            <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
           </div>
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-            <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; width: 100%;">
+            <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
               <option value="ALL">Semua Divisi</option>
               ${deptOptionsHtml}
             </select>
           </div>
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label>
-            <input type="text" id="slipPrintDate" value="Subang, 01 September 2026" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+            <input type="text" id="slipPrintDate" value="Subang, 01 September 2026" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
           </div>
           <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
         </div>
@@ -1048,7 +1070,7 @@ function renderPayrollCards() {
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     return `
-      <div class="panel" style="margin-top:0; border-left: 4px solid #0284c7;">
+      <div class="panel" style="margin-top:0; border-left: 4px solid var(--info);">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
           <div>
             <div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div>
@@ -1056,10 +1078,10 @@ function renderPayrollCards() {
           </div>
           <div style="text-align: right;">
             <div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH</div>
-            <div style="font-size: 16px; font-weight: 800; color: #0284c7;">${money(emp.gajiBersih)}</div>
+            <div style="font-size: 16px; font-weight: 800; color: var(--info);">${money(emp.gajiBersih)}</div>
           </div>
         </div>
-        <div style="font-size: 12.5px; color: #475569; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px;">
+        <div style="font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px;">
           <div>Pokok: <b>${money(emp.pokok)}</b></div>
           <div>Tunjangan: <b>${money(totalPendapatan - emp.pokok)}</b></div>
           <div>Potongan: <b style="color:var(--danger);">${money(totalPotongan)}</b></div>
