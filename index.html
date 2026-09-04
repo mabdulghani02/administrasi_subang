@@ -37,8 +37,8 @@
     const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
 
-    // Inisialisasi Supabase (Cukup satu kali ini saja)
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Menggunakan nama variabel '_supabase' agar tidak konflik dengan objek global
+    const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // Set tanggal hari ini secara otomatis
     document.getElementById('tanggal').value = new Date().toISOString().slice(0, 10);
@@ -55,8 +55,8 @@
       statusMsg.style.color = '#1d2329';
       statusMsg.textContent = 'Menyimpan data ke Cloud...';
 
-      // Masukkan data ke tabel 'expenses' di Supabase
-      const { data, error } = await supabase
+      // Masukkan data ke tabel 'expenses' di Supabase menggunakan _supabase
+      const { data, error } = await _supabase
         .from('expenses')
         .insert([{ tanggal, sumber, nominal }]);
 
