@@ -6,10 +6,8 @@
   <base target="_top">
   <title>Keuangan & SDM - RM Tahu Sumedang Subang</title>
 
-  <!-- Menghubungkan ke file CSS terpisah -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- PUSTAKA PENDUKUNG -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -31,27 +29,27 @@
     </div>
     <div class="nav">
       <button data-page="dashboard" onclick="showPage('dashboard')">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         Dashboard
       </button>
       <button data-page="sales" onclick="showPage('sales')">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         Pendapatan
       </button>
       <button data-page="expense" onclick="showPage('expense')">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         Pengeluaran
       </button>
       <button data-page="advances" onclick="showPage('advances')">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
         Kasbon
       </button>
       <button data-page="attendance" onclick="showPage('attendance')">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Absensi
       </button>
       <button data-page="payroll" onclick="showPage('payroll')">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         Daftar Gaji
       </button>
     </div>
@@ -87,10 +85,10 @@
     showToast('Memuat data dari Cloud...');
     try {
       const [sRes, eRes, aRes, attRes, mRes] = await Promise.all([
-        _supabase.from('sales').select('*'),
-        _supabase.from('expenses').select('*'),
-        _supabase.from('advances').select('*'),
-        _supabase.from('attendance').select('*'),
+        _supabase.from('sales').select('*').order('tanggal', { ascending: false }),
+        _supabase.from('expenses').select('*').order('tanggal', { ascending: false }),
+        _supabase.from('advances').select('*').order('tanggal', { ascending: false }),
+        _supabase.from('attendance').select('*').order('tanggal', { ascending: false }),
         _supabase.from('master_salary').select('*')
       ]);
 
@@ -142,21 +140,22 @@
         </div>
       </div>
       <div class="panel">
-        <div class="panel-title">Menu Cepat Operasional</div>
+        <div class="panel-title">Menu Operasional</div>
         <div style="display:grid; gap:10px;">
-          <button class="btn btn-primary" onclick="showPage('sales')">Input Pendapatan Harian</button>
-          <button class="btn btn-secondary" onclick="showPage('expense')">Catat Pengeluaran</button>
-          <button class="btn btn-secondary" onclick="showPage('advances')">Pengajuan Kasbon</button>
-          <button class="btn btn-secondary" onclick="showPage('attendance')">Input Absensi Karyawan</button>
-          <button class="btn btn-secondary" onclick="showPage('payroll')">Rekapitulasi Gaji</button>
+          <button class="btn btn-primary" onclick="showPage('sales')">Kelola Pendapatan</button>
+          <button class="btn btn-secondary" onclick="showPage('expense')">Kelola Pengeluaran</button>
+          <button class="btn btn-secondary" onclick="showPage('advances')">Kelola Kasbon</button>
+          <button class="btn btn-secondary" onclick="showPage('attendance')">Kelola Absensi</button>
+          <button class="btn btn-secondary" onclick="showPage('payroll')">Daftar Gaji & Rekap</button>
         </div>
       </div>
     `;
   }
 
   function renderSales() {
+    const list = DB.sales;
     $('content').innerHTML = `
-      <div class="top"><div class="title">Input Pendapatan Harian</div></div>
+      <div class="top"><div class="title">Pendapatan Harian</div></div>
       <div class="panel">
         <form id="salesForm">
           <div class="form-grid">
@@ -169,6 +168,17 @@
           <div class="actions"><button class="btn btn-primary" type="submit">Simpan Pendapatan</button></div>
         </form>
       </div>
+      <div class="panel">
+        <div class="panel-title">Riwayat Pendapatan</div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Tanggal</th><th class="right">Makanan</th><th class="right">Minuman</th><th class="right">Tahu</th><th class="right">Cash</th></tr></thead>
+            <tbody>
+              ${list.length ? list.map(r => `<tr><td>${r.tanggal}</td><td class="right">${money(r.makanan)}</td><td class="right">${money(r.minuman)}</td><td class="right">${money(r.tahu)}</td><td class="right">${money(r.cash)}</td></tr>`).join('') : `<tr><td colspan="5" class="empty">Belum ada data pendapatan.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
     `;
     $('salesForm').onsubmit = async e => {
       e.preventDefault();
@@ -180,6 +190,7 @@
   }
 
   function renderExpense() {
+    const list = DB.expenses;
     $('content').innerHTML = `
       <div class="top"><div class="title">Pengeluaran Operasional</div></div>
       <div class="panel">
@@ -193,6 +204,17 @@
           <div class="actions"><button class="btn btn-primary" type="submit">Simpan Pengeluaran</button></div>
         </form>
       </div>
+      <div class="panel">
+        <div class="panel-title">Riwayat Pengeluaran</div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Tanggal</th><th>Sumber</th><th class="right">Nominal</th><th>Keterangan</th></tr></thead>
+            <tbody>
+              ${list.length ? list.map(r => `<tr><td>${r.tanggal}</td><td><b>${r.sumber}</b></td><td class="right">${money(r.nominal)}</td><td>${r.keterangan || '-'}</td></tr>`).join('') : `<tr><td colspan="4" class="empty">Belum ada data pengeluaran.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
     `;
     $('expForm').onsubmit = async e => {
       e.preventDefault();
@@ -204,6 +226,7 @@
   }
 
   function renderAdvances() {
+    const list = DB.advances;
     $('content').innerHTML = `
       <div class="top"><div class="title">Kasbon Karyawan</div></div>
       <div class="panel">
@@ -218,6 +241,17 @@
           <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
         </form>
       </div>
+      <div class="panel">
+        <div class="panel-title">Riwayat Kasbon</div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Tanggal</th><th>Nama</th><th>Divisi</th><th class="right">Nominal</th></tr></thead>
+            <tbody>
+              ${list.length ? list.map(r => `<tr><td>${r.tanggal}</td><td><b>${r.nama}</b></td><td><span class="badge badge-dept">${r.departemen}</span></td><td class="right">${money(r.nominal)}</td></tr>`).join('') : `<tr><td colspan="4" class="empty">Belum ada data kasbon.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
     `;
     $('advForm').onsubmit = async e => {
       e.preventDefault();
@@ -230,6 +264,7 @@
 
   function renderAttendance() {
     const employees = DB.masterSalary;
+    const list = DB.attendance;
     $('content').innerHTML = `
       <div class="top"><div class="title">Absensi Karyawan</div></div>
       <div class="panel">
@@ -253,6 +288,17 @@
           </div>
           <div class="actions"><button class="btn btn-primary" type="submit">Simpan Absensi</button></div>
         </form>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Riwayat Absensi</div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Tanggal</th><th>Nama</th><th>Status</th></tr></thead>
+            <tbody>
+              ${list.length ? list.map(r => `<tr><td>${r.tanggal}</td><td><b>${r.nama}</b></td><td>${r.status}</td></tr>`).join('') : `<tr><td colspan="3" class="empty">Belum ada data absensi.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
       </div>
     `;
     $('attForm').onsubmit = async e => {
