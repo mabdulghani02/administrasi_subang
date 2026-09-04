@@ -402,7 +402,7 @@ function showSalesSub(type) {
       <div class="panel">
         <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
           <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
-          <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px;">
+          <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--card); color:var(--text);">
           <button class="btn btn-success" onclick="downloadDailyReportImage()"><i class="fa-solid fa-camera"></i> Download Gambar Laporan</button>
         </div>
         <div id="reportResult"></div>
@@ -426,9 +426,9 @@ function loadReport() {
   const resultEl = $('reportResult');
   if (!dateEl || !resultEl) return;
 
-  const date = dateEl.value;
-  const sales = (DB.sales || []).find(r => formatDate(r.tanggal) === date) || {};
-  const counter = (DB.counter || []).find(r => formatDate(r.tanggal) === date) || {};
+  const selectedDate = formatDate(dateEl.value);
+  const sales = (DB.sales || []).find(r => formatDate(r.tanggal) === selectedDate) || {};
+  const counter = (DB.counter || []).find(r => formatDate(r.tanggal) === selectedDate) || {};
 
   const totalEsb = totalESB(sales);
   const totalCounter = totalCounter(counter);
@@ -438,8 +438,8 @@ function loadReport() {
   const diffGrab = Number(sales.grab || 0) - Number(counter.grab || 0);
   const diffQris = Number(sales.qris || 0) - Number(counter.qris || 0);
 
-  const dateObject = new Date(date + 'T00:00:00');
-  const formattedDate = isNaN(dateObject) ? date : dateObject.toLocaleDateString('id-ID', {
+  const dateObject = new Date(selectedDate + 'T00:00:00');
+  const formattedDate = isNaN(dateObject) ? selectedDate : dateObject.toLocaleDateString('id-ID', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
 
