@@ -33,11 +33,11 @@
   </div>
 
   <script>
-    // 1. Masukkan Project URL dan Anon Key dari Supabase Anda di sini
+    // 1. Inisialisasi Project URL dan Publishable Key Supabase Anda
     const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
+    const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
 
-    // Inisialisasi Supabase
+    // Inisialisasi Supabase (Cukup satu kali ini saja)
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // Set tanggal hari ini secara otomatis
@@ -52,6 +52,7 @@
       const nominal = document.getElementById('nominal').value;
       const statusMsg = document.getElementById('statusMsg');
 
+      statusMsg.style.color = '#1d2329';
       statusMsg.textContent = 'Menyimpan data ke Cloud...';
 
       // Masukkan data ke tabel 'expenses' di Supabase
