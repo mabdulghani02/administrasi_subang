@@ -180,33 +180,33 @@ button, input, select { font-family: inherit; }
   display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; background: #f1f5f9;
 }
 
-.slip-container { background: #e2e8f0; padding: 10px 0; display: flex; flex-direction: column; align-items: center; width: 100%; }
-.a4-page {
-  width: 100%; min-height: auto; padding: 10px; margin: 0 0 14px 0; background: white;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: grid; grid-template-columns: 1fr;
-  grid-template-rows: none; gap: 12px; box-sizing: border-box;
-}
+/* FORMAT SLIP GAJI ANTI-TERPOTONG */
+.slip-container { background: #e2e8f0; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; width: 100%; }
 .slip-card {
-  border: 1px dashed #94a3b8; padding: 14px 10px; background: #ffffff; font-size: 11px; line-height: 1.3;
-  display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; min-height: 380px;
+  width: 100%; max-width: 450px; border: 1px dashed #64748b; padding: 16px 14px; background: #ffffff;
+  font-size: 12px; line-height: 1.4; display: flex; flex-direction: column; justify-content: space-between;
+  box-sizing: border-box; margin-bottom: 16px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  page-break-inside: avoid; break-inside: avoid;
 }
-.slip-header { text-align: center; border-bottom: 1px solid #1e293b; padding-bottom: 4px; margin-bottom: 6px; }
-.slip-header-title { font-size: 12px; font-weight: 800; letter-spacing: 0.3px; }
-.slip-header-sub { font-size: 11px; font-weight: 700; }
-.slip-header-period { font-size: 10px; font-weight: 800; text-decoration: underline; margin-top: 2px; }
-.slip-bio { display: grid; grid-template-columns: 50px 5px 1fr; margin-bottom: 6px; font-weight: 600; font-size: 10.5px; }
-.slip-section-bar { background: #e2e8f0; font-weight: 800; text-align: center; padding: 3px 0; font-size: 10.5px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; margin: 4px 0; }
-.slip-row { display: grid; grid-template-columns: 1fr 18px 75px; padding: 1px 0; font-size: 10.5px; }
-.slip-subtotal { display: grid; grid-template-columns: 1fr 18px 75px; font-weight: 700; border-top: 0.5px solid #cbd5e1; padding-top: 2px; margin-top: 2px; font-size: 10.5px; }
-.slip-net-bar { background: #e2e8f0; display: grid; grid-template-columns: 1fr 18px 75px; font-weight: 800; padding: 5px 6px; margin-top: 6px; font-size: 11px; border: 1px solid #cbd5e1; }
-.slip-footer-date { text-align: right; font-size: 9.5px; color: #334155; margin-top: 4px; font-style: italic; }
+.slip-header { text-align: center; border-bottom: 1px solid #1e293b; padding-bottom: 6px; margin-bottom: 8px; }
+.slip-header-title { font-size: 13px; font-weight: 800; letter-spacing: 0.3px; }
+.slip-header-sub { font-size: 11.5px; font-weight: 700; }
+.slip-header-period { font-size: 11px; font-weight: 800; text-decoration: underline; margin-top: 3px; }
+.slip-bio { display: grid; grid-template-columns: 55px 5px 1fr; margin-bottom: 8px; font-weight: 700; font-size: 11px; }
+.slip-section-bar { background: #f1f5f9; font-weight: 800; text-align: center; padding: 4px 0; font-size: 11px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; margin: 6px 0; }
+.slip-row { display: grid; grid-template-columns: 1fr 18px 80px; padding: 2px 0; font-size: 11px; }
+.slip-subtotal { display: grid; grid-template-columns: 1fr 18px 80px; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 3px; margin-top: 3px; font-size: 11px; }
+.slip-net-bar { background: #e2e8f0; display: grid; grid-template-columns: 1fr 18px 80px; font-weight: 800; padding: 6px 8px; margin-top: 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px; }
+.slip-footer-date { text-align: right; font-size: 10px; color: #334155; margin-top: 6px; font-style: italic; }
 
 @media print {
   body { background: white !important; margin: 0 !important; padding: 0 !important; }
   .sidebar, .top, .panel:not(#printAreaPanel), .nav, #toast, .actions, .cards, .mobile-header, .sidebar-overlay { display: none !important; }
   .main { margin-left: 0 !important; width: 100% !important; padding: 0 !important; }
   .slip-container { background: white !important; padding: 0 !important; display: block !important; }
-  .a4-page { width: 210mm !important; min-height: 297mm !important; height: auto !important; margin: 0 !important; padding: 8mm 6mm !important; box-shadow: none !important; display: grid !important; grid-template-columns: repeat(2, 1fr) !important; grid-template-rows: repeat(3, 1fr) !important; page-break-after: always !important; }
-  .slip-card { height: 90mm !important; font-size: 9.5px !important; padding: 6mm 8px !important; min-height: 0 !important; }
-  @page { size: A4 portrait; margin: 0; }
+  .slip-card {
+    border: 1px dashed #94a3b8 !important; box-shadow: none !important; margin: 0 auto 10mm auto !important;
+    max-width: 100% !important; height: 92mm !important; page-break-inside: avoid !important; break-inside: avoid !important;
+  }
+  @page { size: A4 portrait; margin: 10mm; }
 }
