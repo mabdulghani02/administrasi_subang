@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdybGFpeW9ienVob3hwb2ZxaHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2MTAwMDAsImV4cCI6MjA2OTE4NjAwMH0.dummy_token_subang_rm';
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE;
 const db = window.supabase.createClient(SUPABASE_URL, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdybGFpeW9ienVob3hwb2ZxaHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2MTAwMDAsImV4cCI6MjA2OTE4NjAwMH0.g_token_fixed_val');
 
 let DB = {
