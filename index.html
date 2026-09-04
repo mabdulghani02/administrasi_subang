@@ -30,11 +30,26 @@
       <button style="background:transparent; border:0; color:#94a3b8; font-size:24px; cursor:pointer;" onclick="toggleSidebar()">✕</button>
     </div>
     <div class="nav">
-      <button data-page="dashboard" onclick="showPage('dashboard')">🏠 Dashboard</button>
-      <button data-page="sales" onclick="showPage('sales')">💰 Pendapatan</button>
-      <button data-page="expense" onclick="showPage('expense')">💸 Pengeluaran</button>
-      <button data-page="advances" onclick="showPage('advances')">💳 Kasbon</button>
-      <button data-page="payroll" onclick="showPage('payroll')">📑 Daftar Gaji</button>
+      <button data-page="dashboard" onclick="showPage('dashboard')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Dashboard
+      </button>
+      <button data-page="sales" onclick="showPage('sales')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Pendapatan
+      </button>
+      <button data-page="expense" onclick="showPage('expense')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Pengeluaran
+      </button>
+      <button data-page="advances" onclick="showPage('advances')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        Kasbon
+      </button>
+      <button data-page="payroll" onclick="showPage('payroll')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Daftar Gaji
+      </button>
     </div>
   </aside>
 
@@ -46,7 +61,7 @@
 <script>
   const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
-  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let DB = { sales: [], expenses: [], advances: [], masterSalary: [] };
 
@@ -68,10 +83,10 @@
     showToast('Memuat data dari Cloud...');
     try {
       const [sRes, eRes, aRes, mRes] = await Promise.all([
-        db.from('sales').select('*'),
-        db.from('expenses').select('*'),
-        db.from('advances').select('*'),
-        db.from('master_salary').select('*')
+        _supabase.from('sales').select('*'),
+        _supabase.from('expenses').select('*'),
+        _supabase.from('advances').select('*'),
+        _supabase.from('master_salary').select('*')
       ]);
 
       DB.sales = sRes.data || [];
@@ -106,11 +121,18 @@
 
     $('content').innerHTML = `
       <div class="top">
-        <div><div class="title">Dashboard Keuangan</div><div class="subtitle">Unit Subang - Cloud Connected</div></div>
+        <div class="title">Dashboard Keuangan</div>
+        <div class="subtitle">Unit Subang - Cloud Connected</div>
       </div>
       <div class="cards">
-        <div class="card card-danger"><div class="card-label">Pengeluaran Hari Ini</div><div class="card-value">${money(totalExp)}</div></div>
-        <div class="card card-orange"><div class="card-label">Kasbon Hari Ini</div><div class="card-value">${money(totalAdv)}</div></div>
+        <div class="card card-danger">
+          <div class="card-label">Pengeluaran Hari Ini</div>
+          <div class="card-value">${money(totalExp)}</div>
+        </div>
+        <div class="card card-orange">
+          <div class="card-label">Kasbon Hari Ini</div>
+          <div class="card-value">${money(totalAdv)}</div>
+        </div>
       </div>
       <div class="panel">
         <div class="panel-title">Menu Utama</div>
@@ -143,7 +165,7 @@
     $('salesForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
-      const { error } = await db.from('sales').insert([formData]);
+      const { error } = await _supabase.from('sales').insert([formData]);
       if (error) showToast('Gagal: ' + error.message);
       else { showToast('Pendapatan tersimpan!'); loadData('sales'); }
     };
@@ -167,7 +189,7 @@
     $('expForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
-      const { error } = await db.from('expenses').insert([formData]);
+      const { error } = await _supabase.from('expenses').insert([formData]);
       if (error) showToast('Gagal: ' + error.message);
       else { showToast('Pengeluaran tersimpan!'); loadData('expense'); }
     };
@@ -192,7 +214,7 @@
     $('advForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
-      const { error } = await db.from('advances').insert([formData]);
+      const { error } = await _supabase.from('advances').insert([formData]);
       if (error) showToast('Gagal: ' + error.message);
       else { showToast('Kasbon tersimpan!'); loadData('advances'); }
     };
