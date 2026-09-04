@@ -662,66 +662,81 @@ async function submitBatchExpenses() {
 
 function loadExpenseReport() {
   const dateEl = $('expenseReportDate');
-  if (!dateEl) return;
-  const date = dateEl.value;
+  const resultEl = $('expenseReportResult');
+  
+  if (!dateEl) { console.error('Elemen #expenseReportDate tidak ditemukan'); return; }
+  if (!resultEl) { console.error('Elemen #expenseReportResult tidak ditemukan'); return; }
 
-  const cashRow = DB.cash.find(r => formatDate(r.tanggal) === date) || {};
-  const dayExpenses = DB.expenses.filter(r => formatDate(r.tanggal) === date);
-  const totalPemasukan = Number(cashRow.saldo_harian || 0) + Number(cashRow.belanja_malam || 0);
-  const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
-  const sisaSaldo = totalPemasukan - totalPengeluaran;
+  try {
+    const date = normalizeDate(dateEl.value);
 
-  const dateObject = new Date(date + 'T00:00:00');
-  const formattedDate = dateObject.toLocaleDateString('id-ID', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  });
+    const cashRow = DB.cash.find(r => formatDate(r.tanggal) === date) || {};
+    const dayExpenses = DB.expenses.filter(r => formatDate(r.tanggal) === date);
+    
+    const totalPemasukan = Number(cashRow.saldo_harian || 0) + Number(cashRow.belanja_malam || 0);
+    const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
+    const sisaSaldo = totalPemasukan - totalPengeluaran;
 
-  let expenseRows = dayExpenses.length > 0 ? dayExpenses.map((expense, i) => `
-    <tr>
-      <td class="no">${i + 1}</td>
-      <td class="source">${escapeHtml(expense.sumber || '')}</td>
-      <td class="nominal">Rp ${Number(expense.nominal || 0).toLocaleString('id-ID')}</td>
-    </tr>
-  `).join('') : `<tr><td colspan="3" class="center" style="color:var(--muted); height:35px;">Tidak ada pengeluaran</td></tr>`;
+    const dateObject = new Date(date + 'T00:00:00');
+    const formattedDate = isNaN(dateObject) ? date : dateObject.toLocaleDateString('id-ID', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
 
-  $('expenseReportResult').innerHTML = `
-    <div class="expense-report-wrapper">
-      <div class="expense-report" id="captureExpenseReport">
-        <div class="expense-report-header">
-          <div>POSISI KEUANGAN TUNAI</div><div>LAPORAN:</div>
-        </div>
-        <div class="expense-report-header" style="margin-bottom: 15px;">
-          <div>: &nbsp; ${formattedDate}</div><div></div>
-        </div>
-        <div class="expense-report-grid">
-          <section>
-            <div class="expense-report-title">SUMBER SALDO</div>
-            <table class="expense-table">
-              <thead><tr><th class="no">NO</th><th>SUMBER</th><th class="nominal">NOMINAL</th></tr></thead>
-              <tbody>
-                <tr><td class="no">1</td><td class="source">SALDO HARIAN</td><td class="nominal">Rp ${Number(cashRow.saldo_harian || 0).toLocaleString('id-ID')}</td></tr>
-                <tr><td class="no">2</td><td class="source">BELANJA MALAM</td><td class="nominal">Rp ${Number(cashRow.belanja_malam || 0).toLocaleString('id-ID')}</td></tr>
-                <tr class="expense-total-row"><td colspan="2" style="text-align: center;">TOTAL PEMASUKAN</td><td class="nominal">Rp ${Number(totalPemasukan).toLocaleString('id-ID')}</td></tr>
-              </tbody>
-            </table>
-          </section>
-          <section>
-            <div class="expense-report-title">PENGELUARAN</div>
-            <table class="expense-table">
-              <thead><tr><th class="no">NO</th><th>SUMBER</th><th class="nominal">NOMINAL</th></tr></thead>
-              <tbody>
-                ${expenseRows}
-                <tr class="expense-total-row"><td colspan="2" style="text-align: center;">TOTAL PENGELUARAN</td><td class="nominal">Rp ${Number(totalPengeluaran).toLocaleString('id-ID')}</td></tr>
-              </tbody>
-            </table>
-          </section>
-        </div>
-        <div class="expense-report-footer" style="margin-top: 15px;">
-          <div>SISA SALDO TUNAI</div><div style="text-align: right;">Rp ${Number(sisaSaldo).toLocaleString('id-ID')}</div>
+    let expenseRowsHtml = dayExpenses.length > 0 
+      ? dayExpenses.map((expense, i) => reportRow(`${i + 1}. ${escapeHtml(expense.sumber || 'Pengeluaran')}`, expense.nominal)).join('') 
+      : `<div style="text-align:center; color:#64748b; font-size:13.5px; padding:10px;">Tidak ada pengeluaran</div>`;
+
+    resultEl.innerHTML = `
+      <div class="expense-report-wrapper">
+        <div id="captureExpenseReport" style="padding: 20px; background: white; color: black; border-radius: 8px; border: 1px solid #e2e8f0; font-family: Arial, sans-serif;">
+          
+          <div style="text-align: center; font-weight: 800; margin-bottom: 5px; font-size: 15px;">
+            RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br><span style="font-size:12px;">UNIT SUBANG</span>
+          </div>
+          <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
+          <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">
+            LAPORAN KAS & PENGELUARAN<br>
+            <span style="font-size:13px; font-weight:normal;">${formattedDate}</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
+            <!-- KIRI: SUMBER SALDO -->
+            <div>
+              <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">SUMBER SALDO</div>
+              ${reportRow('1. Saldo Harian', cashRow.saldo_harian)}
+              ${reportRow('2. Belanja Malam', cashRow.belanja_malam)}
+              <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+                ${reportRow('TOTAL PEMASUKAN', totalPemasukan)}
+              </div>
+            </div>
+            
+            <!-- KANAN: PENGELUARAN -->
+            <div>
+              <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">RINCIAN PENGELUARAN</div>
+              ${expenseRowsHtml}
+              <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+                ${reportRow('TOTAL PENGELUARAN', totalPengeluaran)}
+              </div>
+            </div>
+          </div>
+
+          <!-- BAWAH: SISA SALDO -->
+          <div>
+            <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px; color: ${sisaSaldo < 0 ? '#dc2626' : '#059669'};">POSISI KAS AKHIR</div>
+            ${reportRow('SISA SALDO TUNAI', sisaSaldo)}
+          </div>
+          
         </div>
       </div>
-    </div>
-  `;
+    `;
+  } catch (error) {
+    console.error('Gagal memuat laporan pengeluaran:', error);
+    resultEl.innerHTML = `
+      <div style="color:#dc2626; padding: 15px; border: 1px solid #dc2626; border-radius: 8px;">
+        Gagal memuat laporan pengeluaran. <br><small>${error.message}</small>
+      </div>
+    `;
+  }
 }
 
 function downloadExpenseReportImage() {
