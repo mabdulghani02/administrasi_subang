@@ -2,75 +2,221 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Keuangan Subang - Supabase</title>
-  <!-- Pustaka Supabase JS dari CDN -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <base target="_top">
+  <title>Keuangan & SDM - RM Tahu Sumedang Subang</title>
+
+  <!-- Menghubungkan ke file CSS terpisah -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- PUSTAKA PENDUKUNG -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    body { font-family: sans-serif; margin: 0; padding: 20px; background: #f4f6f9; color: #1d2329; }
-    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-    h2 { color: #d90000; margin-top: 0; }
-    input, button { width: 100%; padding: 12px; margin-top: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-    button { background: #d90000; color: white; border: none; font-weight: bold; cursor: pointer; }
-    button:hover { background: #b80000; }
-    .status { margin-top: 15px; font-weight: bold; font-size: 14px; color: #15803d; }
-  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
-  <div class="card">
-    <h2>Uji Koneksi Supabase</h2>
-    <p>Masukkan data pengeluaran operasional untuk diuji langsung ke database Supabase Anda:</p>
-    
-    <form id="testForm">
-      <input type="date" id="tanggal" required>
-      <input type="text" id="sumber" placeholder="Sumber/Nama Barang (Contoh: Gas LPG)" required>
-      <input type="number" id="nominal" placeholder="Nominal (Rp)" required>
-      <button type="submit">Kirim ke Supabase</button>
-    </form>
-    
-    <div id="statusMsg" class="status"></div>
-  </div>
+<div class="mobile-header">
+  <div style="font-weight: 800; font-size: 16px;">KEUANGAN SUBANG</div>
+  <button class="hamburger-btn" onclick="toggleSidebar()">☰ Menu</button>
+</div>
 
-  <script>
-    // 1. Inisialisasi Project URL dan Publishable Key Supabase Anda
-    const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-    // Menggunakan nama variabel '_supabase' agar tidak konflik dengan objek global
-    const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+<div class="app">
+  <aside class="sidebar" id="appSidebar">
+    <div class="brand">
+      <div>KEUANGAN SUBANG<small>Rumah Makan Tahu Sumedang</small></div>
+      <button style="background:transparent; border:0; color:#94a3b8; font-size:24px; cursor:pointer;" onclick="toggleSidebar()">✕</button>
+    </div>
+    <div class="nav">
+      <button data-page="dashboard" onclick="showPage('dashboard')">🏠 Dashboard</button>
+      <button data-page="sales" onclick="showPage('sales')">💰 Pendapatan</button>
+      <button data-page="expense" onclick="showPage('expense')">💸 Pengeluaran</button>
+      <button data-page="advances" onclick="showPage('advances')">💳 Kasbon</button>
+      <button data-page="payroll" onclick="showPage('payroll')">📑 Daftar Gaji</button>
+    </div>
+  </aside>
 
-    // Set tanggal hari ini secara otomatis
-    document.getElementById('tanggal').value = new Date().toISOString().slice(0, 10);
+  <main class="main"><div id="content"></div></main>
+</div>
 
-    // Fungsi ketika form dikirim
-    document.getElementById('testForm').addEventListener('submit', async (e) => {
+<div id="toast" class="toast"></div>
+
+<script>
+  const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let DB = { sales: [], expenses: [], advances: [], masterSalary: [] };
+
+  function toggleSidebar() {
+    document.getElementById('appSidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+  }
+
+  const $ = id => document.getElementById(id);
+  function money(v) { return 'Rp ' + Number(v || 0).toLocaleString('id-ID'); }
+  function today() { return new Date().toISOString().slice(0, 10); }
+
+  function showToast(msg) {
+    const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 2500);
+  }
+
+  async function loadData(targetPage = 'dashboard') {
+    showToast('Memuat data dari Cloud...');
+    try {
+      const [sRes, eRes, aRes, mRes] = await Promise.all([
+        db.from('sales').select('*'),
+        db.from('expenses').select('*'),
+        db.from('advances').select('*'),
+        db.from('master_salary').select('*')
+      ]);
+
+      DB.sales = sRes.data || [];
+      DB.expenses = eRes.data || [];
+      DB.advances = aRes.data || [];
+      DB.masterSalary = mRes.data || [];
+
+      showPage(targetPage);
+    } catch (err) {
+      showToast('Gagal memuat data.');
+    }
+  }
+
+  function showPage(page) {
+    document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+    $('appSidebar').classList.remove('open');
+    $('sidebarOverlay').classList.remove('active');
+
+    if (page === 'dashboard') renderDashboard();
+    if (page === 'sales') renderSales();
+    if (page === 'expense') renderExpense();
+    if (page === 'advances') renderAdvances();
+    if (page === 'payroll') renderPayroll();
+  }
+
+  function renderDashboard() {
+    const d = today();
+    const expToday = DB.expenses.filter(r => r.tanggal === d);
+    const advToday = DB.advances.filter(r => r.tanggal === d);
+    const totalExp = expToday.reduce((sum, r) => sum + Number(r.nominal || 0), 0);
+    const totalAdv = advToday.reduce((sum, r) => sum + Number(r.nominal || 0), 0);
+
+    $('content').innerHTML = `
+      <div class="top">
+        <div><div class="title">Dashboard Keuangan</div><div class="subtitle">Unit Subang - Cloud Connected</div></div>
+      </div>
+      <div class="cards">
+        <div class="card card-danger"><div class="card-label">Pengeluaran Hari Ini</div><div class="card-value">${money(totalExp)}</div></div>
+        <div class="card card-orange"><div class="card-label">Kasbon Hari Ini</div><div class="card-value">${money(totalAdv)}</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Menu Utama</div>
+        <div style="display:grid; gap:10px;">
+          <button class="btn btn-primary" onclick="showPage('sales')">Input Pendapatan</button>
+          <button class="btn btn-secondary" onclick="showPage('expense')">Input Pengeluaran</button>
+          <button class="btn btn-secondary" onclick="showPage('advances')">Input Kasbon</button>
+          <button class="btn btn-secondary" onclick="showPage('payroll')">Daftar Gaji</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSales() {
+    $('content').innerHTML = `
+      <div class="top"><div class="title">Input Pendapatan Harian</div></div>
+      <div class="panel">
+        <form id="salesForm">
+          <div class="form-grid">
+            <div class="field"><label>Tanggal</label><input type="date" name="tanggal" value="${today()}" required></div>
+            <div class="field"><label>Makanan (Rp)</label><input type="number" name="makanan" value="0" required></div>
+            <div class="field"><label>Minuman (Rp)</label><input type="number" name="minuman" value="0" required></div>
+            <div class="field"><label>Tahu (Rp)</label><input type="number" name="tahu" value="0" required></div>
+            <div class="field"><label>Cash (Rp)</label><input type="number" name="cash" value="0" required></div>
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Pendapatan</button></div>
+        </form>
+      </div>
+    `;
+    $('salesForm').onsubmit = async e => {
       e.preventDefault();
-      
-      const tanggal = document.getElementById('tanggal').value;
-      const sumber = document.getElementById('sumber').value;
-      const nominal = document.getElementById('nominal').value;
-      const statusMsg = document.getElementById('statusMsg');
+      const formData = Object.fromEntries(new FormData(e.target));
+      const { error } = await db.from('sales').insert([formData]);
+      if (error) showToast('Gagal: ' + error.message);
+      else { showToast('Pendapatan tersimpan!'); loadData('sales'); }
+    };
+  }
 
-      statusMsg.style.color = '#1d2329';
-      statusMsg.textContent = 'Menyimpan data ke Cloud...';
+  function renderExpense() {
+    $('content').innerHTML = `
+      <div class="top"><div class="title">Pengeluaran Operasional</div></div>
+      <div class="panel">
+        <form id="expForm">
+          <div class="form-grid">
+            <div class="field"><label>Tanggal</label><input type="date" name="tanggal" value="${today()}" required></div>
+            <div class="field"><label>Sumber / Keperluan</label><input type="text" name="sumber" placeholder="Contoh: Gas LPG" required></div>
+            <div class="field"><label>Nominal (Rp)</label><input type="number" name="nominal" placeholder="0" required></div>
+            <div class="field"><label>Keterangan</label><input type="text" name="keterangan" placeholder="-"></div>
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Pengeluaran</button></div>
+        </form>
+      </div>
+    `;
+    $('expForm').onsubmit = async e => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(e.target));
+      const { error } = await db.from('expenses').insert([formData]);
+      if (error) showToast('Gagal: ' + error.message);
+      else { showToast('Pengeluaran tersimpan!'); loadData('expense'); }
+    };
+  }
 
-      // Masukkan data ke tabel 'expenses' di Supabase menggunakan _supabase
-      const { data, error } = await _supabase
-        .from('expenses')
-        .insert([{ tanggal, sumber, nominal }]);
+  function renderAdvances() {
+    $('content').innerHTML = `
+      <div class="top"><div class="title">Kasbon Karyawan</div></div>
+      <div class="panel">
+        <form id="advForm">
+          <div class="form-grid">
+            <div class="field"><label>Tanggal</label><input type="date" name="tanggal" value="${today()}" required></div>
+            <div class="field"><label>Nama Karyawan</label><input type="text" name="nama" placeholder="Nama..." required></div>
+            <div class="field"><label>Divisi</label><input type="text" name="departemen" placeholder="Divisi..." required></div>
+            <div class="field"><label>Nominal (Rp)</label><input type="number" name="nominal" placeholder="0" required></div>
+            <div class="field"><label>Keterangan</label><input type="text" name="keterangan" placeholder="Keperluan..."></div>
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
+        </form>
+      </div>
+    `;
+    $('advForm').onsubmit = async e => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(e.target));
+      const { error } = await db.from('advances').insert([formData]);
+      if (error) showToast('Gagal: ' + error.message);
+      else { showToast('Kasbon tersimpan!'); loadData('advances'); }
+    };
+  }
 
-      if (error) {
-        statusMsg.style.color = '#b91c1c';
-        statusMsg.textContent = 'Gagal: ' + error.message;
-      } else {
-        statusMsg.style.color = '#15803d';
-        statusMsg.textContent = 'Berhasil! Data tersimpan di Supabase.';
-        document.getElementById('sumber').value = '';
-        document.getElementById('nominal').value = '';
-      }
-    });
-  </script>
+  function renderPayroll() {
+    const list = DB.masterSalary;
+    $('content').innerHTML = `
+      <div class="top"><div class="title">Daftar Gaji Karyawan</div></div>
+      <div class="panel">
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Nama</th><th>Divisi</th><th class="right">Gaji Pokok</th></tr></thead>
+            <tbody>
+              ${list.length ? list.map(r => `<tr><td><b>${r.nama}</b></td><td><span class="badge badge-dept">${r.departemen || '-'}</span></td><td class="right">${money(r.gaji_pokok)}</td></tr>`).join('') : `<tr><td colspan="3" class="empty">Belum ada data master gaji di Supabase.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  loadData();
+</script>
 
 </body>
 </html>
