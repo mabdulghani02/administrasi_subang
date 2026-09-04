@@ -6,10 +6,8 @@
   <base target="_top">
   <title>Keuangan & SDM - RM Tahu Sumedang Subang</title>
 
-  <!-- PENGHUBUNG CSS EKSTERNAL -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- PUSTAKA SUPABASE, HTML2CANVAS & SHEETJS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -17,18 +15,14 @@
 
 <body>
 
-<!-- HEADER MOBILE PERMANEN -->
 <div class="mobile-header">
   <div style="font-weight: 800; font-size: 15px; letter-spacing: 0.5px;">KEUANGAN SUBANG</div>
   <button class="hamburger-btn" onclick="toggleSidebar()">☰ Menu Navigasi</button>
 </div>
 
-<!-- OVERLAY GELAP -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <div class="app">
-
-  <!-- SIDEBAR MOBILE -->
   <aside class="sidebar" id="appSidebar">
     <div class="brand">
       <div>
@@ -54,17 +48,14 @@
     </div>
   </aside>
 
-  <!-- MAIN -->
   <main class="main">
     <div id="content"></div>
   </main>
-
 </div>
 
 <div id="toast" class="toast"></div>
 
 <script>
-  // KONEKSI SUPABASE
   const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
   const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -229,9 +220,6 @@
     if (page === 'slips') renderSlipsPage();
   }
 
-  /* ========================================
-     DASHBOARD
-  ================================-------- */
   function renderDashboard() {
     const date = today();
     const sales = DB.sales.find(row => formatDate(row.tanggal) === date) || {};
@@ -288,9 +276,6 @@
     `;
   }
 
-  /* ========================================
-     MODUL PENDAPATAN
-  ================================-------- */
   function renderSales() {
     const sales = DB.sales[DB.sales.length - 1] || {};
     const counter = DB.counter[DB.counter.length - 1] || {};
@@ -358,9 +343,6 @@
     `;
   }
 
-  /* ========================================
-     MODUL PENGELUARAN & LAPORAN PENGELUARAN
-  ================================-------- */
   function renderExpense() {
     $('content').innerHTML = `
       <div class="top"><div><div class="title">Pengeluaran Operasional</div></div></div>
@@ -431,14 +413,6 @@
     downloadElementAsImage('captureExpenseReport', 'LAPORAN_PENGELUARAN_' + date);
   }
 
-  function emptySourceRows(start, end) {
-    let html = '';
-    for (let i = start; i <= end; i++) {
-      html += `<tr><td class="no">${i}</td><td class="source"></td><td class="nominal"></td></tr>`;
-    }
-    return html;
-  }
-
   function loadExpenseReport() {
     const date = $('expenseReportDate').value;
     if (!date) { showToast('Pilih tanggal laporan.'); return; }
@@ -454,26 +428,18 @@
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
     });
 
+    // DINAMIS: Hanya merender sebanyak item pengeluaran yang ada pada hari itu
     let expenseRows = '';
-    for (let i = 0; i < 50; i++) {
-      const expense = dayExpenses[i];
-      if (expense) {
-        expenseRows += `
-          <tr>
-            <td class="no">${i + 1}</td>
-            <td class="source">${escapeHtml(expense.sumber || '')}</td>
-            <td class="nominal">Rp ${Number(expense.nominal || 0).toLocaleString('id-ID')}</td>
-          </tr>
-        `;
-      } else {
-        expenseRows += `
-          <tr>
-            <td class="no">${i + 1}</td>
-            <td class="source"></td>
-            <td class="nominal"></td>
-          </tr>
-        `;
-      }
+    if (dayExpenses.length > 0) {
+      expenseRows = dayExpenses.map((expense, i) => `
+        <tr>
+          <td class="no">${i + 1}</td>
+          <td class="source">${escapeHtml(expense.sumber || '')}</td>
+          <td class="nominal">Rp ${Number(expense.nominal || 0).toLocaleString('id-ID')}</td>
+        </tr>
+      `).join('');
+    } else {
+      expenseRows = `<tr><td colspan="3" class="center" style="color:var(--muted); height:35px;">Tidak ada pengeluaran</td></tr>`;
     }
 
     $('expenseReportResult').innerHTML = `
@@ -511,7 +477,6 @@
                     <td class="source">BELANJA MALAM</td>
                     <td class="nominal">Rp ${Number(cashRow.belanja_malam || 0).toLocaleString('id-ID')}</td>
                   </tr>
-                  ${emptySourceRows(3, 50)}
                   <tr class="expense-total-row">
                     <td colspan="2" style="text-align: center;">TOTAL PEMASUKAN</td>
                     <td class="nominal">Rp ${Number(totalPemasukan).toLocaleString('id-ID')}</td>
@@ -550,9 +515,6 @@
     `;
   }
 
-  /* ========================================
-     MODUL KAS & LAPORAN HARIAN
-  ================================-------- */
   function renderCash() {
     const cash = DB.cash[DB.cash.length - 1] || {};
     $('content').innerHTML = `
@@ -681,9 +643,6 @@
     `;
   }
 
-  /* ========================================
-     MODUL ABSENSI, UANG JAJAN, & JAM KERJA
-  ================================-------- */
   function renderAttendancePage() {
     $('content').innerHTML = `
       <div class="top"><div><div class="title">Absensi Mesin Karyawan</div></div></div>
@@ -922,9 +881,6 @@
     }).join('');
   }
 
-  /* ========================================
-     MODUL KASBON KARYAWAN
-  ================================-------- */
   function renderAdvancesPage() {
     const empOptionsHtml = (DB.masterSalary || []).map(e =>
       `<option value="${escapeHtml(e.nama)}">${escapeHtml(e.nama)} (${escapeHtml(e.departemen)})</option>`
@@ -990,9 +946,6 @@
     if (emp && emp.departemen) $('advDept').value = emp.departemen;
   }
 
-  /* =========================================================
-     PERHITUNGAN GAJI BERDASARKAN MASTER SPREADSHEET
-  ========================================================= */
   function getCalculatedPayrollList(sDate, eDate, fDept) {
     const periodAdvances = (DB.advances || []).filter(r => {
       const d = formatDate(r.tanggal);
@@ -1039,9 +992,6 @@
     });
   }
 
-  /* ========================================
-     MODUL DAFTAR GAJI
-  ================================-------- */
   function renderPayrollPage() {
     const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
     const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
@@ -1212,9 +1162,6 @@
     downloadElementAsImage('payrollCaptureArea', `DAFTAR_GAJI_${s}_sd_${e}`);
   }
 
-  /* ========================================
-     MODUL CETAK SLIP GAJI
-  ================================-------- */
   function renderSlipsPage() {
     const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
     const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
