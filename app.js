@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let DB = {
@@ -141,8 +141,8 @@ async function loadData(targetPage = null) {
 }
 
 function showPage(page) {
-  document.querySelectorAll('.nav button').forEach(button => {
-    button.classList.toggle('active', button.dataset.page === page);
+  document.querySelectorAll('.nav button, .b-nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.page === page);
   });
 
   $('appSidebar').classList.remove('open');
@@ -156,16 +156,10 @@ function showPage(page) {
 }
 
 /* ========================================
-   DASHBOARD DENGAN IKON & GRAFIK
+   DASHBOARD DENGAN PILIHAN BULAN (AKUMULASI TANGGAL 1 S.D. HARI INI)
 ======================================== */
 function renderDashboard() {
-  const date = today();
-  const counter = DB.counter.find(row => formatDate(row.tanggal) === date) || {};
-  const sales = DB.sales.find(row => formatDate(row.tanggal) === date) || {};
-  const expenses = DB.expenses.filter(row => formatDate(row.tanggal) === date);
-  
-  const omsetKonterToday = totalCounter(counter);
-  const totalExpToday = sum(expenses.map(r => r.nominal));
+  const currentMonth = new Date().toISOString().slice(0, 7);
 
   $('content').innerHTML = `
     <div class="top">
@@ -173,17 +167,20 @@ function renderDashboard() {
         <div class="title">Dashboard Keuangan</div>
         <div class="subtitle">Unit Subang - Rumah Makan Tahu Sumedang</div>
       </div>
-      <input type="date" value="${date}" onchange="dashboardDate(this.value)" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 13px; font-weight: 700; color: var(--muted);">Pilih Bulan Rekapitulasi:</label>
+        <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; background: white;">
+      </div>
     </div>
 
     <div class="cards">
       <div class="card card-green">
-        <div class="card-label">Omset Konter Hari Ini</div>
-        <div class="card-value" id="cardOmset">${money(omsetKonterToday)}</div>
+        <div class="card-label">Omset Konter Bulan Ini</div>
+        <div class="card-value" id="cardOmset">Rp 0</div>
       </div>
       <div class="card card-danger">
-        <div class="card-label">Pengeluaran Hari Ini</div>
-        <div class="card-value" id="cardExpense">${money(totalExpToday)}</div>
+        <div class="card-label">Pengeluaran Bulan Ini</div>
+        <div class="card-value" id="cardExpense">Rp 0</div>
       </div>
     </div>
 
@@ -198,86 +195,103 @@ function renderDashboard() {
     </div>
 
     <div class="panel">
-      <div class="panel-title">Grafik Omset Sebulan Terakhir</div>
+      <div class="panel-title">Grafik Tren Omset Bulan Ini</div>
       <div class="chart-container">
         <canvas id="monthlySalesChart"></canvas>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-title">Penjualan Berdasarkan Kategori (Hari Ini)</div>
+      <div class="panel-title">Akumulasi Penjualan Berdasarkan Kategori</div>
       <div class="chart-container">
         <canvas id="categorySalesChart"></canvas>
       </div>
     </div>
   `;
 
-  renderCharts(date, sales);
+  updateDashboardMetrics(currentMonth);
 }
 
-function dashboardDate(date) {
-  const targetDate = formatDate(date);
-  const counter = DB.counter.find(row => formatDate(row.tanggal) === targetDate) || {};
-  const sales = DB.sales.find(row => formatDate(row.tanggal) === targetDate) || {};
-  const expenses = DB.expenses.filter(row => formatDate(row.tanggal) === targetDate);
+let monthlyChartInstance = null;
+let categoryChartInstance = null;
 
-  $('cardOmset').textContent = money(totalCounter(counter));
-  $('cardExpense').textContent = money(sum(expenses.map(r => r.nominal)));
-  
-  renderCharts(targetDate, sales);
-}
+function updateDashboardMetrics(yearMonth) {
+  const [targetYear, targetMonth] = yearMonth.split('-');
 
-function renderCharts(targetDate, salesData) {
-  // 1. Grafik Omset Sebulan Terakhir
-  const currDate = new Date(targetDate);
-  const labels = [];
-  const dataOmset = [];
+  const monthCounters = (DB.counter || []).filter(r => {
+    const d = formatDate(r.tanggal);
+    return d.startsWith(yearMonth);
+  });
 
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(currDate);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
-    labels.push(dateStr.slice(8)); // Ambil tanggalnya saja
-    
-    const cMatch = DB.counter.find(r => formatDate(r.tanggal) === dateStr);
-    dataOmset.push(cMatch ? totalCounter(cMatch) : 0);
-  }
+  const monthExpenses = (DB.expenses || []).filter(r => {
+    const d = formatDate(r.tanggal);
+    return d.startsWith(yearMonth);
+  });
+
+  const monthSales = (DB.sales || []).filter(r => {
+    const d = formatDate(r.tanggal);
+    return d.startsWith(yearMonth);
+  });
+
+  const totalOmsetMonth = sum(monthCounters.map(r => totalCounter(r)));
+  const totalExpMonth = sum(monthExpenses.map(r => r.nominal));
+
+  $('cardOmset').textContent = money(totalOmsetMonth);
+  $('cardExpense').textContent = money(totalExpMonth);
+
+  let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
+  monthSales.forEach(s => {
+    sumMakanan += Number(s.makanan || 0);
+    sumMinuman += Number(s.minuman || 0);
+    sumTahu += Number(s.tahu || 0);
+    sumGorengan += Number(s.gorengan || 0);
+    sumLain += Number(s.lain_lain || 0);
+  });
 
   const ctxMonthly = document.getElementById('monthlySalesChart');
   if (ctxMonthly) {
-    new Chart(ctxMonthly, {
+    if (monthlyChartInstance) monthlyChartInstance.destroy();
+
+    const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const labels = [];
+    const dataOmset = [];
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
+      labels.push(String(day));
+      const match = monthCounters.find(r => formatDate(r.tanggal) === dayStr);
+      dataOmset.push(match ? totalCounter(match) : 0);
+    }
+
+    monthlyChartInstance = new Chart(ctxMonthly, {
       type: 'line',
       data: {
         labels: labels,
         datasets: [{
-          label: 'Omset Konter (Rp)',
+          label: 'Omset Harian (Rp)',
           data: dataOmset,
           borderColor: '#15803d',
           backgroundColor: 'rgba(21, 128, 61, 0.1)',
           fill: true,
-          tension: 0.3
+          tension: 0.2
         }]
       },
       options: { responsive: true, maintainAspectRatio: false }
     });
   }
 
-  // 2. Grafik Penjualan Kategori (Makanan, Minuman, Tahu, Lain-lain)
   const ctxCategory = document.getElementById('categorySalesChart');
   if (ctxCategory) {
-    new Chart(ctxCategory, {
+    if (categoryChartInstance) categoryChartInstance.destroy();
+
+    categoryChartInstance = new Chart(ctxCategory, {
       type: 'bar',
       data: {
-        labels: ['Makanan', 'Minuman', 'Tahu', 'Lain-lain'],
+        labels: ['Makanan', 'Minuman', 'Tahu', 'Gorengan', 'Lain-lain'],
         datasets: [{
-          label: 'Nilai Penjualan (Rp)',
-          data: [
-            Number(salesData.makanan || 0),
-            Number(salesData.minuman || 0),
-            Number(salesData.tahu || 0),
-            Number(salesData.lain_lain || 0)
-          ],
-          backgroundColor: ['#d90000', '#0369a1', '#f59e0b', '#64748b']
+          label: 'Akumulasi (Rp)',
+          data: [sumMakanan, sumMinuman, sumTahu, sumGorengan, sumLain],
+          backgroundColor: ['#d90000', '#0369a1', '#f59e0b', '#16a34a', '#64748b']
         }]
       },
       options: { responsive: true, maintainAspectRatio: false }
@@ -286,7 +300,7 @@ function renderCharts(targetDate, salesData) {
 }
 
 /* ========================================
-   MODUL PENDAPATAN (DENGAN SUBMENU LAPORAN HARIAN)
+   MODUL PENDAPATAN
 ======================================== */
 function renderSales() {
   const sales = DB.sales[DB.sales.length - 1] || {};
@@ -466,7 +480,7 @@ function downloadDailyReportImage() {
 }
 
 /* ========================================
-   MODUL PENGELUARAN (DENGAN SUBMENU LAPORAN & KAS)
+   MODUL PENGELUARAN
 ======================================== */
 function renderExpense() {
   $('content').innerHTML = `
@@ -641,7 +655,7 @@ function downloadExpenseReportImage() {
 }
 
 /* ========================================
-   MODUL ABSENSI (DENGAN SUBMENU UANG JAJAN & JAM KERJA)
+   MODUL ABSENSI
 ======================================== */
 function renderAttendancePage() {
   $('content').innerHTML = `
@@ -889,7 +903,7 @@ function handleExcelUpload(event) {
 }
 
 /* ========================================
-   MODUL DAFTAR GAJI (DENGAN SUBMENU CETAK SLIP PDF)
+   MODUL GAJI & SDM
 ======================================== */
 function renderPayrollPage() {
   $('content').innerHTML = `
@@ -921,62 +935,25 @@ function showPayrollSub(type) {
         <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-            <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+            <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
           </div>
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-            <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+            <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
           </div>
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-            <select id="payrollFilterDept" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; width: 100%;">
+            <select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; width: 100%;">
               <option value="ALL">Semua Divisi</option>
               ${deptOptionsHtml}
             </select>
           </div>
-          <button class="btn btn-success" onclick="downloadPayrollImage()">📷 Download Gambar Tabel</button>
         </div>
       </div>
 
-      <div class="panel" style="padding: 12px;">
-        <div id="payrollCaptureArea" style="padding: 8px; background: white;">
-          <div style="text-align: center; margin-bottom: 14px;">
-            <div style="font-family: Georgia, serif; font-size: 16px; font-weight: 800;">RUMAH MAKAN TAHU SUMEDANG SARI KEDELE</div>
-            <div style="font-size: 13px; font-weight: 800; color: #0284c7; margin-top: 2px;">DAFTAR REKAPITULASI GAJI KARYAWAN</div>
-            <div style="color: var(--muted); font-size: 11.5px;" id="payrollSubtitle">-</div>
-          </div>
-
-          <div class="table-wrap">
-            <table class="master-salary-table" id="payrollTable">
-              <thead>
-                <tr>
-                  <th rowspan="2" style="background: #f8fafc; color: #334155; width: 180px;">NAMA KARYAWAN</th>
-                  <th rowspan="2" class="th-header-pokok" style="width: 105px;">GAJI POKOK</th>
-                  <th colspan="7" class="th-header-tunjangan">Tunjangan</th>
-                  <th colspan="3" class="th-header-potongan">Potongan</th>
-                  <th rowspan="2" class="th-header-bersih" style="width: 115px;">Gaji Bersih</th>
-                </tr>
-                <tr>
-                  <th class="th-header-tunjangan-sub">JABATAN</th>
-                  <th class="th-header-tunjangan-sub">PRESTASI</th>
-                  <th class="th-header-tunjangan-sub">KESEHATAN</th>
-                  <th class="th-header-tunjangan-sub">JAM KERJA</th>
-                  <th class="th-header-tunjangan-sub">ZAKAT</th>
-                  <th class="th-header-tunjangan-sub">KEBERSIHAN/LOYALITAS</th>
-                  <th class="th-header-tunjangan-sub">LAIN-LAIN</th>
-                  <th class="th-header-potongan-sub">KASBON</th>
-                  <th class="th-header-potongan-sub">BPJS</th>
-                  <th class="th-header-potongan-sub">CICILAN</th>
-                </tr>
-              </thead>
-              <tbody id="payrollTableBody"></tbody>
-              <tfoot id="payrollTableFoot"></tfoot>
-            </table>
-          </div>
-        </div>
-      </div>
+      <div id="payrollCardsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px;"></div>
     `;
-    renderPayrollTable();
+    renderPayrollCards();
   } else {
     container.innerHTML = `
       <div class="panel">
@@ -1051,98 +1028,46 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
   });
 }
 
-function renderPayrollTable() {
+function renderPayrollCards() {
   const sDate = $('payrollStartDate')?.value || today();
   const eDate = $('payrollEndDate')?.value || today();
   const fDept = $('payrollFilterDept')?.value || 'ALL';
 
-  const tbody = $('payrollTableBody');
-  const tfoot = $('payrollTableFoot');
-  const subTitleEl = $('payrollSubtitle');
-  if (!tbody) return;
-
-  if (subTitleEl) subTitleEl.textContent = `Periode: ${sDate} s/d ${eDate} | Unit Subang`;
+  const container = $('payrollCardsContainer');
+  if (!container) return;
 
   const list = getCalculatedPayrollList(sDate, eDate, fDept);
 
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="13" class="empty">Belum ada data.</td></tr>`;
-    tfoot.innerHTML = '';
+    container.innerHTML = `<div class="panel" style="text-align: center; color: var(--muted);">Belum ada data gaji.</div>`;
     return;
   }
 
-  let sumPokok = 0, sumJabatan = 0, sumPrestasi = 0, sumKesehatan = 0;
-  let sumJamKerja = 0, sumZakat = 0, sumLoyalitas = 0, sumLainLain = 0;
-  let sumKasbon = 0, sumBpjs = 0, sumCicilan = 0, sumBersih = 0;
-
-  const rowsHtml = list.map(emp => {
-    sumPokok += emp.pokok;
-    sumJabatan += emp.jabatan;
-    sumPrestasi += emp.prestasi;
-    sumKesehatan += emp.kesehatan;
-    sumJamKerja += emp.jamKerja;
-    sumZakat += emp.zakat;
-    sumLoyalitas += emp.loyalitas;
-    sumLainLain += emp.lainLain;
-    sumKasbon += emp.kasbon;
-    sumBpjs += emp.bpjs;
-    sumCicilan += emp.cicilan;
-    sumBersih += emp.gajiBersih;
+  container.innerHTML = list.map(emp => {
+    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
+    const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     return `
-      <tr>
-        <td style="font-weight: 700;">${escapeHtml(emp.nama)}</td>
-        <td class="right">${money(emp.pokok)}</td>
-        <td class="right">${money(emp.jabatan)}</td>
-        <td class="right">${money(emp.prestasi)}</td>
-        <td class="right">${money(emp.kesehatan)}</td>
-        <td class="right">${money(emp.jamKerja)}</td>
-        <td class="right">${money(emp.zakat)}</td>
-        <td class="right">${money(emp.loyalitas)}</td>
-        <td class="right" style="color: #15803d;">${money(emp.lainLain)}</td>
-        <td class="right" style="color: #b91c1c;">${money(emp.kasbon)}</td>
-        <td class="right">${money(emp.bpjs)}</td>
-        <td class="right">${money(emp.cicilan)}</td>
-        <td class="right" style="font-weight: 800; color: #0284c7; background: #f0f9ff;">${money(emp.gajiBersih)}</td>
-      </tr>
+      <div class="panel" style="margin-top:0; border-left: 4px solid #0284c7;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
+          <div>
+            <div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div>
+            <span class="badge badge-dept" style="margin-top: 4px;">${escapeHtml(emp.departemen)}</span>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0284c7;">${money(emp.gajiBersih)}</div>
+          </div>
+        </div>
+        <div style="font-size: 12.5px; color: #475569; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px;">
+          <div>Pokok: <b>${money(emp.pokok)}</b></div>
+          <div>Tunjangan: <b>${money(totalPendapatan - emp.pokok)}</b></div>
+          <div>Potongan: <b style="color:var(--danger);">${money(totalPotongan)}</b></div>
+          <div>Total Bruto: <b>${money(totalPendapatan)}</b></div>
+        </div>
+      </div>
     `;
   }).join('');
-
-  tbody.innerHTML = rowsHtml;
-  tfoot.innerHTML = `
-    <tr style="background: #f8fafc; font-weight: 800;">
-      <td style="text-align: center; padding: 8px;">TOTAL</td>
-      <td class="right">${money(sumPokok)}</td>
-      <td class="right">${money(sumJabatan)}</td>
-      <td class="right">${money(sumPrestasi)}</td>
-      <td class="right">${money(sumKesehatan)}</td>
-      <td class="right">${money(sumJamKerja)}</td>
-      <td class="right">${money(sumZakat)}</td>
-      <td class="right">${money(sumLoyalitas)}</td>
-      <td class="right">${money(sumLainLain)}</td>
-      <td class="right">${money(sumKasbon)}</td>
-      <td class="right">${money(sumBpjs)}</td>
-      <td class="right">${money(sumCicilan)}</td>
-      <td class="right" style="background: #e0f2fe; color: #0284c7;">${money(sumBersih)}</td>
-    </tr>
-  `;
-}
-
-function downloadPayrollImage() {
-  const s = $('payrollStartDate')?.value || today();
-  const e = $('payrollEndDate')?.value || today();
-  downloadElementAsImage('payrollCaptureArea', `DAFTAR_GAJI_${s}_sd_${e}`);
-}
-
-function getMonthName(dateStr) {
-  if (!dateStr) return '';
-  const m = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-  const p = dateStr.split('-');
-  if (p.length >= 2) {
-    const idx = parseInt(p[1], 10) - 1;
-    return (m[idx] || '') + ' ' + p[0];
-  }
-  return '';
 }
 
 function renderSlipPages() {
