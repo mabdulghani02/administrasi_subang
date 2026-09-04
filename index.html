@@ -46,6 +46,10 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
         Kasbon
       </button>
+      <button data-page="attendance" onclick="showPage('attendance')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Absensi
+      </button>
       <button data-page="payroll" onclick="showPage('payroll')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         Daftar Gaji
@@ -63,7 +67,7 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
   const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  let DB = { sales: [], expenses: [], advances: [], masterSalary: [] };
+  let DB = { sales: [], expenses: [], advances: [], attendance: [], masterSalary: [] };
 
   function toggleSidebar() {
     document.getElementById('appSidebar').classList.toggle('open');
@@ -82,21 +86,23 @@
   async function loadData(targetPage = 'dashboard') {
     showToast('Memuat data dari Cloud...');
     try {
-      const [sRes, eRes, aRes, mRes] = await Promise.all([
+      const [sRes, eRes, aRes, attRes, mRes] = await Promise.all([
         _supabase.from('sales').select('*'),
         _supabase.from('expenses').select('*'),
         _supabase.from('advances').select('*'),
+        _supabase.from('attendance').select('*'),
         _supabase.from('master_salary').select('*')
       ]);
 
       DB.sales = sRes.data || [];
       DB.expenses = eRes.data || [];
       DB.advances = aRes.data || [];
+      DB.attendance = attRes.data || [];
       DB.masterSalary = mRes.data || [];
 
       showPage(targetPage);
     } catch (err) {
-      showToast('Gagal memuat data.');
+      showToast('Gagal memuat data dari server.');
     }
   }
 
@@ -109,6 +115,7 @@
     if (page === 'sales') renderSales();
     if (page === 'expense') renderExpense();
     if (page === 'advances') renderAdvances();
+    if (page === 'attendance') renderAttendance();
     if (page === 'payroll') renderPayroll();
   }
 
@@ -135,12 +142,13 @@
         </div>
       </div>
       <div class="panel">
-        <div class="panel-title">Menu Utama</div>
+        <div class="panel-title">Menu Cepat Operasional</div>
         <div style="display:grid; gap:10px;">
-          <button class="btn btn-primary" onclick="showPage('sales')">Input Pendapatan</button>
-          <button class="btn btn-secondary" onclick="showPage('expense')">Input Pengeluaran</button>
-          <button class="btn btn-secondary" onclick="showPage('advances')">Input Kasbon</button>
-          <button class="btn btn-secondary" onclick="showPage('payroll')">Daftar Gaji</button>
+          <button class="btn btn-primary" onclick="showPage('sales')">Input Pendapatan Harian</button>
+          <button class="btn btn-secondary" onclick="showPage('expense')">Catat Pengeluaran</button>
+          <button class="btn btn-secondary" onclick="showPage('advances')">Pengajuan Kasbon</button>
+          <button class="btn btn-secondary" onclick="showPage('attendance')">Input Absensi Karyawan</button>
+          <button class="btn btn-secondary" onclick="showPage('payroll')">Rekapitulasi Gaji</button>
         </div>
       </div>
     `;
@@ -217,6 +225,42 @@
       const { error } = await _supabase.from('advances').insert([formData]);
       if (error) showToast('Gagal: ' + error.message);
       else { showToast('Kasbon tersimpan!'); loadData('advances'); }
+    };
+  }
+
+  function renderAttendance() {
+    const employees = DB.masterSalary;
+    $('content').innerHTML = `
+      <div class="top"><div class="title">Absensi Karyawan</div></div>
+      <div class="panel">
+        <form id="attForm">
+          <div class="form-grid">
+            <div class="field"><label>Tanggal</label><input type="date" name="tanggal" value="${today()}" required></div>
+            <div class="field"><label>Pilih Karyawan</label>
+              <select name="nama" required>
+                <option value="">-- Pilih Karyawan --</option>
+                ${employees.map(emp => `<option value="${emp.nama}">${emp.nama} (${emp.departemen || 'Umum'})</option>`).join('')}
+              </select>
+            </div>
+            <div class="field"><label>Status Kehadiran</label>
+              <select name="status" required>
+                <option value="Hadir">Hadir</option>
+                <option value="Izin">Izin</option>
+                <option value="Sakit">Sakit</option>
+                <option value="Alpa">Alpa</option>
+              </select>
+            </div>
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Absensi</button></div>
+        </form>
+      </div>
+    `;
+    $('attForm').onsubmit = async e => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(e.target));
+      const { error } = await _supabase.from('attendance').insert([formData]);
+      if (error) showToast('Gagal: ' + error.message);
+      else { showToast('Absensi tersimpan!'); loadData('attendance'); }
     };
   }
 
