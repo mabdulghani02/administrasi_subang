@@ -4,11 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <base target="_top">
-  <title>Keuangan & SDM - RM Tahu Sumedang Subang</title>
+  <title>ADMINISTRASI</title>
 
   <link rel="stylesheet" href="style.css">
 
-  <!-- PUSTAKA PENDUKUNG (SUPABASE, HTML2CANVAS, SHEETJS, JSPDF, CHART.JS) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -20,7 +19,7 @@
 
 <div class="mobile-header">
   <div style="font-weight: 800; font-size: 15px; letter-spacing: 0.5px;">KEUANGAN SUBANG</div>
-  <button class="hamburger-btn" onclick="toggleSidebar()">☰ Menu Navigasi</button>
+  <button class="hamburger-btn" onclick="toggleSidebar()">☰ Menu</button>
 </div>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
@@ -48,6 +47,25 @@
     <div id="content"></div>
   </main>
 </div>
+
+<!-- BOTTOM NAVIGATION BAR MOBILE -->
+<nav class="bottom-nav">
+  <button class="b-nav-btn" data-page="dashboard" onclick="showPage('dashboard')">
+    <span>🏠</span><span>Home</span>
+  </button>
+  <button class="b-nav-btn" data-page="sales" onclick="showPage('sales')">
+    <span>💰</span><span>Pendapatan</span>
+  </button>
+  <button class="b-nav-btn" data-page="expense" onclick="showPage('expense')">
+    <span>💸</span><span>Pengeluaran</span>
+  </button>
+  <button class="b-nav-btn" data-page="attendance" onclick="showPage('attendance')">
+    <span>🕒</span><span>Absensi</span>
+  </button>
+  <button class="b-nav-btn" data-page="payroll" onclick="showPage('payroll')">
+    <span>📑</span><span>Gaji</span>
+  </button>
+</nav>
 
 <div id="toast" class="toast"></div>
 
