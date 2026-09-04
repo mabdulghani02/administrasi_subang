@@ -908,24 +908,35 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
   return masterList.map(emp => {
     const nmKey = String(emp.nama || '').trim().toUpperCase();
     const lainLain = (nmKey === "ZAENAL ARIFIN") ? DEFAULT_BONUS_LAIN : 0;
-    const kasbonDb = advanceMap.get(nmKey) || Number(emp.cicilan || 0);
+    
+    const kasbonPeriode = advanceMap.get(nmKey) || 0;
+    const cicilanTetap = Number(emp.cicilan || 0);
+    const totalPotonganKasbonCicilan = kasbonPeriode > 0 ? kasbonPeriode : cicilanTetap;
 
-    const totalPendapatan = Number(emp.gaji_pokok || 0) + Number(emp.jabatan || 0) + Number(emp.prestasi || 0) + Number(emp.kesehatan || 0) + Number(emp.zakat || 0) + Number(emp.kebersihan_loyalitas || 0) + lainLain;
-    const totalPotongan = kasbonDb;
+    const gajiPokok = Number(emp.gaji_pokok || 0);
+    const jabatan = Number(emp.jabatan || 0);
+    const prestasi = Number(emp.prestasi || 0);
+    const kesehatan = Number(emp.kesehatan || 0);
+    const zakat = Number(emp.zakat || 0);
+    const loyalitas = Number(emp.kebersihan_loyalitas || 0);
+
+    const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain;
+    const totalPotongan = totalPotonganKasbonCicilan;
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
 
     return {
       nama: emp.nama,
       departemen: emp.departemen,
-      pokok: Number(emp.gaji_pokok || 0),
-      jabatan: Number(emp.jabatan || 0),
-      prestasi: Number(emp.prestasi || 0),
-      kesehatan: Number(emp.kesehatan || 0),
+      tahunMasuk: emp.tahun_masuk || '-',
+      pokok: gajiPokok,
+      jabatan: jabatan,
+      prestasi: prestasi,
+      kesehatan: kesehatan,
       jamKerja: 0,
-      zakat: Number(emp.zakat || 0),
-      loyalitas: Number(emp.kebersihan_loyalitas || 0),
+      zakat: zakat,
+      loyalitas: loyalitas,
       lainLain: lainLain,
-      kasbon: kasbonDb,
+      kasbon: totalPotonganKasbonCicilan,
       bpjs: 0,
       cicilan: 0,
       gajiBersih: gajiBersih
@@ -1211,7 +1222,7 @@ function renderSlipPages() {
           <div class="slip-row"><span>GAJI POKOK</span><span>Rp</span><span class="right">${formatNum(emp.pokok)}</span></div>
           <div class="slip-row"><span>JABATAN</span><span>Rp</span><span class="right">${formatNum(emp.jabatan)}</span></div>
           <div class="slip-row"><span>PRESTASI</span><span>Rp</span><span class="right">${formatNum(emp.prestasi)}</span></div>
-          <div class="slip-row"><span>KESEHATAN</span><span>Rp</span><span class="right">${formatNum(emp.jamKerja ? 0 : emp.kesehatan)}</span></div>
+          <div class="slip-row"><span>KESEHATAN</span><span>Rp</span><span class="right">${formatNum(emp.kesehatan)}</span></div>
           <div class="slip-row"><span>JAM KERJA</span><span>Rp</span><span class="right">${formatNum(emp.jamKerja)}</span></div>
           <div class="slip-row"><span>ZAKAT</span><span>Rp</span><span class="right">${formatNum(emp.zakat)}</span></div>
           <div class="slip-row"><span>KEBERSIHAN/LOYALITAS</span><span>Rp</span><span class="right">${formatNum(emp.loyalitas)}</span></div>
