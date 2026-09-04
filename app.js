@@ -49,7 +49,7 @@ const $ = id => document.getElementById(id);
 
 function money(value) {
   const number = Number(value || 0);
-  return 'Rp ' + Math.abs(number).toLocaleString('id-ID');
+  return (number < 0 ? '-Rp ' : 'Rp ') + Math.abs(number).toLocaleString('id-ID');
 }
 
 function formatNum(value) {
@@ -99,7 +99,7 @@ function calculateHours(masukStr, pulangStr) {
 }
 
 function sum(values) { return values.reduce((t, v) => t + Number(v || 0), 0); }
-function totalESB(data) { return Number(data.makanan || 0) + Number(data.minuman || 0) + Number(data.tahu || 0) + Number(data.gorengan || 0) + Number(data.lain_lain || 0); }
+function totalESB(data) { return Number(data.makanan || 0) + Number(data.minuman || 0) + Number(data.tahu || 0) + Number(data.gorengan || 0) + Number(data.lain_lain || 0) + Number(data.pajak || 0); }
 function totalCounter(data) { return Number(data.cash || 0) + Number(data.debit_card || 0) + Number(data.grab || 0) + Number(data.qris || 0); }
 
 function showToast(message) {
@@ -440,7 +440,7 @@ function loadReport() {
             <div class="report-payment">
               ${reportRow('CASH', sales.cash)}
               ${reportRow('DEBIT CARD', sales.debit_card)}
-              ${reportRow('GRAB', sales.grab, true)}
+              ${reportRow('GRAB', sales.grab)}
               ${reportRow('QRIS', sales.qris)}
             </div>
           </section>
@@ -448,14 +448,14 @@ function loadReport() {
             <div class="report-section-title">LAPORAN PENDAPATAN KONTER</div>
             ${reportRow('CASH', counter.cash)}
             ${reportRow('DEBIT CARD', counter.debit_card)}
-            ${reportRow('GRAB', counter.grab, true)}
+            ${reportRow('GRAB', counter.grab)}
             ${reportRow('QRIS', counter.qris)}
             <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalCounter)}</div>
             <div class="report-selisih">SELISIH</div>
             ${reportRow('CASH', diffCash)}
-            ${reportRow('DEBIT CARD', diffDebit, true)}
-            ${reportRow('GRAB', diffGrab, true)}
-            ${reportRow('QRIS', diffQris, true)}
+            ${reportRow('DEBIT CARD', diffDebit)}
+            ${reportRow('GRAB', diffGrab)}
+            ${reportRow('QRIS', diffQris)}
           </section>
         </div>
       </div>
@@ -465,7 +465,9 @@ function loadReport() {
 
 function reportRow(label, value, forceDash = false) {
   const number = Number(value || 0);
-  const display = forceDash || number === 0 ? '-' : number.toLocaleString('id-ID');
+  const isNegative = number < 0;
+  const displayValue = Math.abs(number).toLocaleString('id-ID');
+  const display = forceDash || number === 0 ? '-' : (isNegative ? '-' + displayValue : displayValue);
   return `
     <div class="report-row">
       <span>${label}</span><span>:</span><span>Rp</span>
