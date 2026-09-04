@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let DB = {
@@ -151,370 +151,244 @@ function showPage(page) {
   if (page === 'dashboard') renderDashboard();
   if (page === 'sales') renderSales();
   if (page === 'expense') renderExpense();
-  if (page === 'expense-report') renderExpenseReport();
-  if (page === 'cash') renderCash();
-  if (page === 'report') renderReportPage();
   if (page === 'attendance') renderAttendancePage();
-  if (page === 'allowance') renderAllowancePage();
-  if (page === 'workhours') renderWorkHoursPage();
-  if (page === 'advances') renderAdvancesPage();
   if (page === 'payroll') renderPayrollPage();
-  if (page === 'slips') renderSlipsPage();
 }
 
+/* ========================================
+   DASHBOARD DENGAN IKON & GRAFIK
+======================================== */
 function renderDashboard() {
   const date = today();
-  const sales = DB.sales.find(row => formatDate(row.tanggal) === date) || {};
   const counter = DB.counter.find(row => formatDate(row.tanggal) === date) || {};
+  const sales = DB.sales.find(row => formatDate(row.tanggal) === date) || {};
   const expenses = DB.expenses.filter(row => formatDate(row.tanggal) === date);
-  const dayAdvances = (DB.advances || []).filter(row => formatDate(row.tanggal) === date);
+  
+  const omsetKonterToday = totalCounter(counter);
+  const totalExpToday = sum(expenses.map(r => r.nominal));
 
   $('content').innerHTML = `
     <div class="top">
       <div>
-        <div class="title">Dashboard Keuangan & SDM</div>
-        <div class="subtitle">Rumah Makan Tahu Sumedang Sari Kedele Unit Subang</div>
+        <div class="title">Dashboard Keuangan</div>
+        <div class="subtitle">Unit Subang - Rumah Makan Tahu Sumedang</div>
       </div>
       <input type="date" value="${date}" onchange="dashboardDate(this.value)" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
     </div>
 
     <div class="cards">
-      <div class="card card-red"><div class="card-label">Pendapatan ESB</div><div class="card-value">${money(totalESB(sales))}</div></div>
-      <div class="card"><div class="card-label">Pendapatan Konter</div><div class="card-value">${money(totalCounter(counter))}</div></div>
-      <div class="card card-danger"><div class="card-label">Pengeluaran Operasional</div><div class="card-value">${money(sum(expenses.map(r => r.nominal)))}</div></div>
-      <div class="card card-orange"><div class="card-label">Kasbon Hari Ini</div><div class="card-value">${money(sum(dayAdvances.map(r => r.nominal)))}</div></div>
+      <div class="card card-green">
+        <div class="card-label">Omset Konter Hari Ini</div>
+        <div class="card-value" id="cardOmset">${money(omsetKonterToday)}</div>
+      </div>
+      <div class="card card-danger">
+        <div class="card-label">Pengeluaran Hari Ini</div>
+        <div class="card-value" id="cardExpense">${money(totalExpToday)}</div>
+      </div>
     </div>
 
     <div class="panel">
       <div class="panel-title">Aksi Cepat</div>
-      <div class="quick-actions" style="display:grid; grid-template-columns: 1fr; gap: 10px;">
-        <button class="btn btn-primary" onclick="showPage('sales')">Input Pendapatan</button>
-        <button class="btn btn-secondary" onclick="showPage('expense')">Input Pengeluaran</button>
-        <button class="btn btn-secondary" onclick="showPage('expense-report')">Laporan Pengeluaran</button>
-        <button class="btn btn-secondary" onclick="showPage('report')">Laporan Harian</button>
-        <button class="btn btn-secondary" onclick="showPage('attendance')">Upload Absensi</button>
-        <button class="btn btn-secondary" onclick="showPage('allowance')">Daftar Uang Jajan</button>
-        <button class="btn btn-secondary" onclick="showPage('workhours')">Hitung Jam Kerja</button>
-        <button class="btn btn-secondary" onclick="showPage('advances')">Input Kasbon</button>
-        <button class="btn btn-secondary" onclick="showPage('payroll')">Daftar Gaji</button>
-        <button class="btn btn-secondary" onclick="showPage('slips')">Cetak Slip Gaji (PDF)</button>
+      <div class="icon-grid">
+        <div class="icon-btn" onclick="showPage('sales')"><span>💰</span><span>Pendapatan</span></div>
+        <div class="icon-btn" onclick="showPage('expense')"><span>💸</span><span>Pengeluaran</span></div>
+        <div class="icon-btn" onclick="showPage('attendance')"><span>🕒</span><span>Absensi</span></div>
+        <div class="icon-btn" onclick="showPage('payroll')"><span>📑</span><span>Gaji & Slip</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Grafik Omset Sebulan Terakhir</div>
+      <div class="chart-container">
+        <canvas id="monthlySalesChart"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Penjualan Berdasarkan Kategori (Hari Ini)</div>
+      <div class="chart-container">
+        <canvas id="categorySalesChart"></canvas>
       </div>
     </div>
   `;
+
+  renderCharts(date, sales);
 }
 
 function dashboardDate(date) {
   const targetDate = formatDate(date);
-  const sales = DB.sales.find(row => formatDate(row.tanggal) === targetDate) || {};
   const counter = DB.counter.find(row => formatDate(row.tanggal) === targetDate) || {};
+  const sales = DB.sales.find(row => formatDate(row.tanggal) === targetDate) || {};
   const expenses = DB.expenses.filter(row => formatDate(row.tanggal) === targetDate);
-  const dayAdvances = (DB.advances || []).filter(row => formatDate(row.tanggal) === targetDate);
 
-  document.querySelector('.cards').innerHTML = `
-    <div class="card card-red"><div class="card-label">Pendapatan ESB</div><div class="card-value">${money(totalESB(sales))}</div></div>
-    <div class="card"><div class="card-label">Pendapatan Konter</div><div class="card-value">${money(totalCounter(counter))}</div></div>
-    <div class="card card-danger"><div class="card-label">Pengeluaran Operasional</div><div class="card-value">${money(sum(expenses.map(r => r.nominal)))}</div></div>
-    <div class="card card-orange"><div class="card-label">Kasbon Hari Ini</div><div class="card-value">${money(sum(dayAdvances.map(r => r.nominal)))}</div></div>
-  `;
+  $('cardOmset').textContent = money(totalCounter(counter));
+  $('cardExpense').textContent = money(sum(expenses.map(r => r.nominal)));
+  
+  renderCharts(targetDate, sales);
 }
 
+function renderCharts(targetDate, salesData) {
+  // 1. Grafik Omset Sebulan Terakhir
+  const currDate = new Date(targetDate);
+  const labels = [];
+  const dataOmset = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(currDate);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    labels.push(dateStr.slice(8)); // Ambil tanggalnya saja
+    
+    const cMatch = DB.counter.find(r => formatDate(r.tanggal) === dateStr);
+    dataOmset.push(cMatch ? totalCounter(cMatch) : 0);
+  }
+
+  const ctxMonthly = document.getElementById('monthlySalesChart');
+  if (ctxMonthly) {
+    new Chart(ctxMonthly, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Omset Konter (Rp)',
+          data: dataOmset,
+          borderColor: '#15803d',
+          backgroundColor: 'rgba(21, 128, 61, 0.1)',
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+
+  // 2. Grafik Penjualan Kategori (Makanan, Minuman, Tahu, Lain-lain)
+  const ctxCategory = document.getElementById('categorySalesChart');
+  if (ctxCategory) {
+    new Chart(ctxCategory, {
+      type: 'bar',
+      data: {
+        labels: ['Makanan', 'Minuman', 'Tahu', 'Lain-lain'],
+        datasets: [{
+          label: 'Nilai Penjualan (Rp)',
+          data: [
+            Number(salesData.makanan || 0),
+            Number(salesData.minuman || 0),
+            Number(salesData.tahu || 0),
+            Number(salesData.lain_lain || 0)
+          ],
+          backgroundColor: ['#d90000', '#0369a1', '#f59e0b', '#64748b']
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+}
+
+/* ========================================
+   MODUL PENDAPATAN (DENGAN SUBMENU LAPORAN HARIAN)
+======================================== */
 function renderSales() {
   const sales = DB.sales[DB.sales.length - 1] || {};
   const counter = DB.counter[DB.counter.length - 1] || {};
 
   $('content').innerHTML = `
-    <div class="top"><div><div class="title">Laporan Pendapatan Harian</div></div></div>
-    <div class="panel">
-      <div class="panel-title">PENDAPATAN ESB</div>
-      <form id="salesForm">
-        <div class="form-grid">
-          ${inputField('tanggal', 'Tanggal', sales.tanggal || today(), 'date')}
-          ${inputField('makanan', 'Makanan', sales.makanan)}
-          ${inputField('minuman', 'Minuman', sales.minuman)}
-          ${inputField('tahu', 'Tahu', sales.tahu)}
-          ${inputField('gorengan', 'Gorengan', sales.gorengan)}
-          ${inputField('lain_lain', 'Lain-lain', sales.lain_lain)}
-          ${inputField('pajak', 'Pajak', sales.pajak)}
-          ${inputField('cash', 'Cash', sales.cash)}
-          ${inputField('debit_card', 'Debit Card', sales.debit_card)}
-          ${inputField('grab', 'Grab', sales.grab)}
-          ${inputField('qris', 'QRIS', sales.qris)}
-        </div>
-        <div class="actions"><button class="btn btn-primary" type="submit">Simpan ESB</button></div>
-      </form>
+    <div class="top">
+      <div><div class="title">Modul Pendapatan</div></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" onclick="showSalesSub('input')">Input Data</button>
+        <button class="btn btn-secondary" onclick="showSalesSub('report')">Laporan Harian</button>
+      </div>
     </div>
-
-    <div class="panel">
-      <div class="panel-title">PENDAPATAN KONTER</div>
-      <form id="counterForm">
-        <div class="form-grid">
-          ${inputField('tanggal', 'Tanggal', counter.tanggal || today(), 'date')}
-          ${inputField('cash', 'Cash', counter.cash)}
-          ${inputField('debit_card', 'Debit Card', counter.debit_card)}
-          ${inputField('grab', 'Grab', counter.grab)}
-          ${inputField('qris', 'QRIS', counter.qris)}
-        </div>
-        <div class="actions"><button class="btn btn-primary" type="submit">Simpan Konter</button></div>
-      </form>
-    </div>
+    <div id="salesSubContent"></div>
   `;
+  showSalesSub('input');
+}
 
-  $('salesForm').onsubmit = async e => {
-    e.preventDefault();
-    const formData = Object.fromEntries(new FormData(e.target));
-    const { error } = await db.from('sales').upsert([formData], { onConflict: 'tanggal' });
-    if (error) showToast('Gagal: ' + error.message);
-    else { showToast('Laporan ESB disimpan.'); loadData('sales'); }
-  };
+function showSalesSub(type) {
+  const container = $('salesSubContent');
+  if (!container) return;
 
-  $('counterForm').onsubmit = async e => {
-    e.preventDefault();
-    const formData = Object.fromEntries(new FormData(e.target));
-    const { error } = await db.from('counter').upsert([formData], { onConflict: 'tanggal' });
-    if (error) showToast('Gagal: ' + error.message);
-    else { showToast('Laporan Konter disimpan.'); loadData('sales'); }
-  };
+  if (type === 'input') {
+    container.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">PENDAPATAN ESB</div>
+        <form id="salesForm">
+          <div class="form-grid">
+            ${inputField('tanggal', 'Tanggal', today(), 'date')}
+            ${inputField('makanan', 'Makanan', 0)}
+            ${inputField('minuman', 'Minuman', 0)}
+            ${inputField('tahu', 'Tahu', 0)}
+            ${inputField('gorengan', 'Gorengan', 0)}
+            ${inputField('lain_lain', 'Lain-lain', 0)}
+            ${inputField('pajak', 'Pajak', 0)}
+            ${inputField('cash', 'Cash', 0)}
+            ${inputField('debit_card', 'Debit Card', 0)}
+            ${inputField('grab', 'Grab', 0)}
+            ${inputField('qris', 'QRIS', 0)}
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan ESB</button></div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">PENDAPATAN KONTER</div>
+        <form id="counterForm">
+          <div class="form-grid">
+            ${inputField('tanggal', 'Tanggal', today(), 'date')}
+            ${inputField('cash', 'Cash', 0)}
+            ${inputField('debit_card', 'Debit Card', 0)}
+            ${inputField('grab', 'Grab', 0)}
+            ${inputField('qris', 'QRIS', 0)}
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Konter</button></div>
+        </form>
+      </div>
+    `;
+
+    $('salesForm').onsubmit = async e => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(e.target));
+      const { error } = await db.from('sales').upsert([formData], { onConflict: 'tanggal' });
+      if (error) showToast('Gagal: ' + error.message);
+      else { showToast('Laporan ESB disimpan.'); loadData('sales'); }
+    };
+
+    $('counterForm').onsubmit = async e => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(e.target));
+      const { error } = await db.from('counter').upsert([formData], { onConflict: 'tanggal' });
+      if (error) showToast('Gagal: ' + error.message);
+      else { showToast('Laporan Konter disimpan.'); loadData('sales'); }
+    };
+  } else {
+    container.innerHTML = `
+      <div class="panel">
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+          <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
+          <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px;">
+          <button class="btn btn-success" onclick="downloadDailyReportImage()">📷 Download Gambar Laporan</button>
+        </div>
+        <div id="reportResult"></div>
+      </div>
+    `;
+    loadReport();
+  }
 }
 
 function inputField(name, label, value = '', type = 'number') {
   return `
     <div class="field">
       <label>${label}</label>
-      <input name="${name}" type="${type}" value="${value !== undefined && value !== null ? value : ''}" ${type === 'number' ? 'min="0" step="1"' : ''}>
-    </div>
-  `;
-}
-
-function renderExpense() {
-  $('content').innerHTML = `
-    <div class="top"><div><div class="title">Pengeluaran Operasional</div></div></div>
-    <div class="panel">
-      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
-        <div class="panel-title" style="margin-bottom:0;">Input Pengeluaran Sekaligus</div>
-        <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
-      </div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead><tr><th style="width: 35%;">Sumber</th><th style="width: 25%;">Nominal (Rp)</th><th>Keterangan</th><th style="width: 8%;" class="center">Aksi</th></tr></thead>
-          <tbody id="batchExpenseBody"></tbody>
-        </table>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
-        <button type="button" class="btn btn-secondary" onclick="addExpenseRow()">+ Tambah Baris</button>
-        <button type="button" class="btn btn-primary" onclick="submitBatchExpenses()">Simpan Semua</button>
-      </div>
-    </div>
-  `;
-  for (let i = 0; i < 4; i++) addExpenseRow();
-}
-
-function addExpenseRow() {
-  const tr = document.createElement('tr');
-  tr.className = 'expense-input-row';
-  tr.innerHTML = `
-    <td><input type="text" class="exp-sumber" placeholder="Contoh: SUSU KENTAL MANIS" style="width:140px; padding: 11px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; min-height:44px;"></td>
-    <td><input type="number" class="exp-nominal" placeholder="0" min="0" style="width:120px; padding: 11px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; min-height:44px;"></td>
-    <td><input type="text" class="exp-keterangan" placeholder="-" style="width:140px; padding: 11px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; min-height:44px;"></td>
-    <td class="center"><button type="button" class="btn btn-outline-danger" onclick="this.closest('tr').remove()" style="min-height:44px; min-width:44px;">✕</button></td>
-  `;
-  $('batchExpenseBody').appendChild(tr);
-}
-
-async function submitBatchExpenses() {
-  const tanggal = $('batchExpenseDate').value;
-  const items = [];
-  document.querySelectorAll('.expense-input-row').forEach(r => {
-    const s = r.querySelector('.exp-sumber').value.trim();
-    const n = r.querySelector('.exp-nominal').value.trim();
-    const k = r.querySelector('.exp-keterangan').value.trim();
-    if (s || n) items.push({ tanggal, sumber: s, nominal: Number(n || 0), keterangan: k || '-' });
-  });
-  if (!items.length) { showToast('Isi minimal satu baris.'); return; }
-  const { error } = await db.from('expenses').insert(items);
-  if (error) showToast('Gagal: ' + error.message);
-  else { showToast('Pengeluaran berhasil disimpan.'); loadData('expense'); }
-}
-
-function renderExpenseReport() {
-  $('content').innerHTML = `
-    <div class="top">
-      <div><div class="title">Laporan Pengeluaran Harian</div></div>
-      <div style="display:flex; flex-direction: column; gap:10px; width: 100%;">
-        <input type="date" id="expenseReportDate" value="${today()}" style="padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px; width:100%; min-height: 48px;">
-        <button class="btn btn-primary" onclick="loadExpenseReport()">Tampilkan</button>
-        <button class="btn btn-success" onclick="downloadExpenseReportImage()">📷 Download Gambar</button>
-      </div>
-    </div>
-    <div id="expenseReportResult"></div>
-  `;
-  loadExpenseReport();
-}
-
-function downloadExpenseReportImage() {
-  const date = $('expenseReportDate').value || today();
-  downloadElementAsImage('captureExpenseReport', 'LAPORAN_PENGELUARAN_' + date);
-}
-
-function loadExpenseReport() {
-  const date = $('expenseReportDate').value;
-  if (!date) { showToast('Pilih tanggal laporan.'); return; }
-
-  const cashRow = DB.cash.find(r => formatDate(r.tanggal) === date) || {};
-  const dayExpenses = DB.expenses.filter(r => formatDate(r.tanggal) === date);
-  const totalPemasukan = Number(cashRow.saldo_harian || 0) + Number(cashRow.belanja_malam || 0);
-  const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
-  const sisaSaldo = totalPemasukan - totalPengeluaran;
-
-  const dateObject = new Date(date + 'T00:00:00');
-  const formattedDate = dateObject.toLocaleDateString('id-ID', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  });
-
-  let expenseRows = '';
-  if (dayExpenses.length > 0) {
-    expenseRows = dayExpenses.map((expense, i) => `
-      <tr>
-        <td class="no">${i + 1}</td>
-        <td class="source">${escapeHtml(expense.sumber || '')}</td>
-        <td class="nominal">Rp ${Number(expense.nominal || 0).toLocaleString('id-ID')}</td>
-      </tr>
-    `).join('');
-  } else {
-    expenseRows = `<tr><td colspan="3" class="center" style="color:var(--muted); height:35px;">Tidak ada pengeluaran</td></tr>`;
-  }
-
-  $('expenseReportResult').innerHTML = `
-    <div class="expense-report-wrapper">
-      <div class="expense-report" id="captureExpenseReport">
-        <div class="expense-report-header">
-          <div>POSISI KEUANGAN TUNAI</div>
-          <div>LAPORAN:</div>
-        </div>
-
-        <div class="expense-report-header" style="margin-bottom: 15px;">
-          <div>: &nbsp; ${formattedDate}</div>
-          <div></div>
-        </div>
-
-        <div class="expense-report-grid">
-          <section>
-            <div class="expense-report-title">SUMBER SALDO</div>
-            <table class="expense-table">
-              <thead>
-                <tr>
-                  <th class="no">NO</th>
-                  <th>SUMBER</th>
-                  <th class="nominal">NOMINAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="no">1</td>
-                  <td class="source">SALDO HARIAN</td>
-                  <td class="nominal">Rp ${Number(cashRow.saldo_harian || 0).toLocaleString('id-ID')}</td>
-                </tr>
-                <tr>
-                  <td class="no">2</td>
-                  <td class="source">BELANJA MALAM</td>
-                  <td class="nominal">Rp ${Number(cashRow.belanja_malam || 0).toLocaleString('id-ID')}</td>
-                </tr>
-                <tr class="expense-total-row">
-                  <td colspan="2" style="text-align: center;">TOTAL PEMASUKAN</td>
-                  <td class="nominal">Rp ${Number(totalPemasukan).toLocaleString('id-ID')}</td>
-                </tr>
-              </tbody>
-            </table>
-          </section>
-
-          <section>
-            <div class="expense-report-title">PENGELUARAN</div>
-            <table class="expense-table">
-              <thead>
-                <tr>
-                  <th class="no">NO</th>
-                  <th>SUMBER</th>
-                  <th class="nominal">NOMINAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${expenseRows}
-                <tr class="expense-total-row">
-                  <td colspan="2" style="text-align: center;">TOTAL PENGELUARAN</td>
-                  <td class="nominal">Rp ${Number(totalPengeluaran).toLocaleString('id-ID')}</td>
-                </tr>
-              </tbody>
-            </table>
-          </section>
-        </div>
-
-        <div class="expense-report-footer" style="margin-top: 15px;">
-          <div>SISA SALDO TUNAI</div>
-          <div style="text-align: right;">Rp ${Number(sisaSaldo).toLocaleString('id-ID')}</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderCash() {
-  const cash = DB.cash[DB.cash.length - 1] || {};
-  $('content').innerHTML = `
-    <div class="top"><div><div class="title">Posisi Saldo Kas</div></div></div>
-    <div class="panel">
-      <form id="cashForm">
-        <div class="form-grid">
-          ${inputField('tanggal', 'Tanggal', cash.tanggal || today(), 'date')}
-          ${inputField('saldo_harian', 'Saldo Harian', cash.saldo_harian)}
-          ${inputField('belanja_malam', 'Belanja Malam', cash.belanja_malam)}
-        </div>
-        <div class="actions"><button class="btn btn-primary" type="submit">Simpan Posisi Kas</button></div>
-      </form>
-    </div>
-  `;
-  $('cashForm').onsubmit = async e => {
-    e.preventDefault();
-    const formData = Object.fromEntries(new FormData(e.target));
-    const { error } = await db.from('cash_positions').upsert([formData], { onConflict: 'tanggal' });
-    if (error) showToast('Gagal: ' + error.message);
-    else { showToast('Posisi kas disimpan.'); loadData('cash'); }
-  };
-}
-
-function renderReportPage() {
-  $('content').innerHTML = `
-    <div class="top">
-      <div><div class="title">Laporan Pendapatan Harian</div></div>
-      <div style="display:flex; flex-direction: column; gap:10px; width: 100%;">
-        <input type="date" id="reportDate" value="${today()}" style="padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px; width:100%; min-height: 48px;">
-        <button class="btn btn-primary" onclick="loadReport()">Tampilkan</button>
-        <button class="btn btn-success" onclick="downloadDailyReportImage()">📷 Download Gambar</button>
-      </div>
-    </div>
-    <div id="reportResult"></div>
-  `;
-  loadReport();
-}
-
-function downloadDailyReportImage() {
-  const date = $('reportDate').value || today();
-  downloadElementAsImage('captureDailyReport', 'LAPORAN_PENDAPATAN_' + date);
-}
-
-function reportRow(label, value, forceDash = false) {
-  const number = Number(value || 0);
-  const display = forceDash || number === 0 ? '-' : number.toLocaleString('id-ID');
-  return `
-    <div class="report-row">
-      <span>${label}</span>
-      <span>:</span>
-      <span>Rp</span>
-      <span class="amount">${display}</span>
+      <input name="${name}" type="${type}" value="${value}" ${type === 'number' ? 'min="0" step="1"' : ''}>
     </div>
   `;
 }
 
 function loadReport() {
-  const date = $('reportDate').value;
+  const dateEl = $('reportDate');
+  if (!dateEl) return;
+  const date = dateEl.value;
   const sales = DB.sales.find(r => formatDate(r.tanggal) === date) || {};
   const counter = DB.counter.find(r => formatDate(r.tanggal) === date) || {};
 
@@ -535,14 +409,10 @@ function loadReport() {
     <div class="report-container">
       <div class="report" id="captureDailyReport">
         <div class="report-header">
-          RUMAH MAKAN TAHU SUMEDANG<br>
-          SARI KEDELE<br>
-          UNIT SUBANG
+          RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br>UNIT SUBANG
         </div>
-
         <div class="report-red-line"></div>
         <div class="report-date">${formattedDate}</div>
-
         <div class="report-grid">
           <section>
             <div class="report-section-title">LAPORAN PENDAPATAN ESB</div>
@@ -551,9 +421,7 @@ function loadReport() {
             ${reportRow('TAHU', sales.tahu)}
             ${reportRow('GORENGAN', sales.gorengan)}
             ${reportRow('LAIN-LAIN', sales.lain_lain)}
-            <div class="report-total">
-              ${reportRow('TOTAL PENDAPATAN', totalEsb)}
-            </div>
+            <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalEsb)}</div>
             ${reportRow('PAJAK', sales.pajak)}
             <div class="report-payment">
               ${reportRow('CASH', sales.cash)}
@@ -562,16 +430,13 @@ function loadReport() {
               ${reportRow('QRIS', sales.qris)}
             </div>
           </section>
-
           <section>
             <div class="report-section-title">LAPORAN PENDAPATAN KONTER</div>
             ${reportRow('CASH', counter.cash)}
             ${reportRow('DEBIT CARD', counter.debit_card)}
             ${reportRow('GRAB', counter.grab, true)}
             ${reportRow('QRIS', counter.qris)}
-            <div class="report-total">
-              ${reportRow('TOTAL PENDAPATAN', totalCounter)}
-            </div>
+            <div class="report-total">${reportRow('TOTAL PENDAPATAN', totalCounter)}</div>
             <div class="report-selisih">SELISIH</div>
             ${reportRow('CASH', diffCash)}
             ${reportRow('DEBIT CARD', diffDebit, true)}
@@ -584,43 +449,286 @@ function loadReport() {
   `;
 }
 
-function renderAttendancePage() {
-  $('content').innerHTML = `
-    <div class="top"><div><div class="title">Absensi Mesin Karyawan</div></div></div>
-    <div class="panel">
-      <div class="upload-zone" onclick="$('excelFileInput').click()">
-        <div style="font-size: 38px; margin-bottom: 6px;">📂</div>
-        <div style="font-weight: 700; font-size: 15px;">Klik untuk Upload File Log Absensi (.xls / .xlsx)</div>
-        <input type="file" id="excelFileInput" accept=".xls,.xlsx" onchange="handleExcelUpload(event)">
-      </div>
-      <div id="uploadProgress" style="display:none; margin-top:12px; font-weight:700; color:var(--red);">⏳ Memproses file...</div>
+function reportRow(label, value, forceDash = false) {
+  const number = Number(value || 0);
+  const display = forceDash || number === 0 ? '-' : number.toLocaleString('id-ID');
+  return `
+    <div class="report-row">
+      <span>${label}</span><span>:</span><span>Rp</span>
+      <span class="amount">${display}</span>
     </div>
-    <div class="panel">
-      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
-        <div class="panel-title" style="margin-bottom:0;">Riwayat Absensi Harian</div>
-        <input type="date" id="attendanceFilterDate" value="${today()}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+  `;
+}
+
+function downloadDailyReportImage() {
+  const date = $('reportDate').value || today();
+  downloadElementAsImage('captureDailyReport', 'LAPORAN_PENDAPATAN_' + date);
+}
+
+/* ========================================
+   MODUL PENGELUARAN (DENGAN SUBMENU LAPORAN & KAS)
+======================================== */
+function renderExpense() {
+  $('content').innerHTML = `
+    <div class="top">
+      <div><div class="title">Modul Pengeluaran</div></div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="showExpenseSub('input')">Input</button>
+        <button class="btn btn-secondary" onclick="showExpenseSub('report')">Laporan</button>
+        <button class="btn btn-secondary" onclick="showExpenseSub('cash')">Posisi Kas</button>
       </div>
-      <div class="table-wrap">
-        <table class="table" id="attendanceTable">
-          <thead>
-            <tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Status</th></tr>
-          </thead>
-          <tbody id="attendanceTableBody"></tbody>
-        </table>
+    </div>
+    <div id="expenseSubContent"></div>
+  `;
+  showExpenseSub('input');
+}
+
+function showExpenseSub(type) {
+  const container = $('expenseSubContent');
+  if (!container) return;
+
+  if (type === 'input') {
+    container.innerHTML = `
+      <div class="panel">
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+          <div class="panel-title" style="margin-bottom:0;">Input Pengeluaran Sekaligus</div>
+          <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%;">
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th style="width: 35%;">Sumber</th><th style="width: 25%;">Nominal (Rp)</th><th>Keterangan</th><th style="width: 8%;" class="center">Aksi</th></tr></thead>
+            <tbody id="batchExpenseBody"></tbody>
+          </table>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+          <button type="button" class="btn btn-secondary" onclick="addExpenseRow()">+ Tambah Baris</button>
+          <button type="button" class="btn btn-primary" onclick="submitBatchExpenses()">Simpan Semua</button>
+        </div>
+      </div>
+    `;
+    for (let i = 0; i < 3; i++) addExpenseRow();
+  } else if (type === 'report') {
+    container.innerHTML = `
+      <div class="panel">
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+          <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
+          <input type="date" id="expenseReportDate" value="${today()}" onchange="loadExpenseReport()" style="padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px;">
+          <button class="btn btn-success" onclick="downloadExpenseReportImage()">📷 Download Gambar</button>
+        </div>
+        <div id="expenseReportResult"></div>
+      </div>
+    `;
+    loadExpenseReport();
+  } else {
+    const cash = DB.cash[DB.cash.length - 1] || {};
+    container.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">Posisi Saldo Kas</div>
+        <form id="cashForm">
+          <div class="form-grid">
+            ${inputField('tanggal', 'Tanggal', cash.tanggal || today(), 'date')}
+            ${inputField('saldo_harian', 'Saldo Harian', cash.saldo_harian)}
+            ${inputField('belanja_malam', 'Belanja Malam', cash.belanja_malam)}
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Posisi Kas</button></div>
+        </form>
+      </div>
+    `;
+    $('cashForm').onsubmit = async e => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(e.target));
+      const { error } = await db.from('cash_positions').upsert([formData], { onConflict: 'tanggal' });
+      if (error) showToast('Gagal: ' + error.message);
+      else { showToast('Posisi kas disimpan.'); loadData('expense'); }
+    };
+  }
+}
+
+function addExpenseRow() {
+  const tr = document.createElement('tr');
+  tr.className = 'expense-input-row';
+  tr.innerHTML = `
+    <td><input type="text" class="exp-sumber" placeholder="Nama..." style="width:100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;"></td>
+    <td><input type="number" class="exp-nominal" placeholder="0" min="0" style="width:100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;"></td>
+    <td><input type="text" class="exp-keterangan" placeholder="-" style="width:100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;"></td>
+    <td class="center"><button type="button" class="btn btn-outline-danger" onclick="this.closest('tr').remove()">✕</button></td>
+  `;
+  $('batchExpenseBody').appendChild(tr);
+}
+
+async function submitBatchExpenses() {
+  const tanggal = $('batchExpenseDate').value;
+  const items = [];
+  document.querySelectorAll('.expense-input-row').forEach(r => {
+    const s = r.querySelector('.exp-sumber').value.trim();
+    const n = r.querySelector('.exp-nominal').value.trim();
+    const k = r.querySelector('.exp-keterangan').value.trim();
+    if (s || n) items.push({ tanggal, sumber: s, nominal: Number(n || 0), keterangan: k || '-' });
+  });
+  if (!items.length) { showToast('Isi minimal satu baris.'); return; }
+  const { error } = await db.from('expenses').insert(items);
+  if (error) showToast('Gagal: ' + error.message);
+  else { showToast('Pengeluaran berhasil disimpan.'); loadData('expense'); }
+}
+
+function loadExpenseReport() {
+  const dateEl = $('expenseReportDate');
+  if (!dateEl) return;
+  const date = dateEl.value;
+
+  const cashRow = DB.cash.find(r => formatDate(r.tanggal) === date) || {};
+  const dayExpenses = DB.expenses.filter(r => formatDate(r.tanggal) === date);
+  const totalPemasukan = Number(cashRow.saldo_harian || 0) + Number(cashRow.belanja_malam || 0);
+  const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
+  const sisaSaldo = totalPemasukan - totalPengeluaran;
+
+  const dateObject = new Date(date + 'T00:00:00');
+  const formattedDate = dateObject.toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
+  let expenseRows = dayExpenses.length > 0 ? dayExpenses.map((expense, i) => `
+    <tr>
+      <td class="no">${i + 1}</td>
+      <td class="source">${escapeHtml(expense.sumber || '')}</td>
+      <td class="nominal">Rp ${Number(expense.nominal || 0).toLocaleString('id-ID')}</td>
+    </tr>
+  `).join('') : `<tr><td colspan="3" class="center" style="color:var(--muted); height:35px;">Tidak ada pengeluaran</td></tr>`;
+
+  $('expenseReportResult').innerHTML = `
+    <div class="expense-report-wrapper">
+      <div class="expense-report" id="captureExpenseReport">
+        <div class="expense-report-header">
+          <div>POSISI KEUANGAN TUNAI</div><div>LAPORAN:</div>
+        </div>
+        <div class="expense-report-header" style="margin-bottom: 15px;">
+          <div>: &nbsp; ${formattedDate}</div><div></div>
+        </div>
+        <div class="expense-report-grid">
+          <section>
+            <div class="expense-report-title">SUMBER SALDO</div>
+            <table class="expense-table">
+              <thead><tr><th class="no">NO</th><th>SUMBER</th><th class="nominal">NOMINAL</th></tr></thead>
+              <tbody>
+                <tr><td class="no">1</td><td class="source">SALDO HARIAN</td><td class="nominal">Rp ${Number(cashRow.saldo_harian || 0).toLocaleString('id-ID')}</td></tr>
+                <tr><td class="no">2</td><td class="source">BELANJA MALAM</td><td class="nominal">Rp ${Number(cashRow.belanja_malam || 0).toLocaleString('id-ID')}</td></tr>
+                <tr class="expense-total-row"><td colspan="2" style="text-align: center;">TOTAL PEMASUKAN</td><td class="nominal">Rp ${Number(totalPemasukan).toLocaleString('id-ID')}</td></tr>
+              </tbody>
+            </table>
+          </section>
+          <section>
+            <div class="expense-report-title">PENGELUARAN</div>
+            <table class="expense-table">
+              <thead><tr><th class="no">NO</th><th>SUMBER</th><th class="nominal">NOMINAL</th></tr></thead>
+              <tbody>
+                ${expenseRows}
+                <tr class="expense-total-row"><td colspan="2" style="text-align: center;">TOTAL PENGELUARAN</td><td class="nominal">Rp ${Number(totalPengeluaran).toLocaleString('id-ID')}</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+        <div class="expense-report-footer" style="margin-top: 15px;">
+          <div>SISA SALDO TUNAI</div><div style="text-align: right;">Rp ${Number(sisaSaldo).toLocaleString('id-ID')}</div>
+        </div>
       </div>
     </div>
   `;
-  renderAttendanceTable();
+}
+
+function downloadExpenseReportImage() {
+  const date = $('expenseReportDate').value || today();
+  downloadElementAsImage('captureExpenseReport', 'LAPORAN_PENGELUARAN_' + date);
+}
+
+/* ========================================
+   MODUL ABSENSI (DENGAN SUBMENU UANG JAJAN & JAM KERJA)
+======================================== */
+function renderAttendancePage() {
+  $('content').innerHTML = `
+    <div class="top">
+      <div><div class="title">Modul Absensi & SDM</div></div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="showAttendanceSub('log')">Log</button>
+        <button class="btn btn-secondary" onclick="showAttendanceSub('allowance')">Uang Jajan</button>
+        <button class="btn btn-secondary" onclick="showAttendanceSub('hours')">Jam Kerja</button>
+      </div>
+    </div>
+    <div id="attendanceSubContent"></div>
+  `;
+  showAttendanceSub('log');
+}
+
+function showAttendanceSub(type) {
+  const container = $('attendanceSubContent');
+  if (!container) return;
+
+  if (type === 'log') {
+    container.innerHTML = `
+      <div class="panel">
+        <div class="upload-zone" onclick="$('excelFileInput').click()">
+          <div style="font-size: 38px; margin-bottom: 6px;">📂</div>
+          <div style="font-weight: 700; font-size: 15px;">Klik untuk Upload File Log Absensi (.xls / .xlsx)</div>
+          <input type="file" id="excelFileInput" accept=".xls,.xlsx" onchange="handleExcelUpload(event)">
+        </div>
+        <div id="uploadProgress" style="display:none; margin-top:12px; font-weight:700; color:var(--red);">⏳ Memproses file...</div>
+      </div>
+      <div class="panel">
+        <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
+          <div class="panel-title" style="margin-bottom:0;">Riwayat Absensi Harian</div>
+          <input type="date" id="attendanceFilterDate" value="${today()}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%;">
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Status</th></tr></thead>
+            <tbody id="attendanceTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    renderAttendanceTable();
+  } else if (type === 'allowance') {
+    container.innerHTML = `
+      <div class="panel">
+        <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
+          <label style="font-weight:700;">Pilih Tanggal:</label>
+          <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px;">
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Shift</th><th class="center">Jam Masuk</th><th class="center">Batas</th><th class="center">Status</th><th class="right">Uang Jajan</th></tr></thead>
+            <tbody id="allowanceTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    renderAllowanceTable();
+  } else {
+    container.innerHTML = `
+      <div class="panel">
+        <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
+          <label style="font-weight:700;">Pilih Tanggal:</label>
+          <input type="date" id="workHoursFilterDate" value="${today()}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px;">
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Durasi</th><th class="center">Selisih</th><th class="right">Penyesuaian</th></tr></thead>
+            <tbody id="workHoursTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    renderWorkHoursTable();
+  }
 }
 
 function renderAttendanceTable() {
-  const fDate = formatDate($('attendanceFilterDate').value) || today();
+  const fDate = formatDate($('attendanceFilterDate')?.value) || today();
   const list = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
   const tbody = $('attendanceTableBody');
   if (!tbody) return;
 
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">Belum ada absensi tanggal ${fDate}. Silakan upload log.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Belum ada absensi tanggal ${fDate}.</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map((r, i) => `
@@ -633,6 +741,64 @@ function renderAttendanceTable() {
       <td class="center"><span class="badge ${r.status === 'Hadir' ? 'badge-success' : 'badge-danger'}">${r.status}</span></td>
     </tr>
   `).join('');
+}
+
+function renderAllowanceTable() {
+  const fDate = formatDate($('allowanceFilterDate')?.value) || today();
+  const allAttToday = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
+  const tbody = $('allowanceTableBody');
+  if (!tbody) return;
+
+  if (!allAttToday.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada absensi tanggal ${fDate}.</td></tr>`;
+    return;
+  }
+
+  const list = allAttToday.map(r => ({ ...r, c: classifyShift(r.masuk) })).filter(r => r.c.onTime);
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada yang tepat waktu.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((r, i) => `
+    <tr>
+      <td class="center">${i+1}</td>
+      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+      <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
+      <td class="center">${r.c.shift}</td>
+      <td class="center" style="font-weight:700; color:#15803d;">${r.c.displayTime}</td>
+      <td class="center" style="color:var(--muted); font-size:11px;">Maks ${r.c.batas}</td>
+      <td class="center"><span class="badge badge-success">✓ Tepat Waktu</span></td>
+      <td class="right" style="font-weight:700; color:#15803d;">+${money(DEFAULT_ALLOWANCE)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderWorkHoursTable() {
+  const fDate = formatDate($('workHoursFilterDate')?.value) || today();
+  const list = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
+  const tbody = $('workHoursTableBody');
+  if (!tbody) return;
+
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada data.</td></tr>`; return; }
+
+  tbody.innerHTML = list.map((r, i) => {
+    const durasi = calculateHours(r.masuk, r.pulang);
+    const diff = durasi > 0 ? (durasi - 11) : 0;
+    const nominal = Math.round(diff * 5000);
+    return `
+      <tr>
+        <td class="center">${i+1}</td>
+        <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+        <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
+        <td class="center">${r.masuk || '-'}</td>
+        <td class="center">${r.pulang || '-'}</td>
+        <td class="center">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
+        <td class="center" style="font-weight:700; color:${diff >= 0 ? '#15803d' : '#b91c1c'};">${diff !== 0 ? (diff > 0 ? '+' : '') + diff.toFixed(2) + ' Jam' : 'Pas'}</td>
+        <td class="right" style="font-weight:700; color:${nominal >= 0 ? '#15803d' : '#b91c1c'};">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function handleExcelUpload(event) {
@@ -722,183 +888,128 @@ function handleExcelUpload(event) {
   reader.readAsArrayBuffer(file);
 }
 
-function renderAllowancePage() {
+/* ========================================
+   MODUL DAFTAR GAJI (DENGAN SUBMENU CETAK SLIP PDF)
+======================================== */
+function renderPayrollPage() {
   $('content').innerHTML = `
-    <div class="top"><div><div class="title">Uang Jajan Ketepatan Waktu</div></div></div>
-    <div class="panel">
-      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
-        <label style="font-weight:700; font-size:14px;">Pilih Tanggal:</label>
-        <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
-      </div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Shift</th><th class="center">Jam Masuk</th><th class="center">Batas</th><th class="center">Status</th><th class="right">Uang Jajan</th></tr>
-          </thead>
-          <tbody id="allowanceTableBody"></tbody>
-        </table>
+    <div class="top">
+      <div><div class="title">Modul Gaji & SDM</div></div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="showPayrollSub('rekap')">Rekapitulasi</button>
+        <button class="btn btn-secondary" onclick="showPayrollSub('slips')">Cetak Slip PDF</button>
       </div>
     </div>
+    <div id="payrollSubContent"></div>
   `;
-  renderAllowanceTable();
+  showPayrollSub('rekap');
 }
 
-function renderAllowanceTable() {
-  const fDate = formatDate($('allowanceFilterDate').value) || today();
-  const allAttToday = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
-  const tbody = $('allowanceTableBody');
-  if (!tbody) return;
+function showPayrollSub(type) {
+  const container = $('payrollSubContent');
+  if (!container) return;
 
-  if (!allAttToday.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada absensi tanggal ${fDate}.</td></tr>`;
-    return;
-  }
+  const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
+  const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
-  const list = allAttToday.map(r => ({ ...r, c: classifyShift(r.masuk) })).filter(r => r.c.onTime);
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada yang tepat waktu pada tanggal ${fDate}.</td></tr>`;
-    return;
-  }
+  let defaultStart = today();
+  let defaultEnd = today();
 
-  tbody.innerHTML = list.map((r, i) => `
-    <tr>
-      <td class="center">${i+1}</td>
-      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
-      <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-      <td class="center">${r.c.shift}</td>
-      <td class="center" style="font-weight:700; color:#15803d;">${r.c.displayTime}</td>
-      <td class="center" style="color:var(--muted); font-size:11px;">Maks ${r.c.batas}</td>
-      <td class="center"><span class="badge badge-success">✓ Tepat Waktu</span></td>
-      <td class="right" style="font-weight:700; color:#15803d;">+${money(DEFAULT_ALLOWANCE)}</td>
-    </tr>
-  `).join('');
-}
-
-function renderWorkHoursPage() {
-  $('content').innerHTML = `
-    <div class="top"><div><div class="title">Perhitungan Jam Kerja (11 Jam)</div></div></div>
-    <div class="panel">
-      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
-        <label style="font-weight:700; font-size:14px;">Pilih Tanggal:</label>
-        <input type="date" id="workHoursFilterDate" value="${today()}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
-      </div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Durasi</th><th class="center">Selisih (11 Jam)</th><th class="right">Penyesuaian (x5rb)</th></tr>
-          </thead>
-          <tbody id="workHoursTableBody"></tbody>
-        </table>
-      </div>
-    </div>
-  `;
-  renderWorkHoursTable();
-}
-
-function renderWorkHoursTable() {
-  const fDate = formatDate($('workHoursFilterDate').value) || today();
-  const list = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
-  const tbody = $('workHoursTableBody');
-  if (!tbody) return;
-
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada data.</td></tr>`; return; }
-
-  tbody.innerHTML = list.map((r, i) => {
-    const durasi = calculateHours(r.masuk, r.pulang);
-    const diff = durasi > 0 ? (durasi - 11) : 0;
-    const nominal = Math.round(diff * 5000);
-    return `
-      <tr>
-        <td class="center">${i+1}</td>
-        <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
-        <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-        <td class="center">${r.masuk || '-'}</td>
-        <td class="center">${r.pulang || '-'}</td>
-        <td class="center">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
-        <td class="center" style="font-weight:700; color:${diff >= 0 ? '#15803d' : '#b91c1c'};">${diff !== 0 ? (diff > 0 ? '+' : '') + diff.toFixed(2) + ' Jam' : 'Pas (11 Jam)'}</td>
-        <td class="right" style="font-weight:700; color:${nominal >= 0 ? '#15803d' : '#b91c1c'};">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function renderAdvancesPage() {
-  const empOptionsHtml = (DB.masterSalary || []).map(e =>
-    `<option value="${escapeHtml(e.nama)}">${escapeHtml(e.nama)} (${escapeHtml(e.departemen)})</option>`
-  ).join('');
-
-  $('content').innerHTML = `
-    <div class="top"><div><div class="title">Kasbon Karyawan</div></div></div>
-    <div class="panel">
-      <div class="panel-title">Tambah Kasbon Baru</div>
-      <form id="advanceForm">
-        <div class="form-grid">
-          <div class="field"><label>Tanggal Pinjam</label><input type="date" name="tanggal" value="${today()}" required></div>
-          <div class="field">
-            <label>Nama Karyawan</label>
-            <input list="employeeList" id="advEmpName" name="nama" placeholder="Pilih atau ketik nama karyawan..." required onchange="autoFillDept(this)">
-            <datalist id="employeeList">${empOptionsHtml}</datalist>
+  if (type === 'rekap') {
+    container.innerHTML = `
+      <div class="panel">
+        <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+          <div>
+            <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
+            <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
           </div>
-          <div class="field"><label>Divisi</label><input type="text" id="advDept" name="departemen" required></div>
-          <div class="field"><label>Nominal Kasbon (Rp)</label><input type="number" name="nominal" min="1000" step="1000" required></div>
-          <div class="field"><label>Keterangan</label><input type="text" name="keterangan" placeholder="Keperluan..."></div>
+          <div>
+            <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
+            <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+          </div>
+          <div>
+            <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
+            <select id="payrollFilterDept" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; width: 100%;">
+              <option value="ALL">Semua Divisi</option>
+              ${deptOptionsHtml}
+            </select>
+          </div>
+          <button class="btn btn-success" onclick="downloadPayrollImage()">📷 Download Gambar Tabel</button>
         </div>
-        <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
-      </form>
-    </div>
-    <div class="panel">
-      <div class="panel-title">Riwayat Kasbon</div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Divisi</th><th>Keterangan</th><th class="right">Nominal</th></tr></thead>
-          <tbody>
-            ${
-              (DB.advances || []).length
-                ? (DB.advances || []).slice().reverse().map((r, i) => `
-                  <tr>
-                    <td class="center">${i+1}</td>
-                    <td>${formatDate(r.tanggal)}</td>
-                    <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
-                    <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-                    <td>${escapeHtml(r.keterangan)}</td>
-                    <td class="right" style="color:var(--danger); font-weight:700;">${money(r.nominal)}</td>
-                  </tr>
-                `).join('')
-                : `<tr><td colspan="6" class="empty">Belum ada kasbon.</td></tr>`
-            }
-          </tbody>
-        </table>
       </div>
-    </div>
-  `;
 
-  $('advanceForm').onsubmit = async e => {
-    e.preventDefault();
-    const formData = Object.fromEntries(new FormData(e.target));
-    const { error } = await db.from('advances').insert([formData]);
-    if (error) showToast('Gagal: ' + error.message);
-    else { showToast('Kasbon disimpan.'); loadData('advances'); }
-  };
-}
+      <div class="panel" style="padding: 12px;">
+        <div id="payrollCaptureArea" style="padding: 8px; background: white;">
+          <div style="text-align: center; margin-bottom: 14px;">
+            <div style="font-family: Georgia, serif; font-size: 16px; font-weight: 800;">RUMAH MAKAN TAHU SUMEDANG SARI KEDELE</div>
+            <div style="font-size: 13px; font-weight: 800; color: #0284c7; margin-top: 2px;">DAFTAR REKAPITULASI GAJI KARYAWAN</div>
+            <div style="color: var(--muted); font-size: 11.5px;" id="payrollSubtitle">-</div>
+          </div>
 
-function autoFillDept(input) {
-  const val = input.value.trim().toUpperCase();
-  const emp = (DB.masterSalary || []).find(r => String(r.nama).trim().toUpperCase() === val);
-  if (emp && emp.departemen) $('advDept').value = emp.departemen;
+          <div class="table-wrap">
+            <table class="master-salary-table" id="payrollTable">
+              <thead>
+                <tr>
+                  <th rowspan="2" style="background: #f8fafc; color: #334155; width: 180px;">NAMA KARYAWAN</th>
+                  <th rowspan="2" class="th-header-pokok" style="width: 105px;">GAJI POKOK</th>
+                  <th colspan="7" class="th-header-tunjangan">Tunjangan</th>
+                  <th colspan="3" class="th-header-potongan">Potongan</th>
+                  <th rowspan="2" class="th-header-bersih" style="width: 115px;">Gaji Bersih</th>
+                </tr>
+                <tr>
+                  <th class="th-header-tunjangan-sub">JABATAN</th>
+                  <th class="th-header-tunjangan-sub">PRESTASI</th>
+                  <th class="th-header-tunjangan-sub">KESEHATAN</th>
+                  <th class="th-header-tunjangan-sub">JAM KERJA</th>
+                  <th class="th-header-tunjangan-sub">ZAKAT</th>
+                  <th class="th-header-tunjangan-sub">KEBERSIHAN/LOYALITAS</th>
+                  <th class="th-header-tunjangan-sub">LAIN-LAIN</th>
+                  <th class="th-header-potongan-sub">KASBON</th>
+                  <th class="th-header-potongan-sub">BPJS</th>
+                  <th class="th-header-potongan-sub">CICILAN</th>
+                </tr>
+              </thead>
+              <tbody id="payrollTableBody"></tbody>
+              <tfoot id="payrollTableFoot"></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+    renderPayrollTable();
+  } else {
+    container.innerHTML = `
+      <div class="panel">
+        <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+          <div>
+            <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
+            <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+          </div>
+          <div>
+            <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
+            <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+          </div>
+          <div>
+            <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
+            <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; width: 100%;">
+              <option value="ALL">Semua Divisi</option>
+              ${deptOptionsHtml}
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label>
+            <input type="text" id="slipPrintDate" value="Subang, 01 September 2026" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; width: 100%;">
+          </div>
+          <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
+        </div>
+      </div>
+      <div class="slip-container" id="slipPrintContainer"></div>
+    `;
+    renderSlipPages();
+  }
 }
 
 function getCalculatedPayrollList(sDate, eDate, fDept) {
-  const periodAdvances = (DB.advances || []).filter(r => {
-    const d = formatDate(r.tanggal);
-    return d >= sDate && d <= eDate;
-  });
-
-  const advanceMap = new Map();
-  periodAdvances.forEach(a => {
-    const nm = String(a.nama || '').trim().toUpperCase();
-    advanceMap.set(nm, (advanceMap.get(nm) || 0) + Number(a.nominal || 0));
-  });
-
   let masterList = DB.masterSalary || [];
   if (fDept !== 'ALL') {
     masterList = masterList.filter(r => String(r.departemen).trim().toUpperCase() === fDept.toUpperCase());
@@ -908,10 +1019,7 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
   return masterList.map(emp => {
     const nmKey = String(emp.nama || '').trim().toUpperCase();
     const lainLain = (nmKey === "ZAENAL ARIFIN") ? DEFAULT_BONUS_LAIN : 0;
-    
-    const kasbonPeriode = advanceMap.get(nmKey) || 0;
     const cicilanTetap = Number(emp.cicilan || 0);
-    const totalPotonganKasbonCicilan = kasbonPeriode > 0 ? kasbonPeriode : cicilanTetap;
 
     const gajiPokok = Number(emp.gaji_pokok || 0);
     const jabatan = Number(emp.jabatan || 0);
@@ -921,13 +1029,12 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const loyalitas = Number(emp.kebersihan_loyalitas || 0);
 
     const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain;
-    const totalPotongan = totalPotonganKasbonCicilan;
+    const totalPotongan = cicilanTetap;
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
 
     return {
       nama: emp.nama,
       departemen: emp.departemen,
-      tahunMasuk: emp.tahun_masuk || '-',
       pokok: gajiPokok,
       jabatan: jabatan,
       prestasi: prestasi,
@@ -936,7 +1043,7 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       zakat: zakat,
       loyalitas: loyalitas,
       lainLain: lainLain,
-      kasbon: totalPotonganKasbonCicilan,
+      kasbon: cicilanTetap,
       bpjs: 0,
       cicilan: 0,
       gajiBersih: gajiBersih
@@ -944,97 +1051,10 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
   });
 }
 
-function renderPayrollPage() {
-  const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
-  const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
-
-  let defaultStart = today();
-  let defaultEnd = today();
-
-  if ((DB.attendance || []).length > 0) {
-    const dates = DB.attendance.map(r => formatDate(r.tanggal)).filter(Boolean).sort();
-    if (dates.length) { defaultStart = dates[0]; defaultEnd = dates[dates.length - 1]; }
-  }
-
-  $('content').innerHTML = `
-    <div class="top">
-      <div>
-        <div class="title">Daftar Gaji Karyawan</div>
-        <div class="subtitle">Data bersumber langsung dari database Supabase.</div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-          <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-          <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-          <select id="payrollFilterDept" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; background: white; width: 100%; min-height: 48px;">
-            <option value="ALL">Semua Divisi</option>
-            ${deptOptionsHtml}
-          </select>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 6px;">
-          <button class="btn btn-secondary" onclick="showPage('slips')">📥 Buka Menu Download PDF</button>
-          <button class="btn btn-success" onclick="downloadPayrollImage()">📷 Download Gambar</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel" style="padding: 12px;">
-      <div id="payrollCaptureArea" style="padding: 8px; background: white;">
-        <div style="text-align: center; margin-bottom: 14px;">
-          <div style="font-family: Georgia, serif; font-size: 16px; font-weight: 800;">RUMAH MAKAN TAHU SUMEDANG SARI KEDELE</div>
-          <div style="font-size: 13px; font-weight: 800; color: #0284c7; margin-top: 2px;">DAFTAR REKAPITULASI GAJI KARYAWAN</div>
-          <div style="color: var(--muted); font-size: 11.5px;" id="payrollSubtitle">-</div>
-        </div>
-
-        <div class="table-wrap">
-          <table class="master-salary-table" id="payrollTable">
-            <thead>
-              <tr>
-                <th rowspan="2" style="background: #f8fafc; color: #334155; width: 180px;">NAMA KARYAWAN</th>
-                <th rowspan="2" class="th-header-pokok" style="width: 105px;">GAJI POKOK</th>
-                <th colspan="7" class="th-header-tunjangan">Tunjangan</th>
-                <th colspan="3" class="th-header-potongan">Potongan</th>
-                <th rowspan="2" class="th-header-bersih" style="width: 115px;">Gaji Bersih</th>
-              </tr>
-              <tr>
-                <th class="th-header-tunjangan-sub" style="width: 80px;">JABATAN</th>
-                <th class="th-header-tunjangan-sub" style="width: 80px;">PRESTASI</th>
-                <th class="th-header-tunjangan-sub" style="width: 80px;">KESEHATAN</th>
-                <th class="th-header-tunjangan-sub" style="width: 80px;">JAM KERJA</th>
-                <th class="th-header-tunjangan-sub" style="width: 75px;">ZAKAT</th>
-                <th class="th-header-tunjangan-sub" style="width: 95px;">KEBERSIHAN/LOYALITAS</th>
-                <th class="th-header-tunjangan-sub" style="width: 80px;">LAIN-LAIN</th>
-                <th class="th-header-potongan-sub" style="width: 80px;">KASBON</th>
-                <th class="th-header-potongan-sub" style="width: 70px;">BPJS</th>
-                <th class="th-header-potongan-sub" style="width: 80px;">CICILAN</th>
-              </tr>
-            </thead>
-            <tbody id="payrollTableBody"></tbody>
-            <tfoot id="payrollTableFoot"></tfoot>
-          </table>
-        </div>
-      </div>
-    </div>
-  `;
-
-  renderPayrollTable();
-}
-
 function renderPayrollTable() {
-  const sDate = $('payrollStartDate').value;
-  const eDate = $('payrollEndDate').value;
-  const fDept = $('payrollFilterDept').value;
+  const sDate = $('payrollStartDate')?.value || today();
+  const eDate = $('payrollEndDate')?.value || today();
+  const fDept = $('payrollFilterDept')?.value || 'ALL';
 
   const tbody = $('payrollTableBody');
   const tfoot = $('payrollTableFoot');
@@ -1046,7 +1066,7 @@ function renderPayrollTable() {
   const list = getCalculatedPayrollList(sDate, eDate, fDept);
 
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="13" class="empty">Belum ada data pada master_salary.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="empty">Belum ada data.</td></tr>`;
     tfoot.innerHTML = '';
     return;
   }
@@ -1072,17 +1092,17 @@ function renderPayrollTable() {
     return `
       <tr>
         <td style="font-weight: 700;">${escapeHtml(emp.nama)}</td>
-        <td class="right" style="font-weight: 600;">${money(emp.pokok)}</td>
-        <td class="right">${emp.jabatan > 0 ? money(emp.jabatan) : '-'}</td>
-        <td class="right">${emp.prestasi > 0 ? money(emp.prestasi) : '-'}</td>
-        <td class="right">${emp.kesehatan > 0 ? money(emp.kesehatan) : '-'}</td>
-        <td class="right">${emp.jamKerja !== 0 ? money(emp.jamKerja) : '-'}</td>
-        <td class="right">${emp.zakat > 0 ? money(emp.zakat) : '-'}</td>
-        <td class="right">${emp.loyalitas > 0 ? money(emp.loyalitas) : '-'}</td>
-        <td class="right" style="color: #15803d;">${emp.lainLain > 0 ? money(emp.lainLain) : '-'}</td>
-        <td class="right" style="color: #b91c1c;">${emp.kasbon > 0 ? money(emp.kasbon) : '-'}</td>
-        <td class="right" style="color: #b91c1c;">${emp.bpjs > 0 ? money(emp.bpjs) : '-'}</td>
-        <td class="right" style="color: #b91c1c;">${emp.cicilan > 0 ? money(emp.cicilan) : '-'}</td>
+        <td class="right">${money(emp.pokok)}</td>
+        <td class="right">${money(emp.jabatan)}</td>
+        <td class="right">${money(emp.prestasi)}</td>
+        <td class="right">${money(emp.kesehatan)}</td>
+        <td class="right">${money(emp.jamKerja)}</td>
+        <td class="right">${money(emp.zakat)}</td>
+        <td class="right">${money(emp.loyalitas)}</td>
+        <td class="right" style="color: #15803d;">${money(emp.lainLain)}</td>
+        <td class="right" style="color: #b91c1c;">${money(emp.kasbon)}</td>
+        <td class="right">${money(emp.bpjs)}</td>
+        <td class="right">${money(emp.cicilan)}</td>
         <td class="right" style="font-weight: 800; color: #0284c7; background: #f0f9ff;">${money(emp.gajiBersih)}</td>
       </tr>
     `;
@@ -1090,7 +1110,7 @@ function renderPayrollTable() {
 
   tbody.innerHTML = rowsHtml;
   tfoot.innerHTML = `
-    <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #475569;">
+    <tr style="background: #f8fafc; font-weight: 800;">
       <td style="text-align: center; padding: 8px;">TOTAL</td>
       <td class="right">${money(sumPokok)}</td>
       <td class="right">${money(sumJabatan)}</td>
@@ -1103,69 +1123,15 @@ function renderPayrollTable() {
       <td class="right">${money(sumKasbon)}</td>
       <td class="right">${money(sumBpjs)}</td>
       <td class="right">${money(sumCicilan)}</td>
-      <td class="right" style="background: #e0f2fe; color: #0284c7; font-size: 12px;">${money(sumBersih)}</td>
+      <td class="right" style="background: #e0f2fe; color: #0284c7;">${money(sumBersih)}</td>
     </tr>
   `;
 }
 
 function downloadPayrollImage() {
-  const s = $('payrollStartDate').value;
-  const e = $('payrollEndDate').value;
+  const s = $('payrollStartDate')?.value || today();
+  const e = $('payrollEndDate')?.value || today();
   downloadElementAsImage('payrollCaptureArea', `DAFTAR_GAJI_${s}_sd_${e}`);
-}
-
-function renderSlipsPage() {
-  const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
-  const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
-
-  let defaultStart = today();
-  let defaultEnd = today();
-
-  if ((DB.attendance || []).length > 0) {
-    const dates = DB.attendance.map(r => formatDate(r.tanggal)).filter(Boolean).sort();
-    if (dates.length) { defaultStart = dates[0]; defaultEnd = dates[dates.length - 1]; }
-  }
-
-  $('content').innerHTML = `
-    <div class="top">
-      <div>
-        <div class="title">Cetak Slip Gaji Karyawan (PDF)</div>
-        <div class="subtitle">Unduh dokumen slip gaji dalam format PDF resmi.</div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-          <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-          <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-          <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; background: white; width: 100%; min-height: 48px;">
-            <option value="ALL">Semua Divisi</option>
-            ${deptOptionsHtml}
-          </select>
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label>
-          <input type="text" id="slipPrintDate" value="Subang, 01 September 2026" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
-        </div>
-
-        <div style="width: 100%; margin-top: 6px;">
-          <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="slip-container" id="slipPrintContainer"></div>
-  `;
-
-  renderSlipPages();
 }
 
 function getMonthName(dateStr) {
@@ -1180,10 +1146,10 @@ function getMonthName(dateStr) {
 }
 
 function renderSlipPages() {
-  const sDate = $('slipStartDate').value;
-  const eDate = $('slipEndDate').value;
-  const fDept = $('slipFilterDept').value;
-  const printDate = $('slipPrintDate').value || `Subang, ${today()}`;
+  const sDate = $('slipStartDate')?.value || today();
+  const eDate = $('slipEndDate')?.value || today();
+  const fDept = $('slipFilterDept')?.value || 'ALL';
+  const printDate = $('slipPrintDate')?.value || `Subang, ${today()}`;
 
   const container = $('slipPrintContainer');
   if (!container) return;
@@ -1191,7 +1157,7 @@ function renderSlipPages() {
   const list = getCalculatedPayrollList(sDate, eDate, fDept);
 
   if (!list.length) {
-    container.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--muted); background: white; margin: 10px;">Tidak ada data.</div>`;
+    container.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--muted); background: white;">Tidak ada data.</div>`;
     return;
   }
 
@@ -1211,14 +1177,11 @@ function renderSlipPages() {
             <div style="font-size: 9px; color: #475569;">UNIT SUBANG</div>
             <div class="slip-header-period">SLIP GAJI PERIODE ${periodMonth}</div>
           </div>
-
           <div class="slip-bio">
-            <span>NAMA</span><span>:</span><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(emp.nama)}</span>
+            <span>NAMA</span><span>:</span><span>${escapeHtml(emp.nama)}</span>
             <span>POSISI</span><span>:</span><span>${escapeHtml(emp.departemen)}</span>
           </div>
-
           <div class="slip-section-bar">RINCIAN GAJI</div>
-
           <div class="slip-row"><span>GAJI POKOK</span><span>Rp</span><span class="right">${formatNum(emp.pokok)}</span></div>
           <div class="slip-row"><span>JABATAN</span><span>Rp</span><span class="right">${formatNum(emp.jabatan)}</span></div>
           <div class="slip-row"><span>PRESTASI</span><span>Rp</span><span class="right">${formatNum(emp.prestasi)}</span></div>
@@ -1227,22 +1190,15 @@ function renderSlipPages() {
           <div class="slip-row"><span>ZAKAT</span><span>Rp</span><span class="right">${formatNum(emp.zakat)}</span></div>
           <div class="slip-row"><span>KEBERSIHAN/LOYALITAS</span><span>Rp</span><span class="right">${formatNum(emp.loyalitas)}</span></div>
           <div class="slip-row"><span>LAIN-LAIN</span><span>Rp</span><span class="right">${formatNum(emp.lainLain)}</span></div>
-
           <div class="slip-subtotal"><span>Jumlah Pendapatan</span><span>Rp</span><span class="right">${formatNum(totalPendapatan)}</span></div>
-
           <div class="slip-section-bar">POTONGAN</div>
-
           <div class="slip-row"><span>KASBON</span><span>Rp</span><span class="right">${formatNum(emp.kasbon)}</span></div>
           <div class="slip-row"><span>BPJS</span><span>Rp</span><span class="right">${formatNum(emp.bpjs)}</span></div>
           <div class="slip-row"><span>CICILAN</span><span>Rp</span><span class="right">${formatNum(emp.cicilan)}</span></div>
-
           <div class="slip-subtotal"><span>Jumlah Potongan</span><span>Rp</span><span class="right">${formatNum(totalPotongan)}</span></div>
         </div>
-
         <div>
-          <div class="slip-net-bar">
-            <span>Gaji Diterima</span><span>Rp</span><span class="right">${formatNum(emp.gajiBersih)}</span>
-          </div>
+          <div class="slip-net-bar"><span>Gaji Diterima</span><span>Rp</span><span class="right">${formatNum(emp.gajiBersih)}</span></div>
           <div class="slip-footer-date">${escapeHtml(printDate)}</div>
         </div>
       </div>
@@ -1297,7 +1253,7 @@ async function exportSlipsToPDF() {
       pdf.addImage(imgData, 'PNG', posX, posY, imgWidth, imgHeight);
     }
     
-    const sDate = $('slipStartDate').value || 'periode';
+    const sDate = $('slipStartDate')?.value || 'periode';
     pdf.save(`SLIP_GAJI_${sDate}.pdf`);
     showToast('PDF berhasil diunduh!');
   } catch (err) {
