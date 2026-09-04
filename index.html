@@ -6,30 +6,26 @@
   <base target="_top">
   <title>Keuangan & SDM - RM Tahu Sumedang Subang</title>
 
-  <!-- PENGHUBUNG CSS -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- PUSTAKA PENDUKUNG (SUPABASE, HTML2CANVAS, SHEETJS, JSPDF) -->
+  <!-- PUSTAKA PENDUKUNG (SUPABASE, HTML2CANVAS, SHEETJS, JSPDF, CHART.JS) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
-<!-- HEADER MOBILE PERMANEN -->
 <div class="mobile-header">
   <div style="font-weight: 800; font-size: 15px; letter-spacing: 0.5px;">KEUANGAN SUBANG</div>
   <button class="hamburger-btn" onclick="toggleSidebar()">☰ Menu Navigasi</button>
 </div>
 
-<!-- OVERLAY GELAP -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <div class="app">
-
-  <!-- SIDEBAR MOBILE -->
   <aside class="sidebar" id="appSidebar">
     <div class="brand">
       <div>
@@ -43,28 +39,18 @@
       <button data-page="dashboard" onclick="showPage('dashboard')">🏠 Dashboard</button>
       <button data-page="sales" onclick="showPage('sales')">💰 Pendapatan</button>
       <button data-page="expense" onclick="showPage('expense')">💸 Pengeluaran</button>
-      <button data-page="expense-report" onclick="showPage('expense-report')">📋 Laporan Pengeluaran</button>
-      <button data-page="cash" onclick="showPage('cash')">💵 Posisi Kas</button>
-      <button data-page="report" onclick="showPage('report')">📊 Laporan Harian</button>
       <button data-page="attendance" onclick="showPage('attendance')">🕒 Absensi</button>
-      <button data-page="allowance" onclick="showPage('allowance')">🪙 Uang Jajan</button>
-      <button data-page="workhours" onclick="showPage('workhours')">⏱️ Jam Kerja</button>
-      <button data-page="advances" onclick="showPage('advances')">💳 Kasbon</button>
       <button data-page="payroll" onclick="showPage('payroll')">📑 Daftar Gaji</button>
-      <button data-page="slips" onclick="showPage('slips')">🖨️ Cetak Slip Gaji (PDF)</button>
     </div>
   </aside>
 
-  <!-- MAIN -->
   <main class="main">
     <div id="content"></div>
   </main>
-
 </div>
 
 <div id="toast" class="toast"></div>
 
-<!-- PENGHUBUNG JAVASCRIPT -->
 <script src="app.js"></script>
 
 </body>
