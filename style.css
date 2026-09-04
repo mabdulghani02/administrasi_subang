@@ -18,7 +18,7 @@
 
 body {
   margin: 0;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg-gradient);
   color: var(--text-main);
   font-size: 15px;
@@ -74,12 +74,20 @@ button, input, select { font-family: inherit; }
   display: flex;
   align-items: center;
   gap: 12px;
+  min-height: 52px;
+}
+.nav button svg {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 .nav button:hover { background: rgba(255,255,255,0.05); color: white; }
 .nav button.active {
   background: var(--primary);
   color: white;
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+.nav button.active svg {
+  opacity: 1;
 }
 
 /* SLEEK MOBILE HEADER */
@@ -108,6 +116,7 @@ button, input, select { font-family: inherit; }
   padding: 8px 14px;
   border-radius: 10px;
   transition: background 0.2s;
+  min-height: 40px;
 }
 .hamburger-btn:active { background: #e2e8f0; }
 
@@ -170,6 +179,7 @@ button, input, select { font-family: inherit; }
   background: #f8fafc;
   outline: none;
   transition: all 0.2s;
+  min-height: 48px;
 }
 .field input:focus, .field select:focus {
   background: white;
@@ -191,6 +201,7 @@ button, input, select { font-family: inherit; }
   justify-content: center;
   width: 100%;
   transition: filter 0.2s, transform 0.1s;
+  min-height: 48px;
 }
 .btn:active { transform: scale(0.98); }
 .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25); }
