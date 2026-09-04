@@ -1,0 +1,1245 @@
+const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MB';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let DB = {
+  sales: [],
+  counter: [],
+  expenses: [],
+  cash: [],
+  attendance: [],
+  advances: [],
+  masterSalary: []
+};
+
+const STANDARD_WORK_HOURS = 11;
+const RATE_PER_HOUR = 5000;
+let DEFAULT_ALLOWANCE = 10000;
+let DEFAULT_BONUS_LAIN = 40000;
+
+function toggleSidebar() {
+  const sb = $('appSidebar');
+  const ov = $('sidebarOverlay');
+  sb.classList.toggle('open');
+  ov.classList.toggle('active');
+}
+
+const $ = id => document.getElementById(id);
+
+function money(value) {
+  const number = Number(value || 0);
+  return 'Rp ' + Math.abs(number).toLocaleString('id-ID');
+}
+
+function formatNum(value) {
+  const number = Number(value || 0);
+  return number === 0 ? '-' : number.toLocaleString('id-ID');
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  let text = String(value).trim();
+  if (text.includes('T')) text = text.split('T')[0];
+  return text;
+}
+
+function parseTimeMinutes(timeVal) {
+  if (!timeVal) return null;
+  const match = String(timeVal).match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  return { h, m, totalMins: h * 60 + m, formatted: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
+}
+
+function classifyShift(timeStr) {
+  const parsed = parseTimeMinutes(timeStr);
+  if (!parsed) return { shift: 'Tidak Scan', batas: '-', onTime: false, displayTime: '-' };
+  const mins = parsed.totalMins;
+  if (mins >= 210 && mins <= 310) return { shift: 'Pagi', batas: '05:10', onTime: true, displayTime: parsed.formatted };
+  if (mins >= 450 && mins <= 610) return { shift: 'Middle', batas: '10:10', onTime: true, displayTime: parsed.formatted };
+  if (mins > 610 && mins <= 670) return { shift: 'Siang', batas: '11:10', onTime: true, displayTime: parsed.formatted };
+  return { shift: 'Lainnya', batas: '-', onTime: false, displayTime: parsed.formatted };
+}
+
+function calculateHours(masukStr, pulangStr) {
+  const p1 = parseTimeMinutes(masukStr);
+  const p2 = parseTimeMinutes(pulangStr);
+  if (!p1 || !p2) return 0;
+  let t1 = p1.totalMins;
+  let t2 = p2.totalMins;
+  if (t2 < t1) t2 += 24 * 60;
+  const totalMins = t2 - t1;
+  return totalMins > 0 ? (totalMins / 60) : 0;
+}
+
+function sum(values) { return values.reduce((t, v) => t + Number(v || 0), 0); }
+function totalESB(data) { return Number(data.makanan || 0) + Number(data.minuman || 0) + Number(data.tahu || 0) + Number(data.gorengan || 0) + Number(data.lain_lain || 0); }
+function totalCounter(data) { return Number(data.cash || 0) + Number(data.debit_card || 0) + Number(data.grab || 0) + Number(data.qris || 0); }
+
+function showToast(message) {
+  const toast = $('toast');
+  toast.textContent = message;
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 2500);
+}
+
+function downloadElementAsImage(elementId, filename) {
+  const target = $(elementId);
+  if (!target) { showToast('Area laporan tidak ditemukan.'); return; }
+  showToast('Sedang membuat gambar...');
+
+  html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
+    .then(canvas => {
+      const link = document.createElement('a');
+      link.download = filename + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('Gambar berhasil diunduh.');
+    }).catch(err => { console.error(err); showToast('Gagal mengubah ke gambar.'); });
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function loadData(targetPage = null) {
+  showToast('Memuat data dari Cloud...');
+  try {
+    const [sRes, cRes, eRes, cashRes, attRes, advRes, mRes] = await Promise.all([
+      db.from('sales').select('*'),
+      db.from('counter').select('*'),
+      db.from('expenses').select('*'),
+      db.from('cash_positions').select('*'),
+      db.from('attendance').select('*'),
+      db.from('advances').select('*'),
+      db.from('master_salary').select('*')
+    ]);
+
+    DB.sales = sRes.data || [];
+    DB.counter = cRes.data || [];
+    DB.expenses = eRes.data || [];
+    DB.cash = cashRes.data || [];
+    DB.attendance = attRes.data || [];
+    DB.advances = advRes.data || [];
+    DB.masterSalary = mRes.data || [];
+
+    showPage(targetPage || 'dashboard');
+  } catch (error) {
+    console.error(error);
+    showToast('Gagal mengambil data dari Supabase.');
+  }
+}
+
+function showPage(page) {
+  document.querySelectorAll('.nav button').forEach(button => {
+    button.classList.toggle('active', button.dataset.page === page);
+  });
+
+  $('appSidebar').classList.remove('open');
+  $('sidebarOverlay').classList.remove('active');
+
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'sales') renderSales();
+  if (page === 'expense') renderExpense();
+  if (page === 'expense-report') renderExpenseReport();
+  if (page === 'cash') renderCash();
+  if (page === 'report') renderReportPage();
+  if (page === 'attendance') renderAttendancePage();
+  if (page === 'allowance') renderAllowancePage();
+  if (page === 'workhours') renderWorkHoursPage();
+  if (page === 'advances') renderAdvancesPage();
+  if (page === 'payroll') renderPayrollPage();
+  if (page === 'slips') renderSlipsPage();
+}
+
+function renderDashboard() {
+  const date = today();
+  const sales = DB.sales.find(row => formatDate(row.tanggal) === date) || {};
+  const counter = DB.counter.find(row => formatDate(row.tanggal) === date) || {};
+  const expenses = DB.expenses.filter(row => formatDate(row.tanggal) === date);
+  const dayAdvances = (DB.advances || []).filter(row => formatDate(row.tanggal) === date);
+
+  $('content').innerHTML = `
+    <div class="top">
+      <div>
+        <div class="title">Dashboard Keuangan & SDM</div>
+        <div class="subtitle">Rumah Makan Tahu Sumedang Sari Kedele Unit Subang</div>
+      </div>
+      <input type="date" value="${date}" onchange="dashboardDate(this.value)" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+    </div>
+
+    <div class="cards">
+      <div class="card card-red"><div class="card-label">Pendapatan ESB</div><div class="card-value">${money(totalESB(sales))}</div></div>
+      <div class="card"><div class="card-label">Pendapatan Konter</div><div class="card-value">${money(totalCounter(counter))}</div></div>
+      <div class="card card-danger"><div class="card-label">Pengeluaran Operasional</div><div class="card-value">${money(sum(expenses.map(r => r.nominal)))}</div></div>
+      <div class="card card-orange"><div class="card-label">Kasbon Hari Ini</div><div class="card-value">${money(sum(dayAdvances.map(r => r.nominal)))}</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Aksi Cepat</div>
+      <div class="quick-actions" style="display:grid; grid-template-columns: 1fr; gap: 10px;">
+        <button class="btn btn-primary" onclick="showPage('sales')">Input Pendapatan</button>
+        <button class="btn btn-secondary" onclick="showPage('expense')">Input Pengeluaran</button>
+        <button class="btn btn-secondary" onclick="showPage('expense-report')">Laporan Pengeluaran</button>
+        <button class="btn btn-secondary" onclick="showPage('report')">Laporan Harian</button>
+        <button class="btn btn-secondary" onclick="showPage('attendance')">Upload Absensi</button>
+        <button class="btn btn-secondary" onclick="showPage('allowance')">Daftar Uang Jajan</button>
+        <button class="btn btn-secondary" onclick="showPage('workhours')">Hitung Jam Kerja</button>
+        <button class="btn btn-secondary" onclick="showPage('advances')">Input Kasbon</button>
+        <button class="btn btn-secondary" onclick="showPage('payroll')">Daftar Gaji</button>
+        <button class="btn btn-secondary" onclick="showPage('slips')">Cetak Slip Gaji (PDF)</button>
+      </div>
+    </div>
+  `;
+}
+
+function dashboardDate(date) {
+  const targetDate = formatDate(date);
+  const sales = DB.sales.find(row => formatDate(row.tanggal) === targetDate) || {};
+  const counter = DB.counter.find(row => formatDate(row.tanggal) === targetDate) || {};
+  const expenses = DB.expenses.filter(row => formatDate(row.tanggal) === targetDate);
+  const dayAdvances = (DB.advances || []).filter(row => formatDate(row.tanggal) === targetDate);
+
+  document.querySelector('.cards').innerHTML = `
+    <div class="card card-red"><div class="card-label">Pendapatan ESB</div><div class="card-value">${money(totalESB(sales))}</div></div>
+    <div class="card"><div class="card-label">Pendapatan Konter</div><div class="card-value">${money(totalCounter(counter))}</div></div>
+    <div class="card card-danger"><div class="card-label">Pengeluaran Operasional</div><div class="card-value">${money(sum(expenses.map(r => r.nominal)))}</div></div>
+    <div class="card card-orange"><div class="card-label">Kasbon Hari Ini</div><div class="card-value">${money(sum(dayAdvances.map(r => r.nominal)))}</div></div>
+  `;
+}
+
+function renderSales() {
+  const sales = DB.sales[DB.sales.length - 1] || {};
+  const counter = DB.counter[DB.counter.length - 1] || {};
+
+  $('content').innerHTML = `
+    <div class="top"><div><div class="title">Laporan Pendapatan Harian</div></div></div>
+    <div class="panel">
+      <div class="panel-title">PENDAPATAN ESB</div>
+      <form id="salesForm">
+        <div class="form-grid">
+          ${inputField('tanggal', 'Tanggal', sales.tanggal || today(), 'date')}
+          ${inputField('makanan', 'Makanan', sales.makanan)}
+          ${inputField('minuman', 'Minuman', sales.minuman)}
+          ${inputField('tahu', 'Tahu', sales.tahu)}
+          ${inputField('gorengan', 'Gorengan', sales.gorengan)}
+          ${inputField('lain_lain', 'Lain-lain', sales.lain_lain)}
+          ${inputField('pajak', 'Pajak', sales.pajak)}
+          ${inputField('cash', 'Cash', sales.cash)}
+          ${inputField('debit_card', 'Debit Card', sales.debit_card)}
+          ${inputField('grab', 'Grab', sales.grab)}
+          ${inputField('qris', 'QRIS', sales.qris)}
+        </div>
+        <div class="actions"><button class="btn btn-primary" type="submit">Simpan ESB</button></div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">PENDAPATAN KONTER</div>
+      <form id="counterForm">
+        <div class="form-grid">
+          ${inputField('tanggal', 'Tanggal', counter.tanggal || today(), 'date')}
+          ${inputField('cash', 'Cash', counter.cash)}
+          ${inputField('debit_card', 'Debit Card', counter.debit_card)}
+          ${inputField('grab', 'Grab', counter.grab)}
+          ${inputField('qris', 'QRIS', counter.qris)}
+        </div>
+        <div class="actions"><button class="btn btn-primary" type="submit">Simpan Konter</button></div>
+      </form>
+    </div>
+  `;
+
+  $('salesForm').onsubmit = async e => {
+    e.preventDefault();
+    const formData = Object.fromEntries(new FormData(e.target));
+    const { error } = await db.from('sales').upsert([formData], { onConflict: 'tanggal' });
+    if (error) showToast('Gagal: ' + error.message);
+    else { showToast('Laporan ESB disimpan.'); loadData('sales'); }
+  };
+
+  $('counterForm').onsubmit = async e => {
+    e.preventDefault();
+    const formData = Object.fromEntries(new FormData(e.target));
+    const { error } = await db.from('counter').upsert([formData], { onConflict: 'tanggal' });
+    if (error) showToast('Gagal: ' + error.message);
+    else { showToast('Laporan Konter disimpan.'); loadData('sales'); }
+  };
+}
+
+function inputField(name, label, value = '', type = 'number') {
+  return `
+    <div class="field">
+      <label>${label}</label>
+      <input name="${name}" type="${type}" value="${value !== undefined && value !== null ? value : ''}" ${type === 'number' ? 'min="0" step="1"' : ''}>
+    </div>
+  `;
+}
+
+function renderExpense() {
+  $('content').innerHTML = `
+    <div class="top"><div><div class="title">Pengeluaran Operasional</div></div></div>
+    <div class="panel">
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+        <div class="panel-title" style="margin-bottom:0;">Input Pengeluaran Sekaligus</div>
+        <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th style="width: 35%;">Sumber</th><th style="width: 25%;">Nominal (Rp)</th><th>Keterangan</th><th style="width: 8%;" class="center">Aksi</th></tr></thead>
+          <tbody id="batchExpenseBody"></tbody>
+        </table>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+        <button type="button" class="btn btn-secondary" onclick="addExpenseRow()">+ Tambah Baris</button>
+        <button type="button" class="btn btn-primary" onclick="submitBatchExpenses()">Simpan Semua</button>
+      </div>
+    </div>
+  `;
+  for (let i = 0; i < 4; i++) addExpenseRow();
+}
+
+function addExpenseRow() {
+  const tr = document.createElement('tr');
+  tr.className = 'expense-input-row';
+  tr.innerHTML = `
+    <td><input type="text" class="exp-sumber" placeholder="Contoh: SUSU KENTAL MANIS" style="width:140px; padding: 11px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; min-height:44px;"></td>
+    <td><input type="number" class="exp-nominal" placeholder="0" min="0" style="width:120px; padding: 11px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; min-height:44px;"></td>
+    <td><input type="text" class="exp-keterangan" placeholder="-" style="width:140px; padding: 11px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; min-height:44px;"></td>
+    <td class="center"><button type="button" class="btn btn-outline-danger" onclick="this.closest('tr').remove()" style="min-height:44px; min-width:44px;">✕</button></td>
+  `;
+  $('batchExpenseBody').appendChild(tr);
+}
+
+async function submitBatchExpenses() {
+  const tanggal = $('batchExpenseDate').value;
+  const items = [];
+  document.querySelectorAll('.expense-input-row').forEach(r => {
+    const s = r.querySelector('.exp-sumber').value.trim();
+    const n = r.querySelector('.exp-nominal').value.trim();
+    const k = r.querySelector('.exp-keterangan').value.trim();
+    if (s || n) items.push({ tanggal, sumber: s, nominal: Number(n || 0), keterangan: k || '-' });
+  });
+  if (!items.length) { showToast('Isi minimal satu baris.'); return; }
+  const { error } = await db.from('expenses').insert(items);
+  if (error) showToast('Gagal: ' + error.message);
+  else { showToast('Pengeluaran berhasil disimpan.'); loadData('expense'); }
+}
+
+function renderExpenseReport() {
+  $('content').innerHTML = `
+    <div class="top">
+      <div><div class="title">Laporan Pengeluaran Harian</div></div>
+      <div style="display:flex; flex-direction: column; gap:10px; width: 100%;">
+        <input type="date" id="expenseReportDate" value="${today()}" style="padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px; width:100%; min-height: 48px;">
+        <button class="btn btn-primary" onclick="loadExpenseReport()">Tampilkan</button>
+        <button class="btn btn-success" onclick="downloadExpenseReportImage()">📷 Download Gambar</button>
+      </div>
+    </div>
+    <div id="expenseReportResult"></div>
+  `;
+  loadExpenseReport();
+}
+
+function downloadExpenseReportImage() {
+  const date = $('expenseReportDate').value || today();
+  downloadElementAsImage('captureExpenseReport', 'LAPORAN_PENGELUARAN_' + date);
+}
+
+function loadExpenseReport() {
+  const date = $('expenseReportDate').value;
+  if (!date) { showToast('Pilih tanggal laporan.'); return; }
+
+  const cashRow = DB.cash.find(r => formatDate(r.tanggal) === date) || {};
+  const dayExpenses = DB.expenses.filter(r => formatDate(r.tanggal) === date);
+  const totalPemasukan = Number(cashRow.saldo_harian || 0) + Number(cashRow.belanja_malam || 0);
+  const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
+  const sisaSaldo = totalPemasukan - totalPengeluaran;
+
+  const dateObject = new Date(date + 'T00:00:00');
+  const formattedDate = dateObject.toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
+  let expenseRows = '';
+  if (dayExpenses.length > 0) {
+    expenseRows = dayExpenses.map((expense, i) => `
+      <tr>
+        <td class="no">${i + 1}</td>
+        <td class="source">${escapeHtml(expense.sumber || '')}</td>
+        <td class="nominal">Rp ${Number(expense.nominal || 0).toLocaleString('id-ID')}</td>
+      </tr>
+    `).join('');
+  } else {
+    expenseRows = `<tr><td colspan="3" class="center" style="color:var(--muted); height:35px;">Tidak ada pengeluaran</td></tr>`;
+  }
+
+  $('expenseReportResult').innerHTML = `
+    <div class="expense-report-wrapper">
+      <div class="expense-report" id="captureExpenseReport">
+        <div class="expense-report-header">
+          <div>POSISI KEUANGAN TUNAI</div>
+          <div>LAPORAN:</div>
+        </div>
+
+        <div class="expense-report-header" style="margin-bottom: 15px;">
+          <div>: &nbsp; ${formattedDate}</div>
+          <div></div>
+        </div>
+
+        <div class="expense-report-grid">
+          <section>
+            <div class="expense-report-title">SUMBER SALDO</div>
+            <table class="expense-table">
+              <thead>
+                <tr>
+                  <th class="no">NO</th>
+                  <th>SUMBER</th>
+                  <th class="nominal">NOMINAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="no">1</td>
+                  <td class="source">SALDO HARIAN</td>
+                  <td class="nominal">Rp ${Number(cashRow.saldo_harian || 0).toLocaleString('id-ID')}</td>
+                </tr>
+                <tr>
+                  <td class="no">2</td>
+                  <td class="source">BELANJA MALAM</td>
+                  <td class="nominal">Rp ${Number(cashRow.belanja_malam || 0).toLocaleString('id-ID')}</td>
+                </tr>
+                <tr class="expense-total-row">
+                  <td colspan="2" style="text-align: center;">TOTAL PEMASUKAN</td>
+                  <td class="nominal">Rp ${Number(totalPemasukan).toLocaleString('id-ID')}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section>
+            <div class="expense-report-title">PENGELUARAN</div>
+            <table class="expense-table">
+              <thead>
+                <tr>
+                  <th class="no">NO</th>
+                  <th>SUMBER</th>
+                  <th class="nominal">NOMINAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${expenseRows}
+                <tr class="expense-total-row">
+                  <td colspan="2" style="text-align: center;">TOTAL PENGELUARAN</td>
+                  <td class="nominal">Rp ${Number(totalPengeluaran).toLocaleString('id-ID')}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+
+        <div class="expense-report-footer" style="margin-top: 15px;">
+          <div>SISA SALDO TUNAI</div>
+          <div style="text-align: right;">Rp ${Number(sisaSaldo).toLocaleString('id-ID')}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCash() {
+  const cash = DB.cash[DB.cash.length - 1] || {};
+  $('content').innerHTML = `
+    <div class="top"><div><div class="title">Posisi Saldo Kas</div></div></div>
+    <div class="panel">
+      <form id="cashForm">
+        <div class="form-grid">
+          ${inputField('tanggal', 'Tanggal', cash.tanggal || today(), 'date')}
+          ${inputField('saldo_harian', 'Saldo Harian', cash.saldo_harian)}
+          ${inputField('belanja_malam', 'Belanja Malam', cash.belanja_malam)}
+        </div>
+        <div class="actions"><button class="btn btn-primary" type="submit">Simpan Posisi Kas</button></div>
+      </form>
+    </div>
+  `;
+  $('cashForm').onsubmit = async e => {
+    e.preventDefault();
+    const formData = Object.fromEntries(new FormData(e.target));
+    const { error } = await db.from('cash_positions').upsert([formData], { onConflict: 'tanggal' });
+    if (error) showToast('Gagal: ' + error.message);
+    else { showToast('Posisi kas disimpan.'); loadData('cash'); }
+  };
+}
+
+function renderReportPage() {
+  $('content').innerHTML = `
+    <div class="top">
+      <div><div class="title">Laporan Pendapatan Harian</div></div>
+      <div style="display:flex; flex-direction: column; gap:10px; width: 100%;">
+        <input type="date" id="reportDate" value="${today()}" style="padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:16px; width:100%; min-height: 48px;">
+        <button class="btn btn-primary" onclick="loadReport()">Tampilkan</button>
+        <button class="btn btn-success" onclick="downloadDailyReportImage()">📷 Download Gambar</button>
+      </div>
+    </div>
+    <div id="reportResult"></div>
+  `;
+  loadReport();
+}
+
+function downloadDailyReportImage() {
+  const date = $('reportDate').value || today();
+  downloadElementAsImage('captureDailyReport', 'LAPORAN_PENDAPATAN_' + date);
+}
+
+function reportRow(label, value, forceDash = false) {
+  const number = Number(value || 0);
+  const display = forceDash || number === 0 ? '-' : number.toLocaleString('id-ID');
+  return `
+    <div class="report-row">
+      <span>${label}</span>
+      <span>:</span>
+      <span>Rp</span>
+      <span class="amount">${display}</span>
+    </div>
+  `;
+}
+
+function loadReport() {
+  const date = $('reportDate').value;
+  const sales = DB.sales.find(r => formatDate(r.tanggal) === date) || {};
+  const counter = DB.counter.find(r => formatDate(r.tanggal) === date) || {};
+
+  const totalEsb = totalESB(sales);
+  const totalCounter = totalCounter(counter);
+
+  const diffCash = Number(sales.cash || 0) - Number(counter.cash || 0);
+  const diffDebit = Number(sales.debit_card || 0) - Number(counter.debit_card || 0);
+  const diffGrab = Number(sales.grab || 0) - Number(counter.grab || 0);
+  const diffQris = Number(sales.qris || 0) - Number(counter.qris || 0);
+
+  const dateObject = new Date(date + 'T00:00:00');
+  const formattedDate = dateObject.toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
+  $('reportResult').innerHTML = `
+    <div class="report-container">
+      <div class="report" id="captureDailyReport">
+        <div class="report-header">
+          RUMAH MAKAN TAHU SUMEDANG<br>
+          SARI KEDELE<br>
+          UNIT SUBANG
+        </div>
+
+        <div class="report-red-line"></div>
+        <div class="report-date">${formattedDate}</div>
+
+        <div class="report-grid">
+          <section>
+            <div class="report-section-title">LAPORAN PENDAPATAN ESB</div>
+            ${reportRow('MAKANAN', sales.makanan)}
+            ${reportRow('MINUMAN', sales.minuman)}
+            ${reportRow('TAHU', sales.tahu)}
+            ${reportRow('GORENGAN', sales.gorengan)}
+            ${reportRow('LAIN-LAIN', sales.lain_lain)}
+            <div class="report-total">
+              ${reportRow('TOTAL PENDAPATAN', totalEsb)}
+            </div>
+            ${reportRow('PAJAK', sales.pajak)}
+            <div class="report-payment">
+              ${reportRow('CASH', sales.cash)}
+              ${reportRow('DEBIT CARD', sales.debit_card)}
+              ${reportRow('GRAB', sales.grab, true)}
+              ${reportRow('QRIS', sales.qris)}
+            </div>
+          </section>
+
+          <section>
+            <div class="report-section-title">LAPORAN PENDAPATAN KONTER</div>
+            ${reportRow('CASH', counter.cash)}
+            ${reportRow('DEBIT CARD', counter.debit_card)}
+            ${reportRow('GRAB', counter.grab, true)}
+            ${reportRow('QRIS', counter.qris)}
+            <div class="report-total">
+              ${reportRow('TOTAL PENDAPATAN', totalCounter)}
+            </div>
+            <div class="report-selisih">SELISIH</div>
+            ${reportRow('CASH', diffCash)}
+            ${reportRow('DEBIT CARD', diffDebit, true)}
+            ${reportRow('GRAB', diffGrab, true)}
+            ${reportRow('QRIS', diffQris, true)}
+          </section>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAttendancePage() {
+  $('content').innerHTML = `
+    <div class="top"><div><div class="title">Absensi Mesin Karyawan</div></div></div>
+    <div class="panel">
+      <div class="upload-zone" onclick="$('excelFileInput').click()">
+        <div style="font-size: 38px; margin-bottom: 6px;">📂</div>
+        <div style="font-weight: 700; font-size: 15px;">Klik untuk Upload File Log Absensi (.xls / .xlsx)</div>
+        <input type="file" id="excelFileInput" accept=".xls,.xlsx" onchange="handleExcelUpload(event)">
+      </div>
+      <div id="uploadProgress" style="display:none; margin-top:12px; font-weight:700; color:var(--red);">⏳ Memproses file...</div>
+    </div>
+    <div class="panel">
+      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
+        <div class="panel-title" style="margin-bottom:0;">Riwayat Absensi Harian</div>
+        <input type="date" id="attendanceFilterDate" value="${today()}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+      </div>
+      <div class="table-wrap">
+        <table class="table" id="attendanceTable">
+          <thead>
+            <tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Status</th></tr>
+          </thead>
+          <tbody id="attendanceTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  renderAttendanceTable();
+}
+
+function renderAttendanceTable() {
+  const fDate = formatDate($('attendanceFilterDate').value) || today();
+  const list = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
+  const tbody = $('attendanceTableBody');
+  if (!tbody) return;
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Belum ada absensi tanggal ${fDate}. Silakan upload log.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map((r, i) => `
+    <tr>
+      <td class="center">${i+1}</td>
+      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+      <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
+      <td class="center" style="font-weight:700; color:${r.masuk ? '#15803d' : '#b91c1c'};">${r.masuk || '-'}</td>
+      <td class="center" style="font-weight:700;">${r.pulang || '-'}</td>
+      <td class="center"><span class="badge ${r.status === 'Hadir' ? 'badge-success' : 'badge-danger'}">${r.status}</span></td>
+    </tr>
+  `).join('');
+}
+
+function handleExcelUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  $('uploadProgress').style.display = 'block';
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames.find(s => s.toLowerCase() === 'log') || workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+      let periodText = '';
+      for (let r = 0; r < Math.min(5, rows.length); r++) {
+        for (let c = 0; c < rows[r].length; c++) {
+          if (String(rows[r][c]).includes('~')) { periodText = String(rows[r][c]); break; }
+        }
+        if (periodText) break;
+      }
+
+      let startYear = new Date().getFullYear();
+      let startMonth = new Date().getMonth() + 1;
+      const periodMatch = periodText.match(/(\d{4})[/-](\d{2})[/-](\d{2})/);
+      if (periodMatch) {
+        startYear = parseInt(periodMatch[1], 10);
+        startMonth = parseInt(periodMatch[2], 10);
+      }
+
+      const parsedRecords = [];
+      for (let i = 0; i < rows.length; i++) {
+        const rowStr = rows[i].join(' ');
+        if (rowStr.includes('No :') && rowStr.includes('Nama :')) {
+          const daysRow = i > 0 ? rows[i - 1] : [];
+          const infoRow = rows[i];
+          const punchRow = i + 1 < rows.length ? rows[i + 1] : [];
+
+          let namaVal = '', deptVal = '';
+          for (let c = 0; c < infoRow.length; c++) {
+            const cellStr = String(infoRow[c]).trim();
+            if (cellStr.includes('Nama :')) {
+              for (let k = c + 1; k < infoRow.length; k++) {
+                if (String(infoRow[k]).trim()) { namaVal = String(infoRow[k]).trim(); break; }
+              }
+            } else if (cellStr.includes('Dept :')) {
+              for (let k = c + 1; k < infoRow.length; k++) {
+                if (String(infoRow[k]).trim()) { deptVal = String(infoRow[k]).trim(); break; }
+              }
+            }
+          }
+
+          if (!namaVal) continue;
+
+          for (let col = 0; col < daysRow.length; col++) {
+            const dayNum = parseInt(daysRow[col], 10);
+            if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) continue;
+
+            const dateStr = `${startYear}-${String(startMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+            const punchStr = String(punchRow[col] || '').trim();
+            const times = punchStr.split(/[\n\r]+/).map(t => t.trim()).filter(t => t.includes(':'));
+
+            parsedRecords.push({
+              tanggal: dateStr,
+              nama: namaVal,
+              departemen: deptVal,
+              masuk: times.length > 0 ? times[0] : '',
+              pulang: times.length > 1 ? times[times.length - 1] : '',
+              status: times.length > 0 ? 'Hadir' : 'Tidak Hadir'
+            });
+          }
+          i += 1;
+        }
+      }
+
+      const { error } = await db.from('attendance').upsert(parsedRecords, { onConflict: 'tanggal,nama' });
+      $('uploadProgress').style.display = 'none';
+      if (error) showToast('Gagal: ' + error.message);
+      else { showToast('Absensi berhasil diunggah.'); loadData('attendance'); }
+    } catch (err) {
+      $('uploadProgress').style.display = 'none';
+      showToast('Gagal memproses file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderAllowancePage() {
+  $('content').innerHTML = `
+    <div class="top"><div><div class="title">Uang Jajan Ketepatan Waktu</div></div></div>
+    <div class="panel">
+      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
+        <label style="font-weight:700; font-size:14px;">Pilih Tanggal:</label>
+        <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Shift</th><th class="center">Jam Masuk</th><th class="center">Batas</th><th class="center">Status</th><th class="right">Uang Jajan</th></tr>
+          </thead>
+          <tbody id="allowanceTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  renderAllowanceTable();
+}
+
+function renderAllowanceTable() {
+  const fDate = formatDate($('allowanceFilterDate').value) || today();
+  const allAttToday = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
+  const tbody = $('allowanceTableBody');
+  if (!tbody) return;
+
+  if (!allAttToday.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada absensi tanggal ${fDate}.</td></tr>`;
+    return;
+  }
+
+  const list = allAttToday.map(r => ({ ...r, c: classifyShift(r.masuk) })).filter(r => r.c.onTime);
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada yang tepat waktu pada tanggal ${fDate}.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((r, i) => `
+    <tr>
+      <td class="center">${i+1}</td>
+      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+      <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
+      <td class="center">${r.c.shift}</td>
+      <td class="center" style="font-weight:700; color:#15803d;">${r.c.displayTime}</td>
+      <td class="center" style="color:var(--muted); font-size:11px;">Maks ${r.c.batas}</td>
+      <td class="center"><span class="badge badge-success">✓ Tepat Waktu</span></td>
+      <td class="right" style="font-weight:700; color:#15803d;">+${money(DEFAULT_ALLOWANCE)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderWorkHoursPage() {
+  $('content').innerHTML = `
+    <div class="top"><div><div class="title">Perhitungan Jam Kerja (11 Jam)</div></div></div>
+    <div class="panel">
+      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
+        <label style="font-weight:700; font-size:14px;">Pilih Tanggal:</label>
+        <input type="date" id="workHoursFilterDate" value="${today()}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Durasi</th><th class="center">Selisih (11 Jam)</th><th class="right">Penyesuaian (x5rb)</th></tr>
+          </thead>
+          <tbody id="workHoursTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  renderWorkHoursTable();
+}
+
+function renderWorkHoursTable() {
+  const fDate = formatDate($('workHoursFilterDate').value) || today();
+  const list = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
+  const tbody = $('workHoursTableBody');
+  if (!tbody) return;
+
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada data.</td></tr>`; return; }
+
+  tbody.innerHTML = list.map((r, i) => {
+    const durasi = calculateHours(r.masuk, r.pulang);
+    const diff = durasi > 0 ? (durasi - 11) : 0;
+    const nominal = Math.round(diff * 5000);
+    return `
+      <tr>
+        <td class="center">${i+1}</td>
+        <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+        <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
+        <td class="center">${r.masuk || '-'}</td>
+        <td class="center">${r.pulang || '-'}</td>
+        <td class="center">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
+        <td class="center" style="font-weight:700; color:${diff >= 0 ? '#15803d' : '#b91c1c'};">${diff !== 0 ? (diff > 0 ? '+' : '') + diff.toFixed(2) + ' Jam' : 'Pas (11 Jam)'}</td>
+        <td class="right" style="font-weight:700; color:${nominal >= 0 ? '#15803d' : '#b91c1c'};">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderAdvancesPage() {
+  const empOptionsHtml = (DB.masterSalary || []).map(e =>
+    `<option value="${escapeHtml(e.nama)}">${escapeHtml(e.nama)} (${escapeHtml(e.departemen)})</option>`
+  ).join('');
+
+  $('content').innerHTML = `
+    <div class="top"><div><div class="title">Kasbon Karyawan</div></div></div>
+    <div class="panel">
+      <div class="panel-title">Tambah Kasbon Baru</div>
+      <form id="advanceForm">
+        <div class="form-grid">
+          <div class="field"><label>Tanggal Pinjam</label><input type="date" name="tanggal" value="${today()}" required></div>
+          <div class="field">
+            <label>Nama Karyawan</label>
+            <input list="employeeList" id="advEmpName" name="nama" placeholder="Pilih atau ketik nama karyawan..." required onchange="autoFillDept(this)">
+            <datalist id="employeeList">${empOptionsHtml}</datalist>
+          </div>
+          <div class="field"><label>Divisi</label><input type="text" id="advDept" name="departemen" required></div>
+          <div class="field"><label>Nominal Kasbon (Rp)</label><input type="number" name="nominal" min="1000" step="1000" required></div>
+          <div class="field"><label>Keterangan</label><input type="text" name="keterangan" placeholder="Keperluan..."></div>
+        </div>
+        <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
+      </form>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Riwayat Kasbon</div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Divisi</th><th>Keterangan</th><th class="right">Nominal</th></tr></thead>
+          <tbody>
+            ${
+              (DB.advances || []).length
+                ? (DB.advances || []).slice().reverse().map((r, i) => `
+                  <tr>
+                    <td class="center">${i+1}</td>
+                    <td>${formatDate(r.tanggal)}</td>
+                    <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+                    <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
+                    <td>${escapeHtml(r.keterangan)}</td>
+                    <td class="right" style="color:var(--danger); font-weight:700;">${money(r.nominal)}</td>
+                  </tr>
+                `).join('')
+                : `<tr><td colspan="6" class="empty">Belum ada kasbon.</td></tr>`
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  $('advanceForm').onsubmit = async e => {
+    e.preventDefault();
+    const formData = Object.fromEntries(new FormData(e.target));
+    const { error } = await db.from('advances').insert([formData]);
+    if (error) showToast('Gagal: ' + error.message);
+    else { showToast('Kasbon disimpan.'); loadData('advances'); }
+  };
+}
+
+function autoFillDept(input) {
+  const val = input.value.trim().toUpperCase();
+  const emp = (DB.masterSalary || []).find(r => String(r.nama).trim().toUpperCase() === val);
+  if (emp && emp.departemen) $('advDept').value = emp.departemen;
+}
+
+function getCalculatedPayrollList(sDate, eDate, fDept) {
+  const periodAdvances = (DB.advances || []).filter(r => {
+    const d = formatDate(r.tanggal);
+    return d >= sDate && d <= eDate;
+  });
+
+  const advanceMap = new Map();
+  periodAdvances.forEach(a => {
+    const nm = String(a.nama || '').trim().toUpperCase();
+    advanceMap.set(nm, (advanceMap.get(nm) || 0) + Number(a.nominal || 0));
+  });
+
+  let masterList = DB.masterSalary || [];
+  if (fDept !== 'ALL') {
+    masterList = masterList.filter(r => String(r.departemen).trim().toUpperCase() === fDept.toUpperCase());
+  }
+  masterList.sort((a, b) => String(a.nama).localeCompare(String(b.nama)));
+
+  return masterList.map(emp => {
+    const nmKey = String(emp.nama || '').trim().toUpperCase();
+    const lainLain = (nmKey === "ZAENAL ARIFIN") ? DEFAULT_BONUS_LAIN : 0;
+    const kasbonDb = advanceMap.get(nmKey) || Number(emp.cicilan || 0);
+
+    const totalPendapatan = Number(emp.gaji_pokok || 0) + Number(emp.jabatan || 0) + Number(emp.prestasi || 0) + Number(emp.kesehatan || 0) + Number(emp.zakat || 0) + Number(emp.kebersihan_loyalitas || 0) + lainLain;
+    const totalPotongan = kasbonDb;
+    const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
+
+    return {
+      nama: emp.nama,
+      departemen: emp.departemen,
+      pokok: Number(emp.gaji_pokok || 0),
+      jabatan: Number(emp.jabatan || 0),
+      prestasi: Number(emp.prestasi || 0),
+      kesehatan: Number(emp.kesehatan || 0),
+      jamKerja: 0,
+      zakat: Number(emp.zakat || 0),
+      loyalitas: Number(emp.kebersihan_loyalitas || 0),
+      lainLain: lainLain,
+      kasbon: kasbonDb,
+      bpjs: 0,
+      cicilan: 0,
+      gajiBersih: gajiBersih
+    };
+  });
+}
+
+function renderPayrollPage() {
+  const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
+  const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+
+  let defaultStart = today();
+  let defaultEnd = today();
+
+  if ((DB.attendance || []).length > 0) {
+    const dates = DB.attendance.map(r => formatDate(r.tanggal)).filter(Boolean).sort();
+    if (dates.length) { defaultStart = dates[0]; defaultEnd = dates[dates.length - 1]; }
+  }
+
+  $('content').innerHTML = `
+    <div class="top">
+      <div>
+        <div class="title">Daftar Gaji Karyawan</div>
+        <div class="subtitle">Data bersumber langsung dari database Supabase.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
+          <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
+          <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
+          <select id="payrollFilterDept" onchange="renderPayrollTable()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; background: white; width: 100%; min-height: 48px;">
+            <option value="ALL">Semua Divisi</option>
+            ${deptOptionsHtml}
+          </select>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 6px;">
+          <button class="btn btn-secondary" onclick="showPage('slips')">🖨️ Cetak Slip PDF</button>
+          <button class="btn btn-success" onclick="downloadPayrollImage()">📷 Download Gambar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="padding: 12px;">
+      <div id="payrollCaptureArea" style="padding: 8px; background: white;">
+        <div style="text-align: center; margin-bottom: 14px;">
+          <div style="font-family: Georgia, serif; font-size: 16px; font-weight: 800;">RUMAH MAKAN TAHU SUMEDANG SARI KEDELE</div>
+          <div style="font-size: 13px; font-weight: 800; color: #0284c7; margin-top: 2px;">DAFTAR REKAPITULASI GAJI KARYAWAN</div>
+          <div style="color: var(--muted); font-size: 11.5px;" id="payrollSubtitle">-</div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="master-salary-table" id="payrollTable">
+            <thead>
+              <tr>
+                <th rowspan="2" style="background: #f8fafc; color: #334155; width: 180px;">NAMA KARYAWAN</th>
+                <th rowspan="2" class="th-header-pokok" style="width: 105px;">GAJI POKOK</th>
+                <th colspan="7" class="th-header-tunjangan">Tunjangan</th>
+                <th colspan="3" class="th-header-potongan">Potongan</th>
+                <th rowspan="2" class="th-header-bersih" style="width: 115px;">Gaji Bersih</th>
+              </tr>
+              <tr>
+                <th class="th-header-tunjangan-sub" style="width: 80px;">JABATAN</th>
+                <th class="th-header-tunjangan-sub" style="width: 80px;">PRESTASI</th>
+                <th class="th-header-tunjangan-sub" style="width: 80px;">KESEHATAN</th>
+                <th class="th-header-tunjangan-sub" style="width: 80px;">JAM KERJA</th>
+                <th class="th-header-tunjangan-sub" style="width: 75px;">ZAKAT</th>
+                <th class="th-header-tunjangan-sub" style="width: 95px;">KEBERSIHAN/LOYALITAS</th>
+                <th class="th-header-tunjangan-sub" style="width: 80px;">LAIN-LAIN</th>
+                <th class="th-header-potongan-sub" style="width: 80px;">KASBON</th>
+                <th class="th-header-potongan-sub" style="width: 70px;">BPJS</th>
+                <th class="th-header-potongan-sub" style="width: 80px;">CICILAN</th>
+              </tr>
+            </thead>
+            <tbody id="payrollTableBody"></tbody>
+            <tfoot id="payrollTableFoot"></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  renderPayrollTable();
+}
+
+function renderPayrollTable() {
+  const sDate = $('payrollStartDate').value;
+  const eDate = $('payrollEndDate').value;
+  const fDept = $('payrollFilterDept').value;
+
+  const tbody = $('payrollTableBody');
+  const tfoot = $('payrollTableFoot');
+  const subTitleEl = $('payrollSubtitle');
+  if (!tbody) return;
+
+  if (subTitleEl) subTitleEl.textContent = `Periode: ${sDate} s/d ${eDate} | Unit Subang`;
+
+  const list = getCalculatedPayrollList(sDate, eDate, fDept);
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="13" class="empty">Belum ada data pada master_salary.</td></tr>`;
+    tfoot.innerHTML = '';
+    return;
+  }
+
+  let sumPokok = 0, sumJabatan = 0, sumPrestasi = 0, sumKesehatan = 0;
+  let sumJamKerja = 0, sumZakat = 0, sumLoyalitas = 0, sumLainLain = 0;
+  let sumKasbon = 0, sumBpjs = 0, sumCicilan = 0, sumBersih = 0;
+
+  const rowsHtml = list.map(emp => {
+    sumPokok += emp.pokok;
+    sumJabatan += emp.jabatan;
+    sumPrestasi += emp.prestasi;
+    sumKesehatan += emp.kesehatan;
+    sumJamKerja += emp.jamKerja;
+    sumZakat += emp.zakat;
+    sumLoyalitas += emp.loyalitas;
+    sumLainLain += emp.lainLain;
+    sumKasbon += emp.kasbon;
+    sumBpjs += emp.bpjs;
+    sumCicilan += emp.cicilan;
+    sumBersih += emp.gajiBersih;
+
+    return `
+      <tr>
+        <td style="font-weight: 700;">${escapeHtml(emp.nama)}</td>
+        <td class="right" style="font-weight: 600;">${money(emp.pokok)}</td>
+        <td class="right">${emp.jabatan > 0 ? money(emp.jabatan) : '-'}</td>
+        <td class="right">${emp.prestasi > 0 ? money(emp.prestasi) : '-'}</td>
+        <td class="right">${emp.kesehatan > 0 ? money(emp.kesehatan) : '-'}</td>
+        <td class="right">${emp.jamKerja !== 0 ? money(emp.jamKerja) : '-'}</td>
+        <td class="right">${emp.zakat > 0 ? money(emp.zakat) : '-'}</td>
+        <td class="right">${emp.loyalitas > 0 ? money(emp.loyalitas) : '-'}</td>
+        <td class="right" style="color: #15803d;">${emp.lainLain > 0 ? money(emp.lainLain) : '-'}</td>
+        <td class="right" style="color: #b91c1c;">${emp.kasbon > 0 ? money(emp.kasbon) : '-'}</td>
+        <td class="right" style="color: #b91c1c;">${emp.bpjs > 0 ? money(emp.bpjs) : '-'}</td>
+        <td class="right" style="color: #b91c1c;">${emp.cicilan > 0 ? money(emp.cicilan) : '-'}</td>
+        <td class="right" style="font-weight: 800; color: #0284c7; background: #f0f9ff;">${money(emp.gajiBersih)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.innerHTML = rowsHtml;
+  tfoot.innerHTML = `
+    <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #475569;">
+      <td style="text-align: center; padding: 8px;">TOTAL</td>
+      <td class="right">${money(sumPokok)}</td>
+      <td class="right">${money(sumJabatan)}</td>
+      <td class="right">${money(sumPrestasi)}</td>
+      <td class="right">${money(sumKesehatan)}</td>
+      <td class="right">${money(sumJamKerja)}</td>
+      <td class="right">${money(sumZakat)}</td>
+      <td class="right">${money(sumLoyalitas)}</td>
+      <td class="right">${money(sumLainLain)}</td>
+      <td class="right">${money(sumKasbon)}</td>
+      <td class="right">${money(sumBpjs)}</td>
+      <td class="right">${money(sumCicilan)}</td>
+      <td class="right" style="background: #e0f2fe; color: #0284c7; font-size: 12px;">${money(sumBersih)}</td>
+    </tr>
+  `;
+}
+
+function downloadPayrollImage() {
+  const s = $('payrollStartDate').value;
+  const e = $('payrollEndDate').value;
+  downloadElementAsImage('payrollCaptureArea', `DAFTAR_GAJI_${s}_sd_${e}`);
+}
+
+function renderSlipsPage() {
+  const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
+  const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+
+  let defaultStart = today();
+  let defaultEnd = today();
+
+  if ((DB.attendance || []).length > 0) {
+    const dates = DB.attendance.map(r => formatDate(r.tanggal)).filter(Boolean).sort();
+    if (dates.length) { defaultStart = dates[0]; defaultEnd = dates[dates.length - 1]; }
+  }
+
+  $('content').innerHTML = `
+    <div class="top">
+      <div>
+        <div class="title">Cetak Slip Gaji Karyawan (PDF)</div>
+        <div class="subtitle">Format otomatis 1 kolom khusus mobile.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
+          <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
+          <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
+          <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; background: white; width: 100%; min-height: 48px;">
+            <option value="ALL">Semua Divisi</option>
+            ${deptOptionsHtml}
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label>
+          <input type="text" id="slipPrintDate" value="Subang, 01 September 2026" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; width: 100%; min-height: 48px;">
+        </div>
+
+        <div style="width: 100%; margin-top: 6px;">
+          <button class="btn btn-primary" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="slip-container" id="slipPrintContainer"></div>
+  `;
+
+  renderSlipPages();
+}
+
+function getMonthName(dateStr) {
+  if (!dateStr) return '';
+  const m = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const p = dateStr.split('-');
+  if (p.length >= 2) {
+    const idx = parseInt(p[1], 10) - 1;
+    return (m[idx] || '') + ' ' + p[0];
+  }
+  return '';
+}
+
+function renderSlipPages() {
+  const sDate = $('slipStartDate').value;
+  const eDate = $('slipEndDate').value;
+  const fDept = $('slipFilterDept').value;
+  const printDate = $('slipPrintDate').value || `Subang, ${today()}`;
+
+  const container = $('slipPrintContainer');
+  if (!container) return;
+
+  const list = getCalculatedPayrollList(sDate, eDate, fDept);
+
+  if (!list.length) {
+    container.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--muted); background: white; margin: 10px;">Tidak ada data.</div>`;
+    return;
+  }
+
+  const periodMonth = getMonthName(sDate).toUpperCase() || 'AGUSTUS 2026';
+  let html = `<div class="a4-page">`;
+
+  list.forEach(emp => {
+    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
+    const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
+
+    html += `
+      <div class="slip-card">
+        <div>
+          <div class="slip-header">
+            <div class="slip-header-title">RUMAH MAKAN TAHU SUMEDANG</div>
+            <div class="slip-header-sub">SARI KEDELE</div>
+            <div style="font-size: 9px; color: #475569;">UNIT SUBANG</div>
+            <div class="slip-header-period">SLIP GAJI PERIODE ${periodMonth}</div>
+          </div>
+
+          <div class="slip-bio">
+            <span>NAMA</span><span>:</span><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(emp.nama)}</span>
+            <span>POSISI</span><span>:</span><span>${escapeHtml(emp.departemen)}</span>
+          </div>
+
+          <div class="slip-section-bar">RINCIAN GAJI</div>
+
+          <div class="slip-row"><span>GAJI POKOK</span><span>Rp</span><span class="right">${formatNum(emp.pokok)}</span></div>
+          <div class="slip-row"><span>JABATAN</span><span>Rp</span><span class="right">${formatNum(emp.jabatan)}</span></div>
+          <div class="slip-row"><span>PRESTASI</span><span>Rp</span><span class="right">${formatNum(emp.prestasi)}</span></div>
+          <div class="slip-row"><span>KESEHATAN</span><span>Rp</span><span class="right">${formatNum(emp.jamKerja ? 0 : emp.kesehatan)}</span></div>
+          <div class="slip-row"><span>JAM KERJA</span><span>Rp</span><span class="right">${formatNum(emp.jamKerja)}</span></div>
+          <div class="slip-row"><span>ZAKAT</span><span>Rp</span><span class="right">${formatNum(emp.zakat)}</span></div>
+          <div class="slip-row"><span>KEBERSIHAN/LOYALITAS</span><span>Rp</span><span class="right">${formatNum(emp.loyalitas)}</span></div>
+          <div class="slip-row"><span>LAIN-LAIN</span><span>Rp</span><span class="right">${formatNum(emp.lainLain)}</span></div>
+
+          <div class="slip-subtotal"><span>Jumlah Pendapatan</span><span>Rp</span><span class="right">${formatNum(totalPendapatan)}</span></div>
+
+          <div class="slip-section-bar">POTONGAN</div>
+
+          <div class="slip-row"><span>KASBON</span><span>Rp</span><span class="right">${formatNum(emp.kasbon)}</span></div>
+          <div class="slip-row"><span>BPJS</span><span>Rp</span><span class="right">${formatNum(emp.bpjs)}</span></div>
+          <div class="slip-row"><span>CICILAN</span><span>Rp</span><span class="right">${formatNum(emp.cicilan)}</span></div>
+
+          <div class="slip-subtotal"><span>Jumlah Potongan</span><span>Rp</span><span class="right">${formatNum(totalPotongan)}</span></div>
+        </div>
+
+        <div>
+          <div class="slip-net-bar">
+            <span>Gaji Diterima</span><span>Rp</span><span class="right">${formatNum(emp.gajiBersih)}</span>
+          </div>
+          <div class="slip-footer-date">${escapeHtml(printDate)}</div>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+loadData();
