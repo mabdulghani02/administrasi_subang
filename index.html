@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <base target="_top">
-  <title>ADMINISTRASI</title>
+  <title>Administrasi Subang - Sari Kedele</title>
 
   <link rel="stylesheet" href="style.css">
+  <!-- PUSTAKA IKON VEKTOR FONTAWESOME -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -18,8 +20,11 @@
 <body>
 
 <div class="mobile-header">
-  <div style="font-weight: 800; font-size: 15px; letter-spacing: 0.5px;">KEUANGAN SUBANG</div>
-  <button class="hamburger-btn" onclick="toggleSidebar()">☰ Menu</button>
+  <div style="font-weight: 800; font-size: 15px; letter-spacing: 0.5px;">ADMINISTRASI SUBANG</div>
+  <div style="display: flex; gap: 8px;">
+    <button class="theme-toggle-btn" onclick="toggleTheme()"><i id="themeIcon" class="fa-solid fa-moon"></i></button>
+    <button class="hamburger-btn" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i> Menu</button>
+  </div>
 </div>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
@@ -28,18 +33,18 @@
   <aside class="sidebar" id="appSidebar">
     <div class="brand">
       <div>
-        ADIMINISTRASI
-        <small>SariKedele-Subang</small>
+        ADMINISTRASI SUBANG
+        <small>Sari Kedele - Subang</small>
       </div>
-      <button style="background:transparent; border:0; color:#94a3b8; font-size:22px; cursor:pointer;" onclick="toggleSidebar()">✕</button>
+      <button style="background:transparent; border:0; color:inherit; font-size:22px; cursor:pointer;" onclick="toggleSidebar()"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
     <div class="nav">
-      <button data-page="dashboard" onclick="showPage('dashboard')">🏠 Dashboard</button>
-      <button data-page="sales" onclick="showPage('sales')">💰 Pendapatan</button>
-      <button data-page="expense" onclick="showPage('expense')">💸 Pengeluaran</button>
-      <button data-page="attendance" onclick="showPage('attendance')">🕒 Absensi</button>
-      <button data-page="payroll" onclick="showPage('payroll')">📑 Daftar Gaji</button>
+      <button data-page="dashboard" onclick="showPage('dashboard')"><i class="fa-solid fa-house"></i> Dashboard</button>
+      <button data-page="sales" onclick="showPage('sales')"><i class="fa-solid fa-wallet"></i> Pendapatan</button>
+      <button data-page="expense" onclick="showPage('expense')"><i class="fa-solid fa-receipt"></i> Pengeluaran</button>
+      <button data-page="attendance" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i> Absensi</button>
+      <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i> Daftar Gaji</button>
     </div>
   </aside>
 
@@ -51,19 +56,19 @@
 <!-- BOTTOM NAVIGATION BAR MOBILE -->
 <nav class="bottom-nav">
   <button class="b-nav-btn" data-page="dashboard" onclick="showPage('dashboard')">
-    <span>🏠</span><span>Home</span>
+    <i class="fa-solid fa-house"></i><span>Home</span>
   </button>
   <button class="b-nav-btn" data-page="sales" onclick="showPage('sales')">
-    <span>💰</span><span>Pendapatan</span>
+    <i class="fa-solid fa-wallet"></i><span>Pendapatan</span>
   </button>
   <button class="b-nav-btn" data-page="expense" onclick="showPage('expense')">
-    <span>💸</span><span>Pengeluaran</span>
+    <i class="fa-solid fa-receipt"></i><span>Pengeluaran</span>
   </button>
   <button class="b-nav-btn" data-page="attendance" onclick="showPage('attendance')">
-    <span>🕒</span><span>Absensi</span>
+    <i class="fa-solid fa-user-clock"></i><span>Absensi</span>
   </button>
   <button class="b-nav-btn" data-page="payroll" onclick="showPage('payroll')">
-    <span>📑</span><span>Gaji</span>
+    <i class="fa-solid fa-file-invoice-dollar"></i><span>Gaji</span>
   </button>
 </nav>
 
