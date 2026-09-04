@@ -1,5 +1,5 @@
 const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWw06jtowD1Af22vfUxA__d_MBDE';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let DB = {
@@ -983,7 +983,7 @@ function renderPayrollPage() {
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 6px;">
-          <button class="btn btn-secondary" onclick="showPage('slips')">🖨️ Cetak Slip PDF</button>
+          <button class="btn btn-secondary" onclick="showPage('slips')">📥 Buka Menu Download PDF</button>
           <button class="btn btn-success" onclick="downloadPayrollImage()">📷 Download Gambar</button>
         </div>
       </div>
@@ -1130,7 +1130,7 @@ function renderSlipsPage() {
     <div class="top">
       <div>
         <div class="title">Cetak Slip Gaji Karyawan (PDF)</div>
-        <div class="subtitle">Format otomatis 1 kolom khusus mobile.</div>
+        <div class="subtitle">Unduh dokumen slip gaji dalam format PDF resmi.</div>
       </div>
     </div>
 
@@ -1157,7 +1157,7 @@ function renderSlipsPage() {
         </div>
 
         <div style="width: 100%; margin-top: 6px;">
-          <button class="btn btn-primary" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+          <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
         </div>
       </div>
     </div>
@@ -1196,7 +1196,7 @@ function renderSlipPages() {
   }
 
   const periodMonth = getMonthName(sDate).toUpperCase() || 'AGUSTUS 2026';
-  let html = `<div class="a4-page">`;
+  let html = '';
 
   list.forEach(emp => {
     const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
@@ -1249,8 +1249,61 @@ function renderSlipPages() {
     `;
   });
 
-  html += `</div>`;
   container.innerHTML = html;
+}
+
+async function exportSlipsToPDF() {
+  const container = $('slipPrintContainer');
+  if (!container || container.innerHTML.trim() === '') {
+    showToast('Tidak ada slip gaji untuk diekspor.');
+    return;
+  }
+
+  showToast('Sedang merakit dokumen PDF...');
+  
+  try {
+    const { jsPDF } = window.jspdf;
+    const cards = container.querySelectorAll('.slip-card');
+    if (!cards.length) {
+      showToast('Slip gaji kosong.');
+      return;
+    }
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      
+      const imgWidth = 90; 
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      const col = i % 2; 
+      const row = Math.floor((i / 2) % 3); 
+      
+      const marginX = 12;
+      const marginY = 12;
+      const gapX = 6;
+      const gapY = 6;
+      
+      const posX = marginX + col * (imgWidth + gapX);
+      const posY = marginY + row * (imgHeight + gapY);
+      
+      if (i > 0 && i % 6 === 0) {
+        pdf.addPage();
+      }
+      
+      pdf.addImage(imgData, 'PNG', posX, posY, imgWidth, imgHeight);
+    }
+    
+    const sDate = $('slipStartDate').value || 'periode';
+    pdf.save(`SLIP_GAJI_${sDate}.pdf`);
+    showToast('PDF berhasil diunduh!');
+  } catch (err) {
+    console.error(err);
+    showToast('Gagal membuat PDF: ' + err.message);
+  }
 }
 
 loadData();
