@@ -1,0 +1,20 @@
+{
+  "name": "Administrasi Subang",
+  "short_name": "Admin Subang",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "icons": [
+    {
+      "src": "https://ui-avatars.com/api/?name=Admin+Subang&background=121212&color=20c997&size=192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://ui-avatars.com/api/?name=Admin+Subang&background=121212&color=20c997&size=512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
