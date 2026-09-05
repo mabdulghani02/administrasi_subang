@@ -609,24 +609,36 @@ function showExpenseSub(type) {
     `;
     loadExpenseReport();
   } else {
-    const cash = DB.cash[DB.cash.length - 1] || {};
+    // BUG FIX: Gunakan tanggal hari ini sebagai default, bukan menimpa tanggal terakhir.
+    const currentDate = today();
+    const cash = (DB.cash || []).find(c => formatDate(c.tanggal) === currentDate) || {};
+    
     container.innerHTML = `
       <div class="panel">
         <div class="panel-title">Posisi Saldo Kas</div>
         <form id="cashForm">
           <div class="form-grid">
-            ${inputField('tanggal', 'Tanggal', cash.tanggal || today(), 'date')}
-            ${inputField('saldo_harian', 'Saldo Harian', cash.saldo_harian)}
-            ${inputField('belanja_malam', 'Belanja Malam', cash.belanja_malam)}
+            ${inputField('tanggal', 'Tanggal', cash.tanggal || currentDate, 'date')}
+            ${inputField('saldo_harian', 'Saldo Harian', cash.saldo_harian || 0)}
+            ${inputField('belanja_malam', 'Belanja Malam', cash.belanja_malam || 0)}
           </div>
           <div class="actions"><button class="btn btn-primary" type="submit">Simpan Posisi Kas</button></div>
         </form>
       </div>
     `;
+    
     $('cashForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
-      const { error } = await db.from('cash_positions').upsert([formData], { onConflict: 'tanggal' });
+      
+      // BUG FIX: Paksa konversi ke tipe data Angka (Number) agar diterima database Supabase
+      const payload = {
+        tanggal: formData.tanggal,
+        saldo_harian: Number(formData.saldo_harian || 0),
+        belanja_malam: Number(formData.belanja_malam || 0)
+      };
+
+      const { error } = await db.from('cash_positions').upsert([payload], { onConflict: 'tanggal' });
       if (error) showToast('Gagal: ' + error.message);
       else { showToast('Posisi kas disimpan.'); loadData('expense'); }
     };
@@ -1013,6 +1025,7 @@ function renderPayrollPage() {
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
         <button id="payBtnRekap" class="sub-nav-btn active-sub" onclick="showPayrollSub('rekap')">Rekapitulasi</button>
         <button id="payBtnSlip" class="sub-nav-btn" onclick="showPayrollSub('slips')">Cetak Slip PDF</button>
+        <button id="payBtnKasbon" class="sub-nav-btn" onclick="showPayrollSub('kasbon')">Kasbon</button>
       </div>
     </div>
     <div id="payrollSubContent"></div>
@@ -1026,9 +1039,12 @@ function showPayrollSub(type) {
 
   const btnRekap = $('payBtnRekap');
   const btnSlip = $('payBtnSlip');
-  if (btnRekap && btnSlip) {
+  const btnKasbon = $('payBtnKasbon');
+  
+  if (btnRekap && btnSlip && btnKasbon) {
     btnRekap.classList.toggle('active-sub', type === 'rekap');
     btnSlip.classList.toggle('active-sub', type === 'slips');
+    btnKasbon.classList.toggle('active-sub', type === 'kasbon');
   }
 
   const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
@@ -1058,11 +1074,10 @@ function showPayrollSub(type) {
           </div>
         </div>
       </div>
-
       <div id="payrollCardsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px;"></div>
     `;
     renderPayrollCards();
-  } else {
+  } else if (type === 'slips') {
     container.innerHTML = `
       <div class="panel">
         <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
@@ -1091,7 +1106,93 @@ function showPayrollSub(type) {
       <div class="slip-container" id="slipPrintContainer"></div>
     `;
     renderSlipPages();
+  } else if (type === 'kasbon') {
+    const empOptionsHtml = (DB.masterSalary || []).map(d => `<option value="${escapeHtml(d.nama)}">${escapeHtml(d.nama)}</option>`).join('');
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    container.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">Input Kasbon Karyawan</div>
+        <form id="kasbonForm">
+          <div class="form-grid">
+            ${inputField('tanggal', 'Tanggal', today(), 'date')}
+            <div class="field">
+              <label>Nama Karyawan</label>
+              <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+                ${empOptionsHtml}
+              </select>
+            </div>
+            ${inputField('nominal', 'Nominal Kasbon (Rp)', 0)}
+            <div class="field">
+              <label>Keterangan</label>
+              <input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+            </div>
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+          <label style="font-weight:700;">Lihat Histori Kasbon Bulan:</label>
+          <input type="month" id="kasbonFilterMonth" value="${currentMonth}" onchange="renderKasbonTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Keterangan</th><th class="right">Nominal</th></tr></thead>
+            <tbody id="kasbonTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    $('kasbonForm').onsubmit = async e => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(e.target));
+      const payload = {
+        tanggal: formData.tanggal,
+        nama: formData.nama,
+        nominal: Number(formData.nominal || 0),
+        keterangan: formData.keterangan || '-'
+      };
+      
+      if (!payload.nominal) { showToast('Nominal tidak boleh nol.'); return; }
+
+      const { error } = await db.from('advances').insert([payload]);
+      if (error) showToast('Gagal: ' + error.message);
+      else { 
+        showToast('Kasbon berhasil dicatat.'); 
+        loadData('payroll'); 
+      }
+    };
+
+    renderKasbonTable();
   }
+}
+
+function renderKasbonTable() {
+  const fMonth = $('kasbonFilterMonth')?.value || new Date().toISOString().slice(0, 7);
+  const tbody = $('kasbonTableBody');
+  if (!tbody) return;
+
+  const list = (DB.advances || [])
+    .filter(r => formatDate(r.tanggal).startsWith(fMonth))
+    .sort((a,b) => a.tanggal.localeCompare(b.tanggal));
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada data kasbon bulan ini.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((r, i) => `
+    <tr>
+      <td class="center">${i+1}</td>
+      <td class="center">${formatDate(r.tanggal)}</td>
+      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+      <td>${escapeHtml(r.keterangan)}</td>
+      <td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td>
+    </tr>
+  `).join('');
 }
 
 function getCalculatedPayrollList(sDate, eDate, fDept) {
@@ -1104,7 +1205,13 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
   return masterList.map(emp => {
     const nmKey = String(emp.nama || '').trim().toUpperCase();
     const lainLain = (nmKey === "ZAENAL ARIFIN") ? DEFAULT_BONUS_LAIN : 0;
-    const cicilanTetap = Number(emp.cicilan || 0);
+    
+    // Perhitungan kasbon dinamis dari rentang periode laporan
+    const empAdvances = (DB.advances || []).filter(adv => {
+      const advDate = formatDate(adv.tanggal);
+      return String(adv.nama || '').trim().toUpperCase() === nmKey && advDate >= sDate && advDate <= eDate;
+    });
+    const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
 
     const gajiPokok = Number(emp.gaji_pokok || 0);
     const jabatan = Number(emp.jabatan || 0);
@@ -1112,9 +1219,10 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const kesehatan = Number(emp.kesehatan || 0);
     const zakat = Number(emp.zakat || 0);
     const loyalitas = Number(emp.kebersihan_loyalitas || 0);
+    const cicilanTetap = Number(emp.cicilan || 0);
 
     const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain;
-    const totalPotongan = cicilanTetap;
+    const totalPotongan = cicilanTetap + kasbonPeriode; // Kasbon ditambahkan ke potongan
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
 
     return {
@@ -1128,9 +1236,9 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       zakat: zakat,
       loyalitas: loyalitas,
       lainLain: lainLain,
-      kasbon: cicilanTetap,
+      kasbon: kasbonPeriode, 
       bpjs: 0,
-      cicilan: 0,
+      cicilan: cicilanTetap,
       gajiBersih: gajiBersih
     };
   });
