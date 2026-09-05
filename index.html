@@ -81,6 +81,13 @@
 <div id="toast" class="toast"></div>
 
 <script src="app.js"></script>
+  
+<!-- Skrip Pendaftaran Pekerja Layanan -->
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js');
+  }
+</script>
 
 </body>
 </html>
