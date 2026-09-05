@@ -609,7 +609,6 @@ function showExpenseSub(type) {
     `;
     loadExpenseReport();
   } else {
-    // BUG FIX: Gunakan tanggal hari ini sebagai default, bukan menimpa tanggal terakhir.
     const currentDate = today();
     const cash = (DB.cash || []).find(c => formatDate(c.tanggal) === currentDate) || {};
     
@@ -630,8 +629,6 @@ function showExpenseSub(type) {
     $('cashForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
-      
-      // BUG FIX: Paksa konversi ke tipe data Angka (Number) agar diterima database Supabase
       const payload = {
         tanggal: formData.tanggal,
         saldo_harian: Number(formData.saldo_harian || 0),
@@ -1050,8 +1047,15 @@ function showPayrollSub(type) {
   const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
   const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
-  let defaultStart = today();
-  let defaultEnd = today();
+  // PERBAIKAN: Default Tanggal Diatur 1 Bulan Penuh agar mencakup seluruh Kasbon
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const lastD = new Date(y, d.getMonth() + 1, 0).getDate();
+  const todayFormatted = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  
+  let defaultStart = `${y}-${m}-01`;
+  let defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
 
   if (type === 'rekap') {
     container.innerHTML = `
@@ -1098,7 +1102,7 @@ function showPayrollSub(type) {
           </div>
           <div>
             <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label>
-            <input type="text" id="slipPrintDate" value="Subang, 01 September 2026" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+            <input type="text" id="slipPrintDate" value="Subang, ${todayFormatted}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
           </div>
           <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
         </div>
@@ -1206,7 +1210,6 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const nmKey = String(emp.nama || '').trim().toUpperCase();
     const lainLain = (nmKey === "ZAENAL ARIFIN") ? DEFAULT_BONUS_LAIN : 0;
     
-    // Perhitungan kasbon dinamis dari rentang periode laporan
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
       return String(adv.nama || '').trim().toUpperCase() === nmKey && advDate >= sDate && advDate <= eDate;
@@ -1222,7 +1225,7 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const cicilanTetap = Number(emp.cicilan || 0);
 
     const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain;
-    const totalPotongan = cicilanTetap + kasbonPeriode; // Kasbon ditambahkan ke potongan
+    const totalPotongan = cicilanTetap + kasbonPeriode; 
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
 
     return {
@@ -1245,8 +1248,8 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 }
 
 function renderPayrollCards() {
-  const sDate = $('payrollStartDate')?.value || today();
-  const eDate = $('payrollEndDate')?.value || today();
+  const sDate = $('payrollStartDate')?.value;
+  const eDate = $('payrollEndDate')?.value;
   const fDept = $('payrollFilterDept')?.value || 'ALL';
 
   const container = $('payrollCardsContainer');
@@ -1287,8 +1290,8 @@ function renderPayrollCards() {
 }
 
 function renderSlipPages() {
-  const sDate = $('slipStartDate')?.value || today();
-  const eDate = $('slipEndDate')?.value || today();
+  const sDate = $('slipStartDate')?.value;
+  const eDate = $('slipEndDate')?.value;
   const fDept = $('slipFilterDept')?.value || 'ALL';
   const printDate = $('slipPrintDate')?.value || `Subang, ${today()}`;
 
