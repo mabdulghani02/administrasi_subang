@@ -196,8 +196,15 @@ function showPage(page) {
   if (page === 'payroll') renderPayrollPage();
 }
 
+window.calcExpRow = function(el) {
+  const tr = el.closest('tr');
+  const q = Number(tr.querySelector('.exp-qty').value || 0);
+  const h = Number(tr.querySelector('.exp-harga').value || 0);
+  tr.querySelector('.exp-nominal').value = q * h;
+};
+
 /* ========================================
-   DASHBOARD
+   DASHBOARD & EXPORT BULANAN
 ======================================== */
 function renderDashboard() {
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -211,6 +218,7 @@ function renderDashboard() {
       <div style="display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 13px; font-weight: 700; color: var(--muted);">Pilih Bulan Rekapitulasi:</label>
         <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background: var(--card); color: var(--text);">
+        <button class="btn btn-success" onclick="exportMonthlyExcel()" style="padding: 12px; margin-top: 5px; background: #059669;"><i class="fa-solid fa-file-excel"></i> Download Excel Bulanan</button>
       </div>
     </div>
 
@@ -310,6 +318,201 @@ function updateDashboardMetrics(yearMonth) {
       },
       options: { responsive: true, maintainAspectRatio: false }
     });
+  }
+}
+
+async function exportMonthlyExcel() {
+  if (typeof ExcelJS === 'undefined') {
+    showToast('Library ExcelJS belum dimuat. Tambahkan script CDN di HTML.');
+    return;
+  }
+  
+  showToast('Sedang merakit file Excel Multi-Sheet...');
+  try {
+    const yearMonth = $('dashboardMonth').value; 
+    const [y, mStr] = yearMonth.split('-');
+    const mNames = ['JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'];
+    const monthName = mNames[parseInt(mStr, 10) - 1];
+
+    const wb = new ExcelJS.Workbook();
+    const titleFont = { bold: true, size: 12 };
+    const headerFont = { bold: true };
+
+    // 1. SUMMARY
+    const shSum = wb.addWorksheet('SUMMARY');
+    shSum.getCell('B1').value = `LAPORAN KEUANGAN SARI KEDELE CABANG SUBANG ${monthName} ${y}`;
+    shSum.getCell('B1').font = titleFont;
+
+    // 2. OMSET
+    const shOmset = wb.addWorksheet('OMSET');
+    shOmset.getCell('B2').value = 'OMSET HARIAN UNIT SUBANG';
+    shOmset.getCell('B2').font = titleFont;
+    shOmset.getRow(3).values = [null, 'No.', 'TANGGAL', 'CASH', 'CARD', 'QRIS', 'GRAB', 'PAJAK'];
+    shOmset.getRow(3).font = headerFont;
+    
+    const salesFilter = DB.sales.filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+    salesFilter.sort((a,b) => a.tanggal.localeCompare(b.tanggal));
+    
+    let rowIdx = 4;
+    let totalCash = 0, totalCard = 0, totalQris = 0, totalGrab = 0, totalPajak = 0;
+    
+    salesFilter.forEach((s, idx) => {
+      const dateObj = new Date(formatDate(s.tanggal));
+      shOmset.getRow(rowIdx).values = [
+        null, idx + 1, dateObj, Number(s.cash||0), Number(s.debit_card||0), Number(s.qris||0), Number(s.grab||0), Number(s.pajak||0)
+      ];
+      totalCash += Number(s.cash||0);
+      totalCard += Number(s.debit_card||0);
+      totalQris += Number(s.qris||0);
+      totalGrab += Number(s.grab||0);
+      totalPajak += Number(s.pajak||0);
+      rowIdx++;
+    });
+    shOmset.getRow(rowIdx).values = [null, '', 'TOTAL', totalCash, totalCard, totalQris, totalGrab, totalPajak];
+    shOmset.getRow(rowIdx).font = headerFont;
+
+    // Filter expenses untuk 4 sheet terpisah
+    const expFilter = DB.expenses.filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+    const expPasar = expFilter.filter(r => r.kategori === 'PASAR');
+    const expCikuda = expFilter.filter(r => r.kategori === 'CIKUDA');
+    const expSkf = expFilter.filter(r => r.kategori === 'SKF');
+    const expLain = expFilter.filter(r => r.kategori === 'LAIN-LAIN' || !r.kategori);
+
+    // 3. PEMBELANJAAN PASAR (DIPECAH MENJADI SUB-TABEL OTOMATIS)
+    const shPasar = wb.addWorksheet('PEMBELANJAAN PASAR');
+    shPasar.getCell('B1').value = 'Lampiran 5';
+    shPasar.getCell('B3').value = 'PEMBELANJAAN ALAT DAN BAHAN BAKU';
+    
+    const sumPasar = sum(expPasar.map(r => r.nominal));
+    shPasar.getCell('B5').value = 'TOTAL';
+    shPasar.getCell('D5').value = sumPasar;
+    shPasar.getCell('B5').font = headerFont;
+    shPasar.getCell('D5').font = headerFont;
+
+    rowIdx = 7;
+    // Mengelompokkan item pasar berdasarkan sub_kategori yang diketik
+    const groupedPasar = {};
+    expPasar.forEach(ex => {
+      const groupName = (ex.sub_kategori || 'LAINNYA').trim().toUpperCase();
+      if (!groupedPasar[groupName]) groupedPasar[groupName] = [];
+      groupedPasar[groupName].push(ex);
+    });
+
+    for (const [groupName, items] of Object.entries(groupedPasar)) {
+      shPasar.getCell(`H${rowIdx}`).value = groupName;
+      shPasar.getCell(`H${rowIdx}`).font = headerFont;
+      rowIdx++;
+
+      shPasar.getRow(rowIdx).values = [null, 'NO', 'TANGGAL', 'JENIS BARANG', 'QTY', 'SATUAN', 'HARGA SATUAN', 'JUMLAH (Rp)'];
+      shPasar.getRow(rowIdx).font = headerFont;
+      rowIdx++;
+
+      let subtotalGroup = 0;
+      items.forEach((ex, i) => {
+        shPasar.getRow(rowIdx++).values = [null, i+1, ex.tanggal, ex.sumber, Number(ex.qty||1), ex.satuan||'PCS', Number(ex.harga_satuan||ex.nominal), Number(ex.nominal)];
+        subtotalGroup += Number(ex.nominal);
+      });
+
+      shPasar.getCell(`H${rowIdx}`).value = subtotalGroup;
+      shPasar.getCell(`H${rowIdx}`).font = headerFont;
+      rowIdx += 2; 
+    }
+
+    // 4. PEMBELANJAAN CIKUDA
+    const shCikuda = wb.addWorksheet('PEMBELANJAAN CIKUDA');
+    shCikuda.getCell('B1').value = 'Lampiran 6';
+    shCikuda.getRow(5).values = [null, 'No', 'Tanggal', 'Nama Barang', 'QTT', 'Harga', 'Total'];
+    shCikuda.getRow(5).font = headerFont;
+    rowIdx = 6;
+    let sumCikuda = 0;
+    expCikuda.forEach((ex, i) => {
+      shCikuda.getRow(rowIdx++).values = [null, i+1, ex.tanggal, ex.sumber, Number(ex.qty||1), Number(ex.harga_satuan||ex.nominal), Number(ex.nominal)];
+      sumCikuda += Number(ex.nominal);
+    });
+
+    // 5. PEMBELANJAN SKF
+    const shSkf = wb.addWorksheet('PEMBELANJAN SKF');
+    shSkf.getCell('B3').value = 'Pembelanjaan dari SKF';
+    shSkf.getRow(5).values = [null, 'NO', 'TANGGAL', 'KETERANGAN', 'QTY', 'JUMLAH SATUAN', 'TOTAL'];
+    shSkf.getRow(5).font = headerFont;
+    rowIdx = 6;
+    let sumSkf = 0;
+    expSkf.forEach((ex, i) => {
+      shSkf.getRow(rowIdx++).values = [null, i+1, ex.tanggal, ex.sumber, Number(ex.qty||1), Number(ex.harga_satuan||ex.nominal), Number(ex.nominal)];
+      sumSkf += Number(ex.nominal);
+    });
+
+    // 6. LAIN-LAIN
+    const shLain = wb.addWorksheet('LAIN-LAIN');
+    shLain.getCell('C1').value = 'Lampiran 8';
+    shLain.getCell('C2').value = 'PENGELUARAN ALAT DAN LAIN-LAIN';
+    shLain.getCell('C3').value = 'TOTAL';
+    const sumLain = sum(expLain.map(r => r.nominal));
+    shLain.getCell('H3').value = sumLain;
+    
+    shLain.getRow(4).values = [null, null, null, 'NO', 'TANGGAL', 'JENIS BARANG', 'QTY', 'SATUAN', 'HARGA SATUAN', 'JUMLAH (Rp)'];
+    shLain.getRow(4).font = headerFont;
+    rowIdx = 5;
+    expLain.forEach((ex, i) => {
+      shLain.getRow(rowIdx++).values = [null, null, null, i+1, ex.tanggal, ex.sumber, Number(ex.qty||1), ex.satuan||'PCS', Number(ex.harga_satuan||ex.nominal), Number(ex.nominal)];
+    });
+
+    // 7. GAJI KARYAWAN
+    const shGaji = wb.addWorksheet('GAJI KARYAWAN');
+    shGaji.getCell('B1').value = 'Lampiran 7';
+    shGaji.getCell('B2').value = 'GAJI KARYAWAN';
+    shGaji.getCell('B3').value = 'TOTAL GAJI KARYAWAN';
+    
+    const lastD = new Date(y, parseInt(mStr, 10), 0).getDate();
+    const sDate = `${yearMonth}-01`;
+    const eDate = `${yearMonth}-${String(lastD).padStart(2, '0')}`;
+    const payroll = getCalculatedPayrollList(sDate, eDate, 'ALL');
+    
+    const sumGaji = sum(payroll.map(p => p.gajiBersih));
+    shGaji.getCell('E3').value = sumGaji;
+    shGaji.getCell('E3').font = headerFont;
+    
+    shGaji.getCell('B5').value = 'GAJI BULANAN';
+    shGaji.getRow(6).values = [null, 'NO', 'Nama Pegawai', 'GAJI POKOK', 'Tunjangan', null, null, null, null, null, null, 'TOTAL GAJI', 'Potongan', null, null, 'Gaji Bersih'];
+    shGaji.getRow(6).font = headerFont;
+    
+    rowIdx = 7;
+    payroll.forEach((p, i) => {
+      const tunjangan = p.jabatan + p.prestasi + p.kesehatan + p.jamKerja + p.zakat + p.loyalitas + p.lainLain;
+      const potongan = p.kasbon + p.bpjs + p.cicilan;
+      shGaji.getRow(rowIdx++).values = [null, i+1, p.nama, p.pokok, tunjangan, null, null, null, null, null, null, p.pokok + tunjangan, potongan, null, null, p.gajiBersih];
+    });
+
+    // PENGISIAN TOTAL KE SUMMARY
+    shSum.getCell('B3').value = 'TOTAL OMSET';
+    shSum.getCell('C3').value = totalCash + totalCard + totalQris + totalGrab;
+    shSum.getCell('B4').value = 'PENGELUARAN PASAR';
+    shSum.getCell('C4').value = sumPasar;
+    shSum.getCell('B5').value = 'PENGELUARAN CIKUDA';
+    shSum.getCell('C5').value = sumCikuda;
+    shSum.getCell('B6').value = 'PENGELUARAN SKF';
+    shSum.getCell('C6').value = sumSkf;
+    shSum.getCell('B7').value = 'PENGELUARAN LAIN-LAIN';
+    shSum.getCell('C7').value = sumLain;
+    shSum.getCell('B8').value = 'GAJI KARYAWAN';
+    shSum.getCell('C8').value = sumGaji;
+
+    const totalPengeluaranAll = sumPasar + sumCikuda + sumSkf + sumLain + sumGaji;
+    shSum.getCell('B10').value = 'SISA/PROFIT';
+    shSum.getCell('C10').value = (totalCash + totalCard + totalQris + totalGrab) - totalPengeluaranAll;
+    
+    // PEMBUATAN FILE UNDUHAN
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `LAPORAN_KEUANGAN_SUBANG_${monthName}_${y}.xlsx`;
+    link.click();
+    
+    showToast('Excel berhasil diunduh!');
+  } catch (err) {
+    console.error(err);
+    showToast('Gagal membuat Excel: ' + err.message);
   }
 }
 
@@ -586,9 +789,20 @@ function showExpenseSub(type) {
           <div class="panel-title" style="margin-bottom:0;">Input Pengeluaran Sekaligus</div>
           <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%;">
         </div>
-        <div class="table-wrap">
-          <table class="table">
-            <thead><tr><th style="width: 35%;">Sumber</th><th style="width: 25%;">Nominal (Rp)</th><th>Keterangan</th><th style="width: 8%;" class="center">Aksi</th></tr></thead>
+        <div class="table-wrap" style="overflow-x: auto;">
+          <table class="table" style="min-width: 800px;">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Sheet</th>
+                <th style="width: 13%;">Grup (Tabel)</th>
+                <th style="width: 18%;">Nama Barang</th>
+                <th style="width: 8%;">Qty</th>
+                <th style="width: 8%;">Satuan</th>
+                <th style="width: 14%;">Harga</th>
+                <th style="width: 14%;">Total</th>
+                <th style="width: 8%;" class="center">Aksi</th>
+              </tr>
+            </thead>
             <tbody id="batchExpenseBody"></tbody>
           </table>
         </div>
@@ -649,9 +863,20 @@ function addExpenseRow() {
   const tr = document.createElement('tr');
   tr.className = 'expense-input-row';
   tr.innerHTML = `
-    <td><input type="text" class="exp-sumber" placeholder="Nama..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
-    <td><input type="number" class="exp-nominal" placeholder="0" min="0" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
-    <td><input type="text" class="exp-keterangan" placeholder="-" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+    <td>
+      <select class="exp-kategori" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;">
+        <option value="LAIN-LAIN">Lain-lain</option>
+        <option value="PASAR">Pasar</option>
+        <option value="CIKUDA">Cikuda</option>
+        <option value="SKF">SKF</option>
+      </select>
+    </td>
+    <td><input type="text" class="exp-sub" placeholder="Grup (Cth: AYAM)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+    <td><input type="text" class="exp-sumber" placeholder="Nama Barang..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+    <td><input type="number" class="exp-qty" placeholder="1" value="1" step="0.01" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+    <td><input type="text" class="exp-satuan" placeholder="Kg/Pcs" value="PCS" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+    <td><input type="number" class="exp-harga" placeholder="0" min="0" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+    <td><input type="number" class="exp-nominal" placeholder="0" readonly style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:#f1f5f9;"></td>
     <td class="center"><button type="button" class="btn btn-outline-danger" onclick="this.closest('tr').remove()">✕</button></td>
   `;
   $('batchExpenseBody').appendChild(tr);
@@ -661,10 +886,25 @@ async function submitBatchExpenses() {
   const tanggal = $('batchExpenseDate').value;
   const items = [];
   document.querySelectorAll('.expense-input-row').forEach(r => {
+    const cat = r.querySelector('.exp-kategori').value;
+    const sub = r.querySelector('.exp-sub').value.trim();
     const s = r.querySelector('.exp-sumber').value.trim();
-    const n = r.querySelector('.exp-nominal').value.trim();
-    const k = r.querySelector('.exp-keterangan').value.trim();
-    if (s || n) items.push({ tanggal, sumber: s, nominal: Number(n || 0), keterangan: k || '-' });
+    const q = r.querySelector('.exp-qty').value;
+    const sat = r.querySelector('.exp-satuan').value.trim();
+    const h = r.querySelector('.exp-harga').value;
+    const n = r.querySelector('.exp-nominal').value;
+
+    if (s || n) items.push({
+        tanggal,
+        kategori: cat,
+        sub_kategori: sub,
+        sumber: s,
+        qty: Number(q || 1),
+        satuan: sat || 'PCS',
+        harga_satuan: Number(h || 0),
+        nominal: Number(n || 0),
+        keterangan: '-'
+    });
   });
   if (!items.length) { showToast('Isi minimal satu baris.'); return; }
   const { error } = await db.from('expenses').insert(items);
