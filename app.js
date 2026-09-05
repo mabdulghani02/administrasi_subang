@@ -949,10 +949,14 @@ function handleExcelUpload(event) {
 
       let startYear = new Date().getFullYear();
       let startMonth = new Date().getMonth() + 1;
+      let startDay = 1;
+
+      // ANTI-BUG: Ekstraksi tanggal agar aman jika menyilang antar bulan
       const periodMatch = periodText.match(/(\d{4})[/-](\d{2})[/-](\d{2})/);
       if (periodMatch) {
         startYear = parseInt(periodMatch[1], 10);
         startMonth = parseInt(periodMatch[2], 10);
+        startDay = parseInt(periodMatch[3], 10);
       }
 
       const parsedRecords = [];
@@ -983,7 +987,19 @@ function handleExcelUpload(event) {
             const dayNum = parseInt(daysRow[col], 10);
             if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) continue;
 
-            const dateStr = `${startYear}-${String(startMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+            let currentMonth = startMonth;
+            let currentYear = startYear;
+            
+            // Logika silang bulan (jika start tanggal akhir bulan, lalu dayNum merujuk ke awal bulan baru)
+            if (startDay > 15 && dayNum < 15) {
+                currentMonth++;
+                if (currentMonth > 12) {
+                    currentMonth = 1;
+                    currentYear++;
+                }
+            }
+
+            const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
             const punchStr = String(punchRow[col] || '').trim();
             const times = punchStr.split(/[\n\r]+/).map(t => t.trim()).filter(t => t.includes(':'));
 
@@ -1047,7 +1063,7 @@ function showPayrollSub(type) {
   const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
   const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
-  // PERBAIKAN: Default Tanggal Diatur 1 Bulan Penuh agar mencakup seluruh Kasbon
+  // Default Tanggal Diatur 1 Bulan Penuh agar mencakup seluruh Kasbon & Absensi yang wajar
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -1210,11 +1226,36 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const nmKey = String(emp.nama || '').trim().toUpperCase();
     const lainLain = (nmKey === "ZAENAL ARIFIN") ? DEFAULT_BONUS_LAIN : 0;
     
+    // Ambil rekap Kasbon dalam rentang periode
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
       return String(adv.nama || '').trim().toUpperCase() === nmKey && advDate >= sDate && advDate <= eDate;
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
+
+    // Ambil rekap Absensi dalam rentang periode (AKTIVASI ABSEN KE GAJI)
+    const empAttendance = (DB.attendance || []).filter(att => {
+      const attDate = formatDate(att.tanggal);
+      return String(att.nama || '').trim().toUpperCase() === nmKey && attDate >= sDate && attDate <= eDate;
+    });
+
+    let totalUangJajan = 0;
+    let totalPenyesuaianJam = 0;
+
+    empAttendance.forEach(att => {
+      if (att.status === 'Hadir') {
+        const shift = classifyShift(att.masuk);
+        if (shift.onTime) {
+          totalUangJajan += DEFAULT_ALLOWANCE; // Biasanya Rp 10.000 / shift tepat waktu
+        }
+        
+        const durasi = calculateHours(att.masuk, att.pulang);
+        if (durasi > 0) {
+          const diff = durasi - STANDARD_WORK_HOURS; // Acuan 11 Jam
+          totalPenyesuaianJam += Math.round(diff * RATE_PER_HOUR); // Biasanya Rp 5000 / Jam
+        }
+      }
+    });
 
     const gajiPokok = Number(emp.gaji_pokok || 0);
     const jabatan = Number(emp.jabatan || 0);
@@ -1224,7 +1265,7 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const loyalitas = Number(emp.kebersihan_loyalitas || 0);
     const cicilanTetap = Number(emp.cicilan || 0);
 
-    const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain;
+    const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain + totalUangJajan + totalPenyesuaianJam;
     const totalPotongan = cicilanTetap + kasbonPeriode; 
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
 
@@ -1235,7 +1276,8 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       jabatan: jabatan,
       prestasi: prestasi,
       kesehatan: kesehatan,
-      jamKerja: 0,
+      jamKerja: totalPenyesuaianJam,
+      uangJajan: totalUangJajan,
       zakat: zakat,
       loyalitas: loyalitas,
       lainLain: lainLain,
@@ -1263,7 +1305,7 @@ function renderPayrollCards() {
   }
 
   container.innerHTML = list.map(emp => {
-    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
+    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.uangJajan + emp.zakat + emp.loyalitas + emp.lainLain;
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     return `
@@ -1280,7 +1322,7 @@ function renderPayrollCards() {
         </div>
         <div style="font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px;">
           <div>Pokok: <b>${money(emp.pokok)}</b></div>
-          <div>Tunjangan: <b>${money(totalPendapatan - emp.pokok)}</b></div>
+          <div>Tunjangan & Absen: <b>${money(totalPendapatan - emp.pokok)}</b></div>
           <div>Potongan: <b style="color:var(--danger);">${money(totalPotongan)}</b></div>
           <div>Total Bruto: <b>${money(totalPendapatan)}</b></div>
         </div>
@@ -1305,11 +1347,17 @@ function renderSlipPages() {
     return;
   }
 
-  const periodMonth = getMonthName(sDate).toUpperCase() || 'AGUSTUS 2026';
+  // Format header bulan secara otomatis
+  let periodMonth = '';
+  if (sDate) {
+      const pDate = new Date(sDate);
+      periodMonth = pDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase();
+  }
+
   let html = '';
 
   list.forEach(emp => {
-    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
+    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.uangJajan + emp.zakat + emp.loyalitas + emp.lainLain;
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     html += `
@@ -1330,7 +1378,8 @@ function renderSlipPages() {
           <div class="slip-row"><span>JABATAN</span><span>Rp</span><span class="right">${formatNum(emp.jabatan)}</span></div>
           <div class="slip-row"><span>PRESTASI</span><span>Rp</span><span class="right">${formatNum(emp.prestasi)}</span></div>
           <div class="slip-row"><span>KESEHATAN</span><span>Rp</span><span class="right">${formatNum(emp.kesehatan)}</span></div>
-          <div class="slip-row"><span>JAM KERJA</span><span>Rp</span><span class="right">${formatNum(emp.jamKerja)}</span></div>
+          <div class="slip-row"><span>UANG JAJAN (ABSEN)</span><span>Rp</span><span class="right">${formatNum(emp.uangJajan)}</span></div>
+          <div class="slip-row"><span>JAM KERJA (+/-)</span><span>Rp</span><span class="right">${formatNum(emp.jamKerja)}</span></div>
           <div class="slip-row"><span>ZAKAT</span><span>Rp</span><span class="right">${formatNum(emp.zakat)}</span></div>
           <div class="slip-row"><span>KEBERSIHAN/LOYALITAS</span><span>Rp</span><span class="right">${formatNum(emp.loyalitas)}</span></div>
           <div class="slip-row"><span>LAIN-LAIN</span><span>Rp</span><span class="right">${formatNum(emp.lainLain)}</span></div>
@@ -1350,17 +1399,6 @@ function renderSlipPages() {
   });
 
   container.innerHTML = html;
-}
-
-function getMonthName(dateStr) {
-  if (!dateStr) return '';
-  const m = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-  const p = dateStr.split('-');
-  if (p.length >= 2) {
-    const idx = parseInt(p[1], 10) - 1;
-    return (m[idx] || '') + ' ' + p[0];
-  }
-  return '';
 }
 
 async function exportSlipsToPDF() {
