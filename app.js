@@ -209,6 +209,26 @@ window.calcExpRow = function(el) {
 function renderDashboard() {
   const currentMonth = new Date().toISOString().slice(0, 7);
 
+  if (!document.getElementById('fab-style')) {
+    const style = document.createElement('style');
+    style.id = 'fab-style';
+    style.innerHTML = `
+      .fab-export {
+        position: fixed; bottom: 90px; right: 20px; background: #059669; color: white;
+        border: none; padding: 14px 20px; border-radius: 50px; font-weight: bold;
+        font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
+        z-index: 1000; display: flex; align-items: center; gap: 8px;
+        opacity: 0; transform: translateY(20px); pointer-events: none;
+        transition: opacity 0.3s ease, transform 0.3s ease, background 0.2s;
+      }
+      .fab-export.show {
+        opacity: 1; transform: translateY(0); pointer-events: auto;
+      }
+      .fab-export:active { transform: scale(0.95); background: #047857; }
+    `;
+    document.head.appendChild(style);
+  }
+
   $('content').innerHTML = `
     <div class="top">
       <div>
@@ -218,7 +238,6 @@ function renderDashboard() {
       <div style="display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 13px; font-weight: 700; color: var(--muted);">Pilih Bulan Rekapitulasi:</label>
         <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background: var(--card); color: var(--text);">
-        <button class="btn btn-success" onclick="exportMonthlyExcel()" style="padding: 12px; margin-top: 5px; background: #059669;"><i class="fa-solid fa-file-excel"></i> Download Excel Bulanan</button>
       </div>
     </div>
 
@@ -256,9 +275,28 @@ function renderDashboard() {
         <canvas id="categorySalesChart"></canvas>
       </div>
     </div>
+
+    <div id="dashboardBottomMarker" style="height: 10px; width: 100%; margin-bottom: 80px;"></div>
+    
+    <button id="fabExport" class="fab-export" onclick="exportMonthlyExcel()"><i class="fa-solid fa-file-excel"></i> Export Bulanan</button>
   `;
 
   updateDashboardMetrics(currentMonth);
+
+  setTimeout(() => {
+    const marker = $('dashboardBottomMarker');
+    const fab = $('fabExport');
+    if (marker && fab) {
+      const obs = new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) {
+          fab.classList.add('show');
+        } else {
+          fab.classList.remove('show');
+        }
+      }, { threshold: 0.1 });
+      obs.observe(marker);
+    }
+  }, 300);
 }
 
 let monthlyChartInstance = null;
@@ -371,14 +409,13 @@ async function exportMonthlyExcel() {
     shOmset.getRow(rowIdx).values = [null, '', 'TOTAL', totalCash, totalCard, totalQris, totalGrab, totalPajak];
     shOmset.getRow(rowIdx).font = headerFont;
 
-    // Filter expenses untuk 4 sheet terpisah
     const expFilter = DB.expenses.filter(r => formatDate(r.tanggal).startsWith(yearMonth));
     const expPasar = expFilter.filter(r => r.kategori === 'PASAR');
     const expCikuda = expFilter.filter(r => r.kategori === 'CIKUDA');
     const expSkf = expFilter.filter(r => r.kategori === 'SKF');
     const expLain = expFilter.filter(r => r.kategori === 'LAIN-LAIN' || !r.kategori);
 
-    // 3. PEMBELANJAAN PASAR (DIPECAH MENJADI SUB-TABEL OTOMATIS)
+    // 3. PEMBELANJAAN PASAR
     const shPasar = wb.addWorksheet('PEMBELANJAAN PASAR');
     shPasar.getCell('B1').value = 'Lampiran 5';
     shPasar.getCell('B3').value = 'PEMBELANJAAN ALAT DAN BAHAN BAKU';
@@ -390,7 +427,6 @@ async function exportMonthlyExcel() {
     shPasar.getCell('D5').font = headerFont;
 
     rowIdx = 7;
-    // Mengelompokkan item pasar berdasarkan sub_kategori yang diketik
     const groupedPasar = {};
     expPasar.forEach(ex => {
       const groupName = (ex.sub_kategori || 'LAINNYA').trim().toUpperCase();
@@ -483,6 +519,43 @@ async function exportMonthlyExcel() {
       shGaji.getRow(rowIdx++).values = [null, i+1, p.nama, p.pokok, tunjangan, null, null, null, null, null, null, p.pokok + tunjangan, potongan, null, null, p.gajiBersih];
     });
 
+    // REKAP UANG JAJAN PER TANGGAL
+    rowIdx += 2;
+    shGaji.getCell(`B${rowIdx}`).value = 'REKAP UANG JAJAN (PER TANGGAL)';
+    shGaji.getCell(`B${rowIdx}`).font = headerFont;
+    rowIdx++;
+    shGaji.getRow(rowIdx).values = [null, 'NO', 'TANGGAL', 'TOTAL UANG JAJAN'];
+    shGaji.getRow(rowIdx).font = headerFont;
+    rowIdx++;
+
+    const attFilter = DB.attendance.filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+    const groupedUangJajan = {};
+    
+    attFilter.forEach(att => {
+      if (att.status === 'Hadir') {
+        const shift = classifyShift(att.masuk);
+        if (shift.onTime) {
+          const tgl = formatDate(att.tanggal);
+          if (!groupedUangJajan[tgl]) groupedUangJajan[tgl] = 0;
+          groupedUangJajan[tgl] += DEFAULT_ALLOWANCE;
+        }
+      }
+    });
+
+    const sortedDates = Object.keys(groupedUangJajan).sort();
+    let sumUangJajanTotal = 0;
+    let ujNo = 1;
+
+    sortedDates.forEach(tgl => {
+      const nominal = groupedUangJajan[tgl];
+      shGaji.getRow(rowIdx++).values = [null, ujNo++, tgl, nominal];
+      sumUangJajanTotal += nominal;
+    });
+
+    shGaji.getRow(rowIdx).values = [null, '', 'TOTAL', sumUangJajanTotal];
+    shGaji.getRow(rowIdx).font = headerFont;
+
+
     // PENGISIAN TOTAL KE SUMMARY
     shSum.getCell('B3').value = 'TOTAL OMSET';
     shSum.getCell('C3').value = totalCash + totalCard + totalQris + totalGrab;
@@ -496,12 +569,13 @@ async function exportMonthlyExcel() {
     shSum.getCell('C7').value = sumLain;
     shSum.getCell('B8').value = 'GAJI KARYAWAN';
     shSum.getCell('C8').value = sumGaji;
+    shSum.getCell('B9').value = 'UANG JAJAN ABSENSI';
+    shSum.getCell('C9').value = sumUangJajanTotal;
 
-    const totalPengeluaranAll = sumPasar + sumCikuda + sumSkf + sumLain + sumGaji;
-    shSum.getCell('B10').value = 'SISA/PROFIT';
-    shSum.getCell('C10').value = (totalCash + totalCard + totalQris + totalGrab) - totalPengeluaranAll;
+    const totalPengeluaranAll = sumPasar + sumCikuda + sumSkf + sumLain + sumGaji + sumUangJajanTotal;
+    shSum.getCell('B11').value = 'SISA/PROFIT';
+    shSum.getCell('C11').value = (totalCash + totalCard + totalQris + totalGrab) - totalPengeluaranAll;
     
-    // PEMBUATAN FILE UNDUHAN
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const link = document.createElement('a');
