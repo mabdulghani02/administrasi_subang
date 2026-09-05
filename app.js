@@ -9,6 +9,7 @@ let DB = {
   cash: [],
   attendance: [],
   advances: [],
+  installments: [],
   masterSalary: []
 };
 
@@ -150,14 +151,15 @@ function escapeHtml(value) {
 async function loadData(targetPage = null) {
   showToast('Memuat data dari Cloud...');
   try {
-    const [sRes, cRes, eRes, cashRes, attRes, advRes, mRes] = await Promise.all([
+    const [sRes, cRes, eRes, cashRes, attRes, advRes, mRes, iRes] = await Promise.all([
       db.from('sales').select('*'),
       db.from('counter').select('*'),
       db.from('expenses').select('*'),
       db.from('cash_positions').select('*'),
       db.from('attendance').select('*'),
       db.from('advances').select('*'),
-      db.from('master_salary').select('*')
+      db.from('master_salary').select('*'),
+      db.from('installments').select('*')
     ]);
 
     if (sRes.error) throw sRes.error;
@@ -170,6 +172,7 @@ async function loadData(targetPage = null) {
     DB.attendance = attRes.data || [];
     DB.advances = advRes.data || [];
     DB.masterSalary = mRes.data || [];
+    DB.installments = iRes.data || [];
 
     showPage(targetPage || 'dashboard');
   } catch (error) {
@@ -1054,6 +1057,7 @@ function renderPayrollPage() {
         <button id="payBtnRekap" class="sub-nav-btn active-sub" onclick="showPayrollSub('rekap')">Rekapitulasi</button>
         <button id="payBtnSlip" class="sub-nav-btn" onclick="showPayrollSub('slips')">Cetak Slip PDF</button>
         <button id="payBtnKasbon" class="sub-nav-btn" onclick="showPayrollSub('kasbon')">Kasbon</button>
+        <button id="payBtnCicilan" class="sub-nav-btn" onclick="showPayrollSub('cicilan')">Cicilan</button>
       </div>
     </div>
     <div id="payrollSubContent"></div>
@@ -1068,11 +1072,13 @@ function showPayrollSub(type) {
   const btnRekap = $('payBtnRekap');
   const btnSlip = $('payBtnSlip');
   const btnKasbon = $('payBtnKasbon');
+  const btnCicilan = $('payBtnCicilan');
   
-  if (btnRekap && btnSlip && btnKasbon) {
+  if (btnRekap && btnSlip && btnKasbon && btnCicilan) {
     btnRekap.classList.toggle('active-sub', type === 'rekap');
     btnSlip.classList.toggle('active-sub', type === 'slips');
     btnKasbon.classList.toggle('active-sub', type === 'kasbon');
+    btnCicilan.classList.toggle('active-sub', type === 'cicilan');
   }
 
   const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
@@ -1201,6 +1207,69 @@ function showPayrollSub(type) {
     };
 
     renderKasbonTable();
+  } else if (type === 'cicilan') {
+    const empOptionsHtml = (DB.masterSalary || []).map(d => `<option value="${escapeHtml(d.nama)}">${escapeHtml(d.nama)}</option>`).join('');
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    container.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">Input Cicilan Karyawan</div>
+        <form id="cicilanForm">
+          <div class="form-grid">
+            ${inputField('tanggal', 'Tanggal', today(), 'date')}
+            <div class="field">
+              <label>Nama Karyawan</label>
+              <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+                ${empOptionsHtml}
+              </select>
+            </div>
+            ${inputField('nominal', 'Total Pinjaman (Rp)', 0)}
+            ${inputField('tenor', 'Tenor (Bulan)', 1)}
+            <div class="field">
+              <label>Keterangan</label>
+              <input name="keterangan" type="text" placeholder="Keperluan/Sisa Cicilan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+            </div>
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Cicilan</button></div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+          <label style="font-weight:700;">Lihat Histori Cicilan (Bulan Masuk):</label>
+          <input type="month" id="cicilanFilterMonth" value="${currentMonth}" onchange="renderCicilanTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Tenor</th><th>Keterangan</th><th class="right">Pinjaman</th><th class="right">Cicilan/Bln</th></tr></thead>
+            <tbody id="cicilanTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    $('cicilanForm').onsubmit = async e => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(e.target));
+      const payload = {
+        tanggal: formData.tanggal,
+        nama: formData.nama,
+        nominal: Number(formData.nominal || 0),
+        tenor: Number(formData.tenor || 1),
+        keterangan: formData.keterangan || '-'
+      };
+      
+      if (!payload.nominal) { showToast('Nominal tidak boleh nol.'); return; }
+
+      const { error } = await db.from('installments').insert([payload]);
+      if (error) showToast('Gagal: ' + error.message);
+      else { 
+        showToast('Cicilan berhasil dicatat.'); 
+        loadData('payroll'); 
+      }
+    };
+
+    renderCicilanTable();
   }
 }
 
@@ -1229,12 +1298,48 @@ function renderKasbonTable() {
   `).join('');
 }
 
+function renderCicilanTable() {
+  const fMonth = $('cicilanFilterMonth')?.value || new Date().toISOString().slice(0, 7);
+  const tbody = $('cicilanTableBody');
+  if (!tbody) return;
+
+  const list = (DB.installments || [])
+    .filter(r => formatDate(r.tanggal).startsWith(fMonth))
+    .sort((a,b) => a.tanggal.localeCompare(b.tanggal));
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data cicilan bulan ini.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((r, i) => {
+    const tenor = Number(r.tenor) || 1;
+    const perBulan = Math.round(Number(r.nominal) / tenor);
+    
+    return `
+      <tr>
+        <td class="center">${i+1}</td>
+        <td class="center">${formatDate(r.tanggal)}</td>
+        <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+        <td class="center">${tenor} Bln</td>
+        <td>${escapeHtml(r.keterangan)}</td>
+        <td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td>
+        <td class="right" style="font-weight:700; color:var(--danger);">- ${money(perBulan)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
 function getCalculatedPayrollList(sDate, eDate, fDept) {
   let masterList = DB.masterSalary || [];
   if (fDept !== 'ALL') {
     masterList = masterList.filter(r => String(r.departemen).trim().toUpperCase() === fDept.toUpperCase());
   }
   masterList.sort((a, b) => String(a.nama).localeCompare(String(b.nama)));
+
+  const eDateObj = new Date(eDate || today());
+  const eYear = eDateObj.getFullYear();
+  const eMonth = eDateObj.getMonth();
 
   return masterList.map(emp => {
     const nmKey = String(emp.nama || '').trim().toUpperCase();
@@ -1245,6 +1350,24 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       return String(adv.nama || '').trim().toUpperCase() === nmKey && advDate >= sDate && advDate <= eDate;
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
+
+    const empInstallments = (DB.installments || []).filter(ins => String(ins.nama || '').trim().toUpperCase() === nmKey);
+    let cicilanPeriode = 0;
+
+    empInstallments.forEach(ins => {
+      const insDate = new Date(formatDate(ins.tanggal));
+      const iYear = insDate.getFullYear();
+      const iMonth = insDate.getMonth();
+      const tenor = Number(ins.tenor) || 1;
+      const nominal = Number(ins.nominal) || 0;
+      const perBulan = Math.round(nominal / tenor);
+
+      const monthDiff = (eYear - iYear) * 12 + (eMonth - iMonth);
+
+      if (monthDiff >= 0 && monthDiff < tenor) {
+        cicilanPeriode += perBulan;
+      }
+    });
 
     const empAttendance = (DB.attendance || []).filter(att => {
       const attDate = formatDate(att.tanggal);
@@ -1270,10 +1393,9 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const kesehatan = Number(emp.kesehatan || 0);
     const zakat = Number(emp.zakat || 0);
     const loyalitas = Number(emp.kebersihan_loyalitas || 0);
-    const cicilanTetap = Number(emp.cicilan || 0);
 
     const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain + totalPenyesuaianJam;
-    const totalPotongan = cicilanTetap + kasbonPeriode; 
+    const totalPotongan = cicilanPeriode + kasbonPeriode; 
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
 
     return {
@@ -1289,7 +1411,7 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       lainLain: lainLain,
       kasbon: kasbonPeriode, 
       bpjs: 0,
-      cicilan: cicilanTetap,
+      cicilan: cicilanPeriode,
       gajiBersih: gajiBersih
     };
   });
@@ -1315,7 +1437,7 @@ function renderPayrollCards() {
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     return `
-      <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer; transition: 0.2s; user-select: none; -webkit-tap-highlight-color: transparent; outline: none;" onclick="const el = document.getElementById('slip-wrapper-${idx}'); el.style.gridTemplateRows = el.style.gridTemplateRows === '1fr' ? '0fr' : '1fr';">
+      <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; outline: none;" onclick="const el = document.getElementById('slip-wrapper-${idx}'); el.style.gridTemplateRows = el.style.gridTemplateRows === '1fr' ? '0fr' : '1fr';">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
           <div>
             <div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div>
@@ -1333,7 +1455,6 @@ function renderPayrollCards() {
           <div>Total Bruto: <b>${money(totalPendapatan)}</b></div>
         </div>
 
-        <!-- RINCIAN HIDDEN DENGAN ANIMASI GRID SMOOTH -->
         <div id="slip-wrapper-${idx}" style="display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease-out;">
           <div style="overflow: hidden;">
             <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 13px;">
