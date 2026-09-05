@@ -425,8 +425,8 @@ function reportRow(label, value, forceDash = false) {
   
   return `
     <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13.5px;">
-      <span style="flex: 1;">${label}</span>
-      <span style="margin-right: 10px;">: Rp</span>
+      <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
+      <span style="white-space: nowrap;">&nbsp;&nbsp;&nbsp;: Rp</span>
       <span style="text-align: right; min-width: 85px;">${display}</span>
     </div>
   `;
