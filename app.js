@@ -14,7 +14,7 @@ let DB = {
 
 const STANDARD_WORK_HOURS = 11;
 const RATE_PER_HOUR = 5000;
-let DEFAULT_ALLOWANCE = 10000;
+let DEFAULT_ALLOWANCE = 15000;
 let DEFAULT_BONUS_LAIN = 40000;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -885,15 +885,15 @@ function renderAllowanceTable() {
   }
 
   tbody.innerHTML = list.map((r, i) => `
-    <tr>
-      <td class="center">${i+1}</td>
+    <tr style="border-bottom: 1px solid var(--line);">
+      <td class="center" style="color:var(--muted);">${i+1}</td>
       <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-      <td class="center">${r.c.shift}</td>
-      <td class="center" style="font-weight:700; color:var(--wa-primary);">${r.c.displayTime}</td>
+      <td class="center"><span class="badge" style="background:#e0f2fe; color:#0369a1; border: 1px solid #bae6fd;">${r.c.shift}</span></td>
+      <td class="center" style="font-weight:800;">${r.c.displayTime}</td>
       <td class="center" style="color:var(--muted); font-size:11px;">Maks ${r.c.batas}</td>
-      <td class="center"><span class="badge badge-success">✓ Tepat Waktu</span></td>
-      <td class="right" style="font-weight:700; color:var(--wa-primary);">+${money(DEFAULT_ALLOWANCE)}</td>
+      <td class="center"><span class="badge badge-success" style="padding: 4px 8px; border-radius: 20px;">✓ Tepat Waktu</span></td>
+      <td class="right" style="font-weight:800; color:#059669; font-size:14px;">+${money(DEFAULT_ALLOWANCE)}</td>
     </tr>
   `).join('');
 }
@@ -908,18 +908,26 @@ function renderWorkHoursTable() {
 
   tbody.innerHTML = list.map((r, i) => {
     const durasi = calculateHours(r.masuk, r.pulang);
-    const diff = durasi > 0 ? (durasi - 11) : 0;
-    const nominal = Math.round(diff * 5000);
+    let diff = 0;
+    let roundedDiff = 0;
+    let nominal = 0;
+    
+    if (durasi > 0) {
+      diff = durasi - 11;
+      roundedDiff = Math.round(diff);
+      nominal = roundedDiff * 5000;
+    }
+    
     return `
-      <tr>
-        <td class="center">${i+1}</td>
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td class="center" style="color:var(--muted);">${i+1}</td>
         <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
         <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-        <td class="center">${r.masuk || '-'}</td>
-        <td class="center">${r.pulang || '-'}</td>
-        <td class="center">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
-        <td class="center" style="font-weight:700; color:${diff >= 0 ? 'var(--wa-primary)' : 'var(--danger)'};">${diff !== 0 ? (diff > 0 ? '+' : '') + diff.toFixed(2) + ' Jam' : 'Pas'}</td>
-        <td class="right" style="font-weight:700; color:${nominal >= 0 ? 'var(--wa-primary)' : 'var(--danger)'};">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
+        <td class="center" style="font-weight:600;">${r.masuk || '-'}</td>
+        <td class="center" style="font-weight:600;">${r.pulang || '-'}</td>
+        <td class="center" style="color:var(--muted); font-size:12px;">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
+        <td class="center" style="font-weight:800; color:${roundedDiff > 0 ? '#059669' : (roundedDiff < 0 ? '#dc2626' : 'var(--text)')};">${roundedDiff !== 0 ? (roundedDiff > 0 ? '+' : '') + roundedDiff + ' Jam' : 'Pas'}</td>
+        <td class="right" style="font-weight:800; color:${nominal > 0 ? '#059669' : (nominal < 0 ? '#dc2626' : 'var(--text)')}; font-size: 14px;">${nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'}</td>
       </tr>
     `;
   }).join('');
@@ -951,7 +959,6 @@ function handleExcelUpload(event) {
       let startMonth = new Date().getMonth() + 1;
       let startDay = 1;
 
-      // ANTI-BUG: Ekstraksi tanggal agar aman jika menyilang antar bulan
       const periodMatch = periodText.match(/(\d{4})[/-](\d{2})[/-](\d{2})/);
       if (periodMatch) {
         startYear = parseInt(periodMatch[1], 10);
@@ -990,7 +997,6 @@ function handleExcelUpload(event) {
             let currentMonth = startMonth;
             let currentYear = startYear;
             
-            // Logika silang bulan (jika start tanggal akhir bulan, lalu dayNum merujuk ke awal bulan baru)
             if (startDay > 15 && dayNum < 15) {
                 currentMonth++;
                 if (currentMonth > 12) {
@@ -1003,12 +1009,21 @@ function handleExcelUpload(event) {
             const punchStr = String(punchRow[col] || '').trim();
             const times = punchStr.split(/[\n\r]+/).map(t => t.trim()).filter(t => t.includes(':'));
 
+            let masukVal = '';
+            let pulangVal = '';
+            if (times.length > 0) {
+              masukVal = times[0];
+            }
+            if (times.length > 1) {
+              pulangVal = times[times.length - 1];
+            }
+
             parsedRecords.push({
               tanggal: dateStr,
               nama: namaVal,
               departemen: deptVal,
-              masuk: times.length > 0 ? times[0] : '',
-              pulang: times.length > 1 ? times[times.length - 1] : '',
+              masuk: masukVal,
+              pulang: pulangVal,
               status: times.length > 0 ? 'Hadir' : 'Tidak Hadir'
             });
           }
@@ -1063,7 +1078,6 @@ function showPayrollSub(type) {
   const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
   const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
-  // Default Tanggal Diatur 1 Bulan Penuh agar mencakup seluruh Kasbon & Absensi yang wajar
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -1226,14 +1240,12 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const nmKey = String(emp.nama || '').trim().toUpperCase();
     const lainLain = (nmKey === "ZAENAL ARIFIN") ? DEFAULT_BONUS_LAIN : 0;
     
-    // Ambil rekap Kasbon dalam rentang periode
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
       return String(adv.nama || '').trim().toUpperCase() === nmKey && advDate >= sDate && advDate <= eDate;
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
 
-    // Ambil rekap Absensi dalam rentang periode (AKTIVASI ABSEN KE GAJI)
     const empAttendance = (DB.attendance || []).filter(att => {
       const attDate = formatDate(att.tanggal);
       return String(att.nama || '').trim().toUpperCase() === nmKey && attDate >= sDate && attDate <= eDate;
@@ -1246,13 +1258,14 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       if (att.status === 'Hadir') {
         const shift = classifyShift(att.masuk);
         if (shift.onTime) {
-          totalUangJajan += DEFAULT_ALLOWANCE; // Biasanya Rp 10.000 / shift tepat waktu
+          totalUangJajan += DEFAULT_ALLOWANCE; 
         }
         
         const durasi = calculateHours(att.masuk, att.pulang);
         if (durasi > 0) {
-          const diff = durasi - STANDARD_WORK_HOURS; // Acuan 11 Jam
-          totalPenyesuaianJam += Math.round(diff * RATE_PER_HOUR); // Biasanya Rp 5000 / Jam
+          const diff = durasi - STANDARD_WORK_HOURS; 
+          const roundedDiff = Math.round(diff);
+          totalPenyesuaianJam += (roundedDiff * RATE_PER_HOUR); 
         }
       }
     });
@@ -1265,7 +1278,8 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const loyalitas = Number(emp.kebersihan_loyalitas || 0);
     const cicilanTetap = Number(emp.cicilan || 0);
 
-    const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain + totalUangJajan + totalPenyesuaianJam;
+    // TOTAL PENDAPATAN SUDAH TIDAK MENYATUKAN UANG JAJAN
+    const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain + totalPenyesuaianJam;
     const totalPotongan = cicilanTetap + kasbonPeriode; 
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
 
@@ -1304,19 +1318,19 @@ function renderPayrollCards() {
     return;
   }
 
-  container.innerHTML = list.map(emp => {
-    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.uangJajan + emp.zakat + emp.loyalitas + emp.lainLain;
+  container.innerHTML = list.map((emp, idx) => {
+    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     return `
-      <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary);">
+      <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer; transition: 0.2s;" onclick="const el = document.getElementById('slip-det-${idx}'); el.style.display = (el.style.display === 'none') ? 'block' : 'none';">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
           <div>
             <div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div>
             <span class="badge badge-dept" style="margin-top: 4px;">${escapeHtml(emp.departemen)}</span>
           </div>
           <div style="text-align: right;">
-            <div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH</div>
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH <i class="fa-solid fa-chevron-down" style="margin-left: 4px;"></i></div>
             <div style="font-size: 16px; font-weight: 800; color: var(--wa-primary);">${money(emp.gajiBersih)}</div>
           </div>
         </div>
@@ -1325,6 +1339,28 @@ function renderPayrollCards() {
           <div>Tunjangan & Absen: <b>${money(totalPendapatan - emp.pokok)}</b></div>
           <div>Potongan: <b style="color:var(--danger);">${money(totalPotongan)}</b></div>
           <div>Total Bruto: <b>${money(totalPendapatan)}</b></div>
+        </div>
+
+        <!-- RINCIAN HIDDEN -->
+        <div id="slip-det-${idx}" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 13px;">
+          <div style="font-weight: 800; margin-bottom: 8px; color: var(--text);">Rincian Pendapatan</div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Gaji Pokok</span> <b>${money(emp.pokok)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jabatan</span> <b>${money(emp.jabatan)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Prestasi</span> <b>${money(emp.prestasi)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kesehatan</span> <b>${money(emp.kesehatan)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jam Kerja (+/-)</span> <b style="color:${emp.jamKerja < 0 ? 'var(--danger)' : 'var(--text)'};">${money(emp.jamKerja)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Zakat</span> <b>${money(emp.zakat)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kebersihan/Loyalitas</span> <b>${money(emp.loyalitas)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Lain-lain</span> <b>${money(emp.lainLain)}</b></div>
+          
+          <div style="font-weight: 800; margin-top: 12px; margin-bottom: 8px; color: var(--danger);">Rincian Potongan</div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kasbon</span> <b style="color:var(--danger);">${money(emp.kasbon)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>BPJS</span> <b style="color:var(--danger);">${money(emp.bpjs)}</b></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Cicilan</span> <b style="color:var(--danger);">${money(emp.cicilan)}</b></div>
+          
+          <div style="text-align: center; margin-top: 14px; font-size: 11px; font-style: italic; color: var(--muted);">
+            (Klik kembali kartu untuk menyembunyikan rincian)
+          </div>
         </div>
       </div>
     `;
@@ -1347,7 +1383,6 @@ function renderSlipPages() {
     return;
   }
 
-  // Format header bulan secara otomatis
   let periodMonth = '';
   if (sDate) {
       const pDate = new Date(sDate);
@@ -1357,7 +1392,7 @@ function renderSlipPages() {
   let html = '';
 
   list.forEach(emp => {
-    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.uangJajan + emp.zakat + emp.loyalitas + emp.lainLain;
+    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     html += `
@@ -1378,7 +1413,6 @@ function renderSlipPages() {
           <div class="slip-row"><span>JABATAN</span><span>Rp</span><span class="right">${formatNum(emp.jabatan)}</span></div>
           <div class="slip-row"><span>PRESTASI</span><span>Rp</span><span class="right">${formatNum(emp.prestasi)}</span></div>
           <div class="slip-row"><span>KESEHATAN</span><span>Rp</span><span class="right">${formatNum(emp.kesehatan)}</span></div>
-          <div class="slip-row"><span>UANG JAJAN (ABSEN)</span><span>Rp</span><span class="right">${formatNum(emp.uangJajan)}</span></div>
           <div class="slip-row"><span>JAM KERJA (+/-)</span><span>Rp</span><span class="right">${formatNum(emp.jamKerja)}</span></div>
           <div class="slip-row"><span>ZAKAT</span><span>Rp</span><span class="right">${formatNum(emp.zakat)}</span></div>
           <div class="slip-row"><span>KEBERSIHAN/LOYALITAS</span><span>Rp</span><span class="right">${formatNum(emp.loyalitas)}</span></div>
