@@ -1251,16 +1251,10 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       return String(att.nama || '').trim().toUpperCase() === nmKey && attDate >= sDate && attDate <= eDate;
     });
 
-    let totalUangJajan = 0;
     let totalPenyesuaianJam = 0;
 
     empAttendance.forEach(att => {
       if (att.status === 'Hadir') {
-        const shift = classifyShift(att.masuk);
-        if (shift.onTime) {
-          totalUangJajan += DEFAULT_ALLOWANCE; 
-        }
-        
         const durasi = calculateHours(att.masuk, att.pulang);
         if (durasi > 0) {
           const diff = durasi - STANDARD_WORK_HOURS; 
@@ -1278,7 +1272,6 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const loyalitas = Number(emp.kebersihan_loyalitas || 0);
     const cicilanTetap = Number(emp.cicilan || 0);
 
-    // TOTAL PENDAPATAN SUDAH TIDAK MENYATUKAN UANG JAJAN
     const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain + totalPenyesuaianJam;
     const totalPotongan = cicilanTetap + kasbonPeriode; 
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
@@ -1291,7 +1284,6 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       prestasi: prestasi,
       kesehatan: kesehatan,
       jamKerja: totalPenyesuaianJam,
-      uangJajan: totalUangJajan,
       zakat: zakat,
       loyalitas: loyalitas,
       lainLain: lainLain,
@@ -1323,7 +1315,7 @@ function renderPayrollCards() {
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     return `
-      <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer; transition: 0.2s;" onclick="const el = document.getElementById('slip-det-${idx}'); el.style.display = (el.style.display === 'none') ? 'block' : 'none';">
+      <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer; transition: 0.2s; user-select: none; -webkit-tap-highlight-color: transparent; outline: none;" onclick="const el = document.getElementById('slip-wrapper-${idx}'); el.style.gridTemplateRows = el.style.gridTemplateRows === '1fr' ? '0fr' : '1fr';">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
           <div>
             <div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div>
@@ -1341,25 +1333,29 @@ function renderPayrollCards() {
           <div>Total Bruto: <b>${money(totalPendapatan)}</b></div>
         </div>
 
-        <!-- RINCIAN HIDDEN -->
-        <div id="slip-det-${idx}" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 13px;">
-          <div style="font-weight: 800; margin-bottom: 8px; color: var(--text);">Rincian Pendapatan</div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Gaji Pokok</span> <b>${money(emp.pokok)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jabatan</span> <b>${money(emp.jabatan)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Prestasi</span> <b>${money(emp.prestasi)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kesehatan</span> <b>${money(emp.kesehatan)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jam Kerja (+/-)</span> <b style="color:${emp.jamKerja < 0 ? 'var(--danger)' : 'var(--text)'};">${money(emp.jamKerja)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Zakat</span> <b>${money(emp.zakat)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kebersihan/Loyalitas</span> <b>${money(emp.loyalitas)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Lain-lain</span> <b>${money(emp.lainLain)}</b></div>
-          
-          <div style="font-weight: 800; margin-top: 12px; margin-bottom: 8px; color: var(--danger);">Rincian Potongan</div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kasbon</span> <b style="color:var(--danger);">${money(emp.kasbon)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>BPJS</span> <b style="color:var(--danger);">${money(emp.bpjs)}</b></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Cicilan</span> <b style="color:var(--danger);">${money(emp.cicilan)}</b></div>
-          
-          <div style="text-align: center; margin-top: 14px; font-size: 11px; font-style: italic; color: var(--muted);">
-            (Klik kembali kartu untuk menyembunyikan rincian)
+        <!-- RINCIAN HIDDEN DENGAN ANIMASI GRID SMOOTH -->
+        <div id="slip-wrapper-${idx}" style="display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease-out;">
+          <div style="overflow: hidden;">
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 13px;">
+              <div style="font-weight: 800; margin-bottom: 8px; color: var(--text);">Rincian Pendapatan</div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Gaji Pokok</span> <b>${money(emp.pokok)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jabatan</span> <b>${money(emp.jabatan)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Prestasi</span> <b>${money(emp.prestasi)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kesehatan</span> <b>${money(emp.kesehatan)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jam Kerja (+/-)</span> <b style="color:${emp.jamKerja < 0 ? 'var(--danger)' : 'var(--text)'};">${money(emp.jamKerja)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Zakat</span> <b>${money(emp.zakat)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kebersihan/Loyalitas</span> <b>${money(emp.loyalitas)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Lain-lain</span> <b>${money(emp.lainLain)}</b></div>
+              
+              <div style="font-weight: 800; margin-top: 12px; margin-bottom: 8px; color: var(--danger);">Rincian Potongan</div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kasbon</span> <b style="color:var(--danger);">${money(emp.kasbon)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>BPJS</span> <b style="color:var(--danger);">${money(emp.bpjs)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Cicilan</span> <b style="color:var(--danger);">${money(emp.cicilan)}</b></div>
+              
+              <div style="text-align: center; margin-top: 14px; font-size: 11px; font-style: italic; color: var(--muted);">
+                (Klik kembali kartu untuk menyembunyikan rincian)
+              </div>
+            </div>
           </div>
         </div>
       </div>
