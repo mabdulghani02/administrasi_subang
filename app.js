@@ -2068,6 +2068,13 @@ window.renderRincianPembagian = function(jenis, total, containerId) {
       .map(emp => emp.nama);
     karyawanPabrik = [...new Set([...karyawanPabrik, ...nonMgt])];
   }
+  
+  // Pastikan Zaenal di urutan pertama agar mendapat jatah 40%
+  const indexZaenal = karyawanPabrik.findIndex(nama => nama.toUpperCase().includes('ZAENAL'));
+  if (indexZaenal > 0) { // Jika Zaenal ada tapi bukan di urutan pertama
+    const namaZaenal = karyawanPabrik.splice(indexZaenal, 1)[0];
+    karyawanPabrik.unshift(namaZaenal);
+  }
     
   while (karyawanPabrik.length < 3) {
     karyawanPabrik.push('Karyawan Pabrik ' + (karyawanPabrik.length + 1));
@@ -2111,6 +2118,7 @@ window.renderRincianPembagian = function(jenis, total, containerId) {
     </div>
   `;
 };
+
 
 // Fungsi Mengirim Data Setoran Limbah
 window.submitLimbah = async function(jenis, idTgl, idNominal) {
