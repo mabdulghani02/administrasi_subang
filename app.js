@@ -10,7 +10,8 @@ let DB = {
   attendance: [],
   advances: [],
   installments: [],
-  masterSalary: []
+  masterSalary: [],
+  wasteSales: [] // Tambahan tabel limbah
 };
 
 const STANDARD_WORK_HOURS = 11;
@@ -151,7 +152,7 @@ function escapeHtml(value) {
 async function loadData(targetPage = null) {
   showToast('Memuat data dari Cloud...');
   try {
-    const [sRes, cRes, eRes, cashRes, attRes, advRes, mRes, iRes] = await Promise.all([
+    const [sRes, cRes, eRes, cashRes, attRes, advRes, mRes, iRes, wRes] = await Promise.all([
       db.from('sales').select('*'),
       db.from('counter').select('*'),
       db.from('expenses').select('*'),
@@ -159,11 +160,13 @@ async function loadData(targetPage = null) {
       db.from('attendance').select('*'),
       db.from('advances').select('*'),
       db.from('master_salary').select('*'),
-      db.from('installments').select('*')
+      db.from('installments').select('*'),
+      db.from('waste_sales').select('*') // Load data limbah
     ]);
 
     if (sRes.error) throw sRes.error;
     if (cRes.error) throw cRes.error;
+    if (wRes.error) throw wRes.error; // Cek error limbah
 
     DB.sales = sRes.data || [];
     DB.counter = cRes.data || [];
@@ -173,6 +176,7 @@ async function loadData(targetPage = null) {
     DB.advances = advRes.data || [];
     DB.masterSalary = mRes.data || [];
     DB.installments = iRes.data || [];
+    DB.wasteSales = wRes.data || []; // Simpan ke DB lokal
 
     showPage(targetPage || 'dashboard');
   } catch (error) {
@@ -194,6 +198,7 @@ function showPage(page) {
   if (page === 'expense') renderExpense();
   if (page === 'attendance') renderAttendancePage();
   if (page === 'payroll') renderPayrollPage();
+  if (page === 'limbah') renderLimbahPage(); 
 }
 
 window.calcExpRow = function(el) {
@@ -1919,5 +1924,214 @@ async function exportSlipsToPDF() {
     showToast('Gagal membuat PDF: ' + err.message);
   }
 }
+
+/* ========================================
+   MODUL PENJUALAN LIMBAH
+======================================== */
+function renderLimbahPage() {
+  $('content').innerHTML = `
+    <div class="top">
+      <div><div class="title">Modul Penjualan Limbah</div></div>
+    </div>
+    <div id="limbahContent">
+      
+      <!-- Panel Ampas Tahu -->
+      <div class="panel">
+        <div class="panel-title">Penjualan Ampas Tahu</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Tanggal</label>
+            <input type="date" id="tglAmpas" value="${today()}">
+          </div>
+          <div class="field">
+            <label>Nominal Penjualan (Rp)</label>
+            <input type="number" id="inputAmpasTahu" min="0" step="1" oninput="calculateAmpasTahu()" placeholder="Ketik nominal...">
+          </div>
+        </div>
+        <div id="resultAmpasTahu" style="margin-top: 15px; margin-bottom: 15px;">
+          <!-- Hasil perhitungan muncul di sini -->
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="submitLimbah('Ampas Tahu', 'tglAmpas', 'inputAmpasTahu')">Simpan Ampas Tahu</button>
+        </div>
+      </div>
+
+      <!-- Panel Jalantah -->
+      <div class="panel">
+        <div class="panel-title">Penjualan Jalantah</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Tanggal</label>
+            <input type="date" id="tglJalantah" value="${today()}">
+          </div>
+          <div class="field">
+            <label>Nominal Penjualan (Rp)</label>
+            <input type="number" id="inputJalantah" min="0" step="1" placeholder="Ketik nominal...">
+          </div>
+        </div>
+        <div class="actions" style="margin-top:15px;">
+          <button class="btn btn-primary" onclick="submitLimbah('Jalantah', 'tglJalantah', 'inputJalantah')">Simpan Jalantah</button>
+        </div>
+      </div>
+      
+      <!-- Tabel Histori Penjualan Limbah -->
+      <div class="panel">
+        <div class="panel-title">Histori Penjualan Limbah</div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th class="center" style="width:45px;">No</th>
+                <th>Tanggal</th>
+                <th>Jenis Limbah</th>
+                <th class="right">Nominal Pendapatan</th>
+              </tr>
+            </thead>
+            <tbody id="wasteSalesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  `;
+  
+  calculateAmpasTahu(); // Inisialisasi tampilan rincian
+  renderWasteSalesTable(); // Load history ke UI
+}
+
+// Menghitung rincian otomatis Ampas Tahu
+window.calculateAmpasTahu = function() {
+  const inputEl = $('inputAmpasTahu');
+  const resultEl = $('resultAmpasTahu');
+  if (!inputEl || !resultEl) return;
+
+  const total = Number(inputEl.value || 0);
+
+  // 1. Pembagian Utama
+  const perusahaan = total * 0.50;
+  const manajemen = total * 0.25;
+  const pabrik = total * 0.25;
+
+  // 2. Pembagian Manajemen (dibagi 3)
+  const jatahManajemenPerOrang = manajemen / 3;
+  
+  // Ambil 3 Karyawan Manajemen dari master data
+  let karyawanMgt = (DB.masterSalary || [])
+    .filter(emp => String(emp.departemen).toLowerCase().includes('manajemen'))
+    .map(emp => emp.nama);
+    
+  while (karyawanMgt.length < 3) {
+    karyawanMgt.push('Karyawan Manajemen ' + (karyawanMgt.length + 1));
+  }
+  const tigaManajemen = karyawanMgt.slice(0, 3);
+
+  // 3. Pembagian Pabrik
+  const zaenal = pabrik * 0.40;
+  const ilham = pabrik * 0.30;
+  const pipin = pabrik * 0.30;
+
+  resultEl.innerHTML = `
+    <div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--card);">
+      <div style="font-weight: 800; font-size: 16px; margin-bottom: 15px; border-bottom: 1px dashed var(--line); padding-bottom: 10px;">
+        Total Pendapatan: <span style="color: var(--wa-primary);">${money(total)}</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        
+        <div>
+          <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">1. Perusahaan (50%)</div>
+          <div style="font-size: 14px; color: #059669; font-weight: bold;">${money(perusahaan)}</div>
+        </div>
+
+        <div>
+          <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">2. Manajemen (25%)</div>
+          <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Total: <b>${money(manajemen)}</b></div>
+          <ul style="margin: 0; padding-left: 15px; font-size: 13px; line-height: 1.6;">
+            <li><b>${escapeHtml(tigaManajemen[0])}:</b> ${money(jatahManajemenPerOrang)}</li>
+            <li><b>${escapeHtml(tigaManajemen[1])}:</b> ${money(jatahManajemenPerOrang)}</li>
+            <li><b>${escapeHtml(tigaManajemen[2])}:</b> ${money(jatahManajemenPerOrang)}</li>
+          </ul>
+        </div>
+
+        <div>
+          <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">3. Pabrik (25%)</div>
+          <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Total: <b>${money(pabrik)}</b></div>
+          <ul style="margin: 0; padding-left: 15px; font-size: 13px; line-height: 1.6;">
+            <li><b>Zaenal (40%):</b> ${money(zaenal)}</li>
+            <li><b>Ilham (30%):</b> ${money(ilham)}</li>
+            <li><b>Pipin (30%):</b> ${money(pipin)}</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  `;
+};
+
+// Fungsi Mengirim Data Limbah (Insert ke Supabase)
+window.submitLimbah = async function(jenis, idTgl, idNominal) {
+  const tglEl = $(idTgl);
+  const nomEl = $(idNominal);
+  if (!tglEl || !nomEl) return;
+
+  const tanggal = tglEl.value;
+  const nominal = Number(nomEl.value || 0);
+
+  if (!tanggal) {
+    showToast('Tanggal harus diisi.');
+    return;
+  }
+  if (nominal <= 0) {
+    showToast('Nominal harus lebih dari 0.');
+    return;
+  }
+
+  showToast('Menyimpan ' + jenis + '...');
+
+  const payload = {
+    tanggal: tanggal,
+    jenis: jenis,
+    qty: 1, // Kita default 1 paket / borongan, karena UI hanya minta nominal total
+    satuan: 'PAKET', 
+    harga_satuan: nominal,
+    nominal: nominal,
+    keterangan: `Penjualan ${jenis}`
+  };
+
+  const { error } = await db.from('waste_sales').insert([payload]);
+
+  if (error) {
+    showToast('Gagal menyimpan: ' + error.message);
+  } else {
+    showToast('Data berhasil disimpan!');
+    nomEl.value = ''; // Kosongkan input
+    if (jenis === 'Ampas Tahu') calculateAmpasTahu(); // Reset tabel hitungan
+    
+    // Refresh Data dari DB supaya tabel update
+    loadData('limbah');
+  }
+};
+
+// Merender Tabel Histori Penjualan Limbah
+window.renderWasteSalesTable = function() {
+  const tbody = $('wasteSalesTableBody');
+  if (!tbody) return;
+
+  // Tampilkan data, urutkan dari yang paling baru
+  const list = [...(DB.wasteSales || [])].sort((a,b) => b.tanggal.localeCompare(a.tanggal));
+
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="center empty">Belum ada riwayat penjualan limbah.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map((item, i) => `
+    <tr style="border-bottom: 1px solid var(--line);">
+      <td class="center" style="color:var(--muted);">${i + 1}</td>
+      <td>${formatDate(item.tanggal)}</td>
+      <td><span class="badge ${item.jenis === 'Ampas Tahu' ? 'badge-success' : 'badge-dept'}" style="font-weight:bold;">${escapeHtml(item.jenis)}</span></td>
+      <td class="right" style="font-weight: 800; color: #059669; font-size:14px;">${money(item.nominal)}</td>
+    </tr>
+  `).join('');
+};
 
 loadData();
