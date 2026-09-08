@@ -1929,6 +1929,15 @@ async function exportSlipsToPDF() {
    MODUL PENJUALAN LIMBAH
 ======================================== */
 function renderLimbahPage() {
+  // Hitung total saldo yang statusnya masih 'Belum Dibagikan'
+  const ampasBelumDibagi = (DB.wasteSales || [])
+    .filter(r => r.jenis === 'Ampas Tahu' && r.keterangan === 'Belum Dibagikan')
+    .reduce((sum, r) => sum + Number(r.nominal), 0);
+    
+  const jalantahBelumDibagi = (DB.wasteSales || [])
+    .filter(r => r.jenis === 'Jalantah' && r.keterangan === 'Belum Dibagikan')
+    .reduce((sum, r) => sum + Number(r.nominal), 0);
+
   $('content').innerHTML = `
     <div class="top">
       <div><div class="title">Modul Penjualan Limbah</div></div>
@@ -1937,40 +1946,54 @@ function renderLimbahPage() {
       
       <!-- Panel Ampas Tahu -->
       <div class="panel">
-        <div class="panel-title">Penjualan Ampas Tahu</div>
+        <div class="panel-title">1. Setor Saldo Ampas Tahu</div>
         <div class="form-grid">
           <div class="field">
             <label>Tanggal</label>
             <input type="date" id="tglAmpas" value="${today()}">
           </div>
           <div class="field">
-            <label>Nominal Penjualan (Rp)</label>
-            <input type="number" id="inputAmpasTahu" min="0" step="1" oninput="calculateAmpasTahu()" placeholder="Ketik nominal...">
+            <label>Nominal Setoran (Rp)</label>
+            <input type="number" id="inputAmpasTahu" min="0" step="1" placeholder="Ketik nominal...">
           </div>
         </div>
-        <div id="resultAmpasTahu" style="margin-top: 15px; margin-bottom: 15px;">
-          <!-- Hasil perhitungan muncul di sini -->
+        <div class="actions" style="margin-top: 15px;">
+          <button class="btn btn-secondary" onclick="submitLimbah('Ampas Tahu', 'tglAmpas', 'inputAmpasTahu')">
+            <i class="fa-solid fa-plus"></i> Tambah ke Saldo
+          </button>
         </div>
-        <div class="actions">
-          <button class="btn btn-primary" onclick="submitLimbah('Ampas Tahu', 'tglAmpas', 'inputAmpasTahu')">Simpan Ampas Tahu</button>
+        
+        <hr style="margin: 20px 0; border: 0; border-top: 2px dashed var(--line);">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+          <div style="font-weight: 800; font-size: 16px;">
+            Total Saldo Terkumpul: <span style="color: var(--wa-primary);">${money(ampasBelumDibagi)}</span>
+          </div>
+          <button class="btn btn-primary" onclick="bagikanLimbah('Ampas Tahu')" ${ampasBelumDibagi > 0 ? '' : 'disabled'} style="${ampasBelumDibagi > 0 ? '' : 'opacity:0.5; cursor:not-allowed;'}">
+            Bagikan & Nolkan
+          </button>
         </div>
+        
+        <div id="resultAmpasTahu"></div>
       </div>
 
       <!-- Panel Jalantah -->
       <div class="panel">
-        <div class="panel-title">Penjualan Jalantah</div>
+        <div class="panel-title">2. Setor Saldo Jalantah</div>
         <div class="form-grid">
           <div class="field">
             <label>Tanggal</label>
             <input type="date" id="tglJalantah" value="${today()}">
           </div>
           <div class="field">
-            <label>Nominal Penjualan (Rp)</label>
+            <label>Nominal Setoran (Rp)</label>
             <input type="number" id="inputJalantah" min="0" step="1" placeholder="Ketik nominal...">
           </div>
         </div>
-        <div class="actions" style="margin-top:15px;">
-          <button class="btn btn-primary" onclick="submitLimbah('Jalantah', 'tglJalantah', 'inputJalantah')">Simpan Jalantah</button>
+        <div class="actions" style="margin-top: 15px;">
+          <button class="btn btn-secondary" onclick="submitLimbah('Jalantah', 'tglJalantah', 'inputJalantah')">
+            <i class="fa-solid fa-plus"></i> Tambah ke Saldo
+          </button>
         </div>
       </div>
       
@@ -1984,7 +2007,8 @@ function renderLimbahPage() {
                 <th class="center" style="width:45px;">No</th>
                 <th>Tanggal</th>
                 <th>Jenis Limbah</th>
-                <th class="right">Nominal Pendapatan</th>
+                <th class="center">Status</th>
+                <th class="right">Nominal</th>
               </tr>
             </thead>
             <tbody id="wasteSalesTableBody"></tbody>
@@ -1995,17 +2019,22 @@ function renderLimbahPage() {
     </div>
   `;
   
-  calculateAmpasTahu(); // Inisialisasi tampilan rincian
-  renderWasteSalesTable(); // Load history ke UI
+  renderRincianPembagian('Ampas Tahu', ampasBelumDibagi, 'resultAmpasTahu'); 
+  renderWasteSalesTable(); 
 }
 
-// Menghitung rincian otomatis Ampas Tahu
-window.calculateAmpasTahu = function() {
-  const inputEl = $('inputAmpasTahu');
-  const resultEl = $('resultAmpasTahu');
-  if (!inputEl || !resultEl) return;
+// Render rincian otomatis BUKAN dari inputan, tapi dari SALDO TERKUMPUL
+window.renderRincianPembagian = function(jenis, total, containerId) {
+  const resultEl = $(containerId);
+  if (!resultEl) return;
 
-  const total = Number(inputEl.value || 0);
+  if (total <= 0) {
+    resultEl.innerHTML = `
+      <div style="text-align:center; color:var(--muted); padding: 15px; border: 1px solid var(--line); border-radius: 8px;">
+        Belum ada saldo yang terkumpul. Silakan input setoran di atas.
+      </div>`;
+    return;
+  }
 
   // 1. Pembagian Utama
   const perusahaan = total * 0.50;
@@ -2015,7 +2044,6 @@ window.calculateAmpasTahu = function() {
   // 2. Pembagian Manajemen (dibagi 3)
   const jatahManajemenPerOrang = manajemen / 3;
   
-  // Ambil 3 Karyawan Manajemen dari master data
   let karyawanMgt = (DB.masterSalary || [])
     .filter(emp => String(emp.departemen).toLowerCase().includes('manajemen'))
     .map(emp => emp.nama);
@@ -2025,16 +2053,33 @@ window.calculateAmpasTahu = function() {
   }
   const tigaManajemen = karyawanMgt.slice(0, 3);
 
-  // 3. Pembagian Pabrik
-  const zaenal = pabrik * 0.40;
-  const ilham = pabrik * 0.30;
-  const pipin = pabrik * 0.30;
+  // 3. Pembagian Pabrik (dinamis dari data gaji)
+  let karyawanPabrik = (DB.masterSalary || [])
+    .filter(emp => {
+        const dept = String(emp.departemen).toLowerCase();
+        return dept.includes('pabrik') || dept.includes('produksi');
+    })
+    .map(emp => emp.nama);
+
+  // Jika kurang dari 3 orang dengan departemen pabrik, ambil dari karyawan selain manajemen
+  if (karyawanPabrik.length < 3) {
+    const nonMgt = (DB.masterSalary || [])
+      .filter(emp => !String(emp.departemen).toLowerCase().includes('manajemen'))
+      .map(emp => emp.nama);
+    karyawanPabrik = [...new Set([...karyawanPabrik, ...nonMgt])];
+  }
+    
+  while (karyawanPabrik.length < 3) {
+    karyawanPabrik.push('Karyawan Pabrik ' + (karyawanPabrik.length + 1));
+  }
+  const tigaPabrik = karyawanPabrik.slice(0, 3);
+
+  const jatahPabrik1 = pabrik * 0.40;
+  const jatahPabrik2 = pabrik * 0.30;
+  const jatahPabrik3 = pabrik * 0.30;
 
   resultEl.innerHTML = `
     <div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--card);">
-      <div style="font-weight: 800; font-size: 16px; margin-bottom: 15px; border-bottom: 1px dashed var(--line); padding-bottom: 10px;">
-        Total Pendapatan: <span style="color: var(--wa-primary);">${money(total)}</span>
-      </div>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
         
         <div>
@@ -2056,9 +2101,9 @@ window.calculateAmpasTahu = function() {
           <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">3. Pabrik (25%)</div>
           <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Total: <b>${money(pabrik)}</b></div>
           <ul style="margin: 0; padding-left: 15px; font-size: 13px; line-height: 1.6;">
-            <li><b>Zaenal (40%):</b> ${money(zaenal)}</li>
-            <li><b>Ilham (30%):</b> ${money(ilham)}</li>
-            <li><b>Pipin (30%):</b> ${money(pipin)}</li>
+            <li><b>${escapeHtml(tigaPabrik[0])} (40%):</b> ${money(jatahPabrik1)}</li>
+            <li><b>${escapeHtml(tigaPabrik[1])} (30%):</b> ${money(jatahPabrik2)}</li>
+            <li><b>${escapeHtml(tigaPabrik[2])} (30%):</b> ${money(jatahPabrik3)}</li>
           </ul>
         </div>
 
@@ -2067,7 +2112,7 @@ window.calculateAmpasTahu = function() {
   `;
 };
 
-// Fungsi Mengirim Data Limbah (Insert ke Supabase)
+// Fungsi Mengirim Data Setoran Limbah
 window.submitLimbah = async function(jenis, idTgl, idNominal) {
   const tglEl = $(idTgl);
   const nomEl = $(idNominal);
@@ -2076,25 +2121,19 @@ window.submitLimbah = async function(jenis, idTgl, idNominal) {
   const tanggal = tglEl.value;
   const nominal = Number(nomEl.value || 0);
 
-  if (!tanggal) {
-    showToast('Tanggal harus diisi.');
-    return;
-  }
-  if (nominal <= 0) {
-    showToast('Nominal harus lebih dari 0.');
-    return;
-  }
+  if (!tanggal) { showToast('Tanggal harus diisi.'); return; }
+  if (nominal <= 0) { showToast('Nominal harus lebih dari 0.'); return; }
 
   showToast('Menyimpan ' + jenis + '...');
 
   const payload = {
     tanggal: tanggal,
     jenis: jenis,
-    qty: 1, // Kita default 1 paket / borongan, karena UI hanya minta nominal total
+    qty: 1, 
     satuan: 'PAKET', 
     harga_satuan: nominal,
     nominal: nominal,
-    keterangan: `Penjualan ${jenis}`
+    keterangan: 'Belum Dibagikan' // Menggunakan field keterangan sebagai status
   };
 
   const { error } = await db.from('waste_sales').insert([payload]);
@@ -2102,12 +2141,29 @@ window.submitLimbah = async function(jenis, idTgl, idNominal) {
   if (error) {
     showToast('Gagal menyimpan: ' + error.message);
   } else {
-    showToast('Data berhasil disimpan!');
-    nomEl.value = ''; // Kosongkan input
-    if (jenis === 'Ampas Tahu') calculateAmpasTahu(); // Reset tabel hitungan
+    showToast('Berhasil ditambahkan ke saldo!');
+    nomEl.value = ''; 
+    loadData('limbah'); // Reload data dari DB
+  }
+};
+
+// Fungsi Membagikan Saldo dan Menolkannya
+window.bagikanLimbah = async function(jenis) {
+  if(!confirm(`Anda yakin ingin membagikan seluruh saldo ${jenis}? Tindakan ini akan mereset saldo menjadi Rp 0.`)) return;
+  
+  showToast('Memproses pembagian...');
+  
+  // Update status di Supabase secara massal (Bulk Update)
+  const { error } = await db.from('waste_sales')
+    .update({ keterangan: 'Sudah Dibagikan' })
+    .eq('jenis', jenis)
+    .eq('keterangan', 'Belum Dibagikan');
     
-    // Refresh Data dari DB supaya tabel update
-    loadData('limbah');
+  if (error) {
+    showToast('Gagal membagikan: ' + error.message);
+  } else {
+    showToast(`Saldo ${jenis} berhasil dibagikan & dinolkan!`);
+    loadData('limbah'); 
   }
 };
 
@@ -2116,22 +2172,29 @@ window.renderWasteSalesTable = function() {
   const tbody = $('wasteSalesTableBody');
   if (!tbody) return;
 
-  // Tampilkan data, urutkan dari yang paling baru
   const list = [...(DB.wasteSales || [])].sort((a,b) => b.tanggal.localeCompare(a.tanggal));
 
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="center empty">Belum ada riwayat penjualan limbah.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="center empty">Belum ada riwayat penjualan limbah.</td></tr>';
     return;
   }
 
-  tbody.innerHTML = list.map((item, i) => `
+  tbody.innerHTML = list.map((item, i) => {
+    const isBelum = item.keterangan === 'Belum Dibagikan';
+    const badgeBg = isBelum ? '#f59e0b' : '#10b981'; // Orange jika belum, Hijau jika sudah
+    
+    return `
     <tr style="border-bottom: 1px solid var(--line);">
       <td class="center" style="color:var(--muted);">${i + 1}</td>
       <td>${formatDate(item.tanggal)}</td>
-      <td><span class="badge ${item.jenis === 'Ampas Tahu' ? 'badge-success' : 'badge-dept'}" style="font-weight:bold;">${escapeHtml(item.jenis)}</span></td>
-      <td class="right" style="font-weight: 800; color: #059669; font-size:14px;">${money(item.nominal)}</td>
+      <td style="font-weight:700;">${escapeHtml(item.jenis)}</td>
+      <td class="center">
+        <span class="badge" style="background:${badgeBg}; color:white; font-size:11px;">
+          ${escapeHtml(item.keterangan)}
+        </span>
+      </td>
+      <td class="right" style="font-weight: 800; font-size:14px;">${money(item.nominal)}</td>
     </tr>
-  `).join('');
+  `}).join('');
 };
-
 loadData();
