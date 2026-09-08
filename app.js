@@ -1970,7 +1970,7 @@ function renderLimbahPage() {
             Total Saldo Terkumpul: <span style="color: var(--wa-primary);">${money(ampasBelumDibagi)}</span>
           </div>
           <button class="btn btn-primary" onclick="bagikanLimbah('Ampas Tahu')" ${ampasBelumDibagi > 0 ? '' : 'disabled'} style="${ampasBelumDibagi > 0 ? '' : 'opacity:0.5; cursor:not-allowed;'}">
-            Bagikan & Nolkan
+            Dibagikan
           </button>
         </div>
         
