@@ -1,855 +1,112 @@
 const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-let DB = {
-  sales: [],
-  counter: [],
-  expenses: [],
-  cash: [],
-  attendance: [],
-  advances: [],
-  installments: [],
-  masterSalary: [],
-  wasteSales: [] // Tambahan tabel limbah
-};
-
-const STANDARD_WORK_HOURS = 11;
-const RATE_PER_HOUR = 5000;
-let DEFAULT_ALLOWANCE = 15000;
-let DEFAULT_BONUS_LAIN = 40000;
-
-document.addEventListener('DOMContentLoaded', () => {
-  const savedTheme = localStorage.getItem('subang_theme') || 'light';
-  document.documentElement.setAttribute('data-theme', savedTheme);
-  updateThemeIcon(savedTheme);
-});
-
-function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme');
-  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', newTheme);
-  localStorage.setItem('subang_theme', newTheme);
-  updateThemeIcon(newTheme);
+const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE'; const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); let DB = { sales: [], counter: [], expenses: [], cash: [], attendance: [], advances: [], installments: [], masterSalary: [],
+wasteSales: [] // Tambahan tabel limbah
+}; const STANDARD_WORK_HOURS = 11; const RATE_PER_HOUR = 5000; let DEFAULT_ALLOWANCE = 15000; let DEFAULT_BONUS_LAIN = 40000; document.addEventListener('DOMContentLoaded', () => { const savedTheme = localStorage.getItem('subang_theme') || 'light';
+document.documentElement.setAttribute('data-theme', savedTheme); updateThemeIcon(savedTheme); }); function toggleTheme() { const currentTheme = document.documentElement.getAttribute('data-theme'); const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+document.documentElement.setAttribute('data-theme', newTheme); localStorage.setItem('subang_theme', newTheme); updateThemeIcon(newTheme); } function updateThemeIcon(theme) { const icon = $('themeIcon'); if (icon) { icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'; } }
+function toggleSidebar() { const sb = $('appSidebar'); const ov = $('sidebarOverlay'); sb.classList.toggle('open'); ov.classList.toggle('active'); } const $ = id => document.getElementById(id); function money(value) { const number = Number(value || 0);
+return (number < 0 ? '-Rp ' : 'Rp ') + Math.abs(number).toLocaleString('id-ID'); } function formatNum(value) { const number = Number(value || 0); return number === 0 ? '-' : number.toLocaleString('id-ID'); } function today() { return new Date().toISOString().slice(0, 10); }
+function normalizeDate(value) { if (!value) return ''; const str = String(value).trim(); if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) { const [d, m, y] = str.split('/'); return `${y}-${m}-${d}`; } const date = new Date(str);
+if (isNaN(date.getTime())) return str.split('T')[0]; return [ date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0') ].join('-'); } function formatDate(value) { return normalizeDate(value); } function parseTimeMinutes(timeVal) {
+if (!timeVal) return null; const match = String(timeVal).match(/(\d{1,2}):(\d{2})/); if (!match) return null; const h = parseInt(match[1], 10); const m = parseInt(match[2], 10); return { h, m, totalMins: h * 60 + m, formatted: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` }; }
+function classifyShift(timeStr) { const parsed = parseTimeMinutes(timeStr); if (!parsed) return { shift: 'Tidak Scan', batas: '-', onTime: false, displayTime: '-' }; const mins = parsed.totalMins;
+if (mins >= 210 && mins <= 310) return { shift: 'Pagi', batas: '05:10', onTime: true, displayTime: parsed.formatted }; if (mins >= 450 && mins <= 610) return { shift: 'Middle', batas: '10:10', onTime: true, displayTime: parsed.formatted };
+if (mins > 610 && mins <= 670) return { shift: 'Siang', batas: '11:10', onTime: true, displayTime: parsed.formatted }; return { shift: 'Lainnya', batas: '-', onTime: false, displayTime: parsed.formatted }; } function calculateHours(masukStr, pulangStr) { const p1 = parseTimeMinutes(masukStr);
+const p2 = parseTimeMinutes(pulangStr); if (!p1 || !p2) return 0; let t1 = p1.totalMins; let t2 = p2.totalMins; if (t2 < t1) t2 += 24 * 60; const totalMins = t2 - t1; return totalMins > 0 ? (totalMins / 60) : 0; } function sum(values) { return values.reduce((t, v) => t + Number(v || 0), 0); }
+function totalESB(data) { return Number(data.makanan || 0) + Number(data.minuman || 0) + Number(data.tahu || 0) + Number(data.gorengan || 0) + Number(data.lain_lain || 0) + Number(data.pajak || 0); }
+function totalCounter(data) { return Number(data.cash || 0) + Number(data.debit_card || 0) + Number(data.grab || 0) + Number(data.qris || 0); } function showToast(message) { const toast = $('toast'); toast.textContent = message; toast.style.display = 'block';
+setTimeout(() => { toast.style.display = 'none'; }, 2500); } function downloadElementAsImage(elementId, filename) { const target = $(elementId); if (!target) { showToast('Area laporan tidak ditemukan.'); return; } showToast('Sedang membuat gambar...');
+html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' }) .then(canvas => { const link = document.createElement('a'); link.download = filename + '.png'; link.href = canvas.toDataURL('image/png'); link.click(); showToast('Gambar berhasil diunduh.');
+}).catch(err => { console.error(err); showToast('Gagal mengubah ke gambar.'); }); } function escapeHtml(value) { return String(value || '') .replace(/&/g, '&amp;') .replace(/</g, '&lt;') .replace(/>/g, '&gt;') .replace(/"/g, '&quot;') .replace(/'/g, '&#039;'); }
+async function loadData(targetPage = null) { showToast('Memuat data dari Cloud...'); try { const [sRes, cRes, eRes, cashRes, attRes, advRes, mRes, iRes, wRes] = await Promise.all([ db.from('sales').select('*'), db.from('counter').select('*'), db.from('expenses').select('*'),
+db.from('cash_positions').select('*'), db.from('attendance').select('*'), db.from('advances').select('*'), db.from('master_salary').select('*'), db.from('installments').select('*'),
+db.from('waste_sales').select('*') // Load data limbah
+]); if (sRes.error) throw sRes.error; if (cRes.error) throw cRes.error;
+if (wRes.error) throw wRes.error; // Cek error limbah
+DB.sales = sRes.data || []; DB.counter = cRes.data || []; DB.expenses = eRes.data || []; DB.cash = cashRes.data || []; DB.attendance = attRes.data || []; DB.advances = advRes.data || []; DB.masterSalary = mRes.data || []; DB.installments = iRes.data || [];
+DB.wasteSales = wRes.data || []; // Simpan ke DB lokal
+showPage(targetPage || 'dashboard'); } catch (error) { console.error(error); showToast('Gagal mengambil data dari Supabase: ' + error.message); } } function showPage(page) { document.querySelectorAll('.nav button, .b-nav-btn').forEach(btn => {
+btn.classList.toggle('active', btn.dataset.page === page); }); $('appSidebar').classList.remove('open'); $('sidebarOverlay').classList.remove('active'); if (page === 'dashboard') renderDashboard(); if (page === 'sales') renderSales(); if (page === 'expense') renderExpense();
+if (page === 'attendance') renderAttendancePage(); if (page === 'payroll') renderPayrollPage(); if (page === 'limbah') renderLimbahPage(); } window.calcExpRow = function(el) { const tr = el.closest('tr'); const q = Number(tr.querySelector('.exp-qty').value || 0);
+const h = Number(tr.querySelector('.exp-harga').value || 0); tr.querySelector('.exp-nominal').value = q * h; }; function renderDashboard() { const currentMonth = new Date().toISOString().slice(0, 7); if (!document.getElementById('fab-style')) { const style = document.createElement('style');
+style.id = 'fab-style';
+style.innerHTML = `
+.fab-export {
+position: fixed; bottom: 90px; right: 20px; background: #059669; color: white;
+border: none; padding: 14px 20px; border-radius: 50px; font-weight: bold;
+font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
+z-index: 1000; display: flex; align-items: center; gap: 8px;
+opacity: 0; transform: translateY(20px); pointer-events: none;
+transition: opacity 0.3s ease, transform 0.3s ease, background 0.2s;
 }
-
-function updateThemeIcon(theme) {
-  const icon = $('themeIcon');
-  if (icon) {
-    icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-  }
+.fab-export.show {
+opacity: 1; transform: translateY(0); pointer-events: auto;
 }
-
-function toggleSidebar() {
-  const sb = $('appSidebar');
-  const ov = $('sidebarOverlay');
-  sb.classList.toggle('open');
-  ov.classList.toggle('active');
-}
-
-const $ = id => document.getElementById(id);
-
-function money(value) {
-  const number = Number(value || 0);
-  return (number < 0 ? '-Rp ' : 'Rp ') + Math.abs(number).toLocaleString('id-ID');
-}
-
-function formatNum(value) {
-  const number = Number(value || 0);
-  return number === 0 ? '-' : number.toLocaleString('id-ID');
-}
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function normalizeDate(value) {
-  if (!value) return '';
-  const str = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-    const [d, m, y] = str.split('/');
-    return `${y}-${m}-${d}`;
-  }
-  const date = new Date(str);
-  if (isNaN(date.getTime())) return str.split('T')[0];
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0')
-  ].join('-');
-}
-
-function formatDate(value) {
-  return normalizeDate(value);
-}
-
-function parseTimeMinutes(timeVal) {
-  if (!timeVal) return null;
-  const match = String(timeVal).match(/(\d{1,2}):(\d{2})/);
-  if (!match) return null;
-  const h = parseInt(match[1], 10);
-  const m = parseInt(match[2], 10);
-  return { h, m, totalMins: h * 60 + m, formatted: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
-}
-
-function classifyShift(timeStr) {
-  const parsed = parseTimeMinutes(timeStr);
-  if (!parsed) return { shift: 'Tidak Scan', batas: '-', onTime: false, displayTime: '-' };
-  const mins = parsed.totalMins;
-  if (mins >= 210 && mins <= 310) return { shift: 'Pagi', batas: '05:10', onTime: true, displayTime: parsed.formatted };
-  if (mins >= 450 && mins <= 610) return { shift: 'Middle', batas: '10:10', onTime: true, displayTime: parsed.formatted };
-  if (mins > 610 && mins <= 670) return { shift: 'Siang', batas: '11:10', onTime: true, displayTime: parsed.formatted };
-  return { shift: 'Lainnya', batas: '-', onTime: false, displayTime: parsed.formatted };
-}
-
-function calculateHours(masukStr, pulangStr) {
-  const p1 = parseTimeMinutes(masukStr);
-  const p2 = parseTimeMinutes(pulangStr);
-  if (!p1 || !p2) return 0;
-  let t1 = p1.totalMins;
-  let t2 = p2.totalMins;
-  if (t2 < t1) t2 += 24 * 60;
-  const totalMins = t2 - t1;
-  return totalMins > 0 ? (totalMins / 60) : 0;
-}
-
-function sum(values) {
-  return values.reduce((t, v) => t + Number(v || 0), 0);
-}
-
-function totalESB(data) {
-  return Number(data.makanan || 0) + Number(data.minuman || 0) + Number(data.tahu || 0) + Number(data.gorengan || 0) + Number(data.lain_lain || 0) + Number(data.pajak || 0);
-}
-
-function totalCounter(data) {
-  return Number(data.cash || 0) + Number(data.debit_card || 0) + Number(data.grab || 0) + Number(data.qris || 0);
-}
-
-function showToast(message) {
-  const toast = $('toast');
-  toast.textContent = message;
-  toast.style.display = 'block';
-  setTimeout(() => {
-    toast.style.display = 'none';
-  }, 2500);
-}
-
-function downloadElementAsImage(elementId, filename) {
-  const target = $(elementId);
-  if (!target) {
-    showToast('Area laporan tidak ditemukan.');
-    return;
-  }
-  showToast('Sedang membuat gambar...');
-
-  html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
-    .then(canvas => {
-      const link = document.createElement('a');
-      link.download = filename + '.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      showToast('Gambar berhasil diunduh.');
-    })
-    .catch(err => {
-      console.error(err);
-      showToast('Gagal mengubah ke gambar.');
-    });
-}
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-async function loadData(targetPage = null) {
-  showToast('Memuat data dari Cloud...');
-  try {
-    const [sRes, cRes, eRes, cashRes, attRes, advRes, mRes, iRes, wRes] = await Promise.all([
-      db.from('sales').select('*'),
-      db.from('counter').select('*'),
-      db.from('expenses').select('*'),
-      db.from('cash_positions').select('*'),
-      db.from('attendance').select('*'),
-      db.from('advances').select('*'),
-      db.from('master_salary').select('*'),
-      db.from('installments').select('*'),
-      db.from('waste_sales').select('*') // Load data limbah
-    ]);
-
-    if (sRes.error) throw sRes.error;
-    if (cRes.error) throw cRes.error;
-    if (wRes.error) throw wRes.error; // Cek error limbah
-
-    DB.sales = sRes.data || [];
-    DB.counter = cRes.data || [];
-    DB.expenses = eRes.data || [];
-    DB.cash = cashRes.data || [];
-    DB.attendance = attRes.data || [];
-    DB.advances = advRes.data || [];
-    DB.masterSalary = mRes.data || [];
-    DB.installments = iRes.data || [];
-    DB.wasteSales = wRes.data || []; // Simpan ke DB lokal
-
-    showPage(targetPage || 'dashboard');
-  } catch (error) {
-    console.error(error);
-    showToast('Gagal mengambil data dari Supabase: ' + error.message);
-  }
-}
-
-function showPage(page) {
-  document.querySelectorAll('.nav button, .b-nav-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.page === page);
-  });
-
-  $('appSidebar').classList.remove('open');
-  $('sidebarOverlay').classList.remove('active');
-
-  if (page === 'dashboard') renderDashboard();
-  if (page === 'sales') renderSales();
-  if (page === 'expense') renderExpense();
-  if (page === 'attendance') renderAttendancePage();
-  if (page === 'payroll') renderPayrollPage();
-  if (page === 'limbah') renderLimbahPage();
-}
-
-window.calcExpRow = function(el) {
-  const tr = el.closest('tr');
-  const q = Number(tr.querySelector('.exp-qty').value || 0);
-  const h = Number(tr.querySelector('.exp-harga').value || 0);
-  tr.querySelector('.exp-nominal').value = q * h;
-};
-
-function renderDashboard() {
-  const currentMonth = new Date().toISOString().slice(0, 7);
-
-  if (!document.getElementById('fab-style')) {
-    const style = document.createElement('style');
-    style.id = 'fab-style';
-    style.innerHTML = `
-      .fab-export {
-        position: fixed; bottom: 90px; right: 20px; background: #059669; color: white;
-        border: none; padding: 14px 20px; border-radius: 50px; font-weight: bold;
-        font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
-        z-index: 1000; display: flex; align-items: center; gap: 8px;
-        opacity: 0; transform: translateY(20px); pointer-events: none;
-        transition: opacity 0.3s ease, transform 0.3s ease, background 0.2s;
-      }
-      .fab-export.show {
-        opacity: 1; transform: translateY(0); pointer-events: auto;
-      }
-      .fab-export:active { transform: scale(0.95); background: #047857; }
-    `;
-    document.head.appendChild(style);
-  }
-
-  $('content').innerHTML = `
-    <div class="top">
-      <div>
-        <div class="title">Dashboard Keuangan</div>
-        <div class="subtitle">Sari Kedele - Subang</div>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 6px;">
-        <label style="font-size: 13px; font-weight: 700; color: var(--muted);">Pilih Bulan Rekapitulasi:</label>
-        <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background: var(--card); color: var(--text);">
-      </div>
-    </div>
-
-    <div class="cards">
-      <div class="card card-green">
-        <div class="card-label">Omset Konter Bulan Ini</div>
-        <div class="card-value" id="cardOmset">Rp 0</div>
-      </div>
-      <div class="card card-danger">
-        <div class="card-label">Pengeluaran Bulan Ini</div>
-        <div class="card-value" id="cardExpense">Rp 0</div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Aksi Cepat</div>
-      <div class="icon-grid">
-        <div class="icon-btn" onclick="showPage('sales')"><i class="fa-solid fa-wallet"></i><span>Pendapatan</span></div>
-        <div class="icon-btn" onclick="showPage('expense')"><i class="fa-solid fa-receipt"></i><span>Pengeluaran</span></div>
-        <div class="icon-btn" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i><span>Absensi</span></div>
-        <div class="icon-btn" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i><span>Gaji</span></div>
-      </div>
-    </div>
-
-    <!-- Panel Diagram Donut Liquid Glass -->
-    <div class="panel">
-      <div class="panel-title">Penjualan per Kategori</div>
-      
-      <div class="chart-wrapper">
-        <div class="donut-chart" id="kategoriDonut">
-          <div class="donut-inner-text">
-            <h3 id="totalItemQty">0</h3>
-            <span>Total Item</span>
-          </div>
-        </div>
-
-        <div class="chart-legend">
-          <div class="legend-item">
-            <div class="legend-color c1"></div>
-            <span class="legend-label">Makanan</span>
-            <span class="legend-percent" id="persenMakanan">0%</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color c2"></div>
-            <span class="legend-label">Minuman</span>
-            <span class="legend-percent" id="persenMinuman">0%</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color c3"></div>
-            <span class="legend-label">Tahu</span>
-            <span class="legend-percent" id="persenTahu">0%</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color c4"></div>
-            <span class="legend-label">Gorengan</span>
-            <span class="legend-percent" id="persenGorengan">0%</span>
-          </div>
-          <div class="legend-item" style="margin-top: -6px;">
-            <div class="legend-color" style="background: var(--muted);"></div>
-            <span class="legend-label">Lainnya</span>
-            <span class="legend-percent" id="persenLainnya">0%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Grafik Tren Omset Bulan Ini</div>
-      <div class="chart-container">
-        <canvas id="monthlySalesChart"></canvas>
-      </div>
-    </div>
-
-    <div id="dashboardBottomMarker" style="height: 10px; width: 100%; margin-bottom: 80px;"></div>
-    
-    <button id="fabExport" class="fab-export" onclick="exportMonthlyExcel()"><i class="fa-solid fa-file-excel"></i> Export Bulanan</button>
-  `;
-
-  updateDashboardMetrics(currentMonth);
-
-  setTimeout(() => {
-    const marker = $('dashboardBottomMarker');
-    const fab = $('fabExport');
-    if (marker && fab) {
-      const obs = new IntersectionObserver(entries => {
-        if (entries[0].isIntersecting) {
-          fab.classList.add('show');
-        } else {
-          fab.classList.remove('show');
-        }
-      }, { threshold: 0.1 });
-      obs.observe(marker);
-    }
-  }, 300);
-}
-
-let monthlyChartInstance = null;
-
-function updateDashboardMetrics(yearMonth) {
-  const [targetYear, targetMonth] = yearMonth.split('-');
-
-  const monthCounters = (DB.counter || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
-  const monthExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
-  const monthSales = (DB.sales || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
-
-  $('cardOmset').textContent = money(sum(monthCounters.map(r => totalCounter(r))));
-  $('cardExpense').textContent = money(sum(monthExpenses.map(r => r.nominal)));
-
-  let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
-  monthSales.forEach(s => {
-    sumMakanan += Number(s.makanan || 0);
-    sumMinuman += Number(s.minuman || 0);
-    sumTahu += Number(s.tahu || 0);
-    sumGorengan += Number(s.gorengan || 0);
-    sumLain += Number(s.lain_lain || 0);
-  });
-
-  const totalAllKategori = sumMakanan + sumMinuman + sumTahu + sumGorengan + sumLain;
-  
-  const pctMakanan = totalAllKategori ? Math.round((sumMakanan / totalAllKategori) * 100) : 0;
-  const pctMinuman = totalAllKategori ? Math.round((sumMinuman / totalAllKategori) * 100) : 0;
-  const pctTahu = totalAllKategori ? Math.round((sumTahu / totalAllKategori) * 100) : 0;
-  const pctGorengan = totalAllKategori ? Math.round((sumGorengan / totalAllKategori) * 100) : 0;
-  const pctLainnya = totalAllKategori ? 100 - (pctMakanan + pctMinuman + pctTahu + pctGorengan) : 0;
-
-  $('totalItemQty').textContent = formatNum(totalAllKategori);
-  $('persenMakanan').textContent = `${pctMakanan}%`;
-  $('persenMinuman').textContent = `${pctMinuman}%`;
-  $('persenTahu').textContent = `${pctTahu}%`;
-  $('persenGorengan').textContent = `${pctGorengan}%`;
-  $('persenLainnya').textContent = `${pctLainnya}%`;
-
-  const donutChart = $('kategoriDonut');
-  if (donutChart) {
-    if (totalAllKategori === 0) {
-      donutChart.style.background = `conic-gradient(var(--line) 0% 100%)`;
-    } else {
-      const stop1 = pctMakanan;
-      const stop2 = stop1 + pctMinuman;
-      const stop3 = stop2 + pctTahu;
-      const stop4 = stop3 + pctGorengan;
-      
-      donutChart.style.background = `conic-gradient(
-        var(--wa-primary) 0% ${stop1}%,
-        var(--wa-teal) ${stop1}% ${stop2}%,
-        var(--success) ${stop2}% ${stop3}%,
-        var(--danger) ${stop3}% ${stop4}%,
-        var(--muted) ${stop4}% 100%
-      )`;
-    }
-  }
-
-  const ctxMonthly = document.getElementById('monthlySalesChart');
-  if (ctxMonthly) {
-    if (monthlyChartInstance) monthlyChartInstance.destroy();
-    const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
-    const labels = [];
-    const dataOmset = [];
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dayStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
-      labels.push(String(day));
-      const match = monthCounters.find(r => formatDate(r.tanggal) === dayStr);
-      dataOmset.push(match ? totalCounter(match) : 0);
-    }
-
-    monthlyChartInstance = new Chart(ctxMonthly, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{ label: 'Omset Harian (Rp)', data: dataOmset, borderColor: '#007aff', backgroundColor: 'rgba(0, 122, 255, 0.15)', fill: true, tension: 0.3 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
-  }
-}
-
-async function exportMonthlyExcel() {
-  if (typeof ExcelJS === 'undefined') {
-    showToast('Library ExcelJS belum dimuat. Tambahkan script CDN di HTML.');
-    return;
-  }
-  
-  showToast('Sedang merakit file Excel Multi-Sheet...');
-  try {
-    const yearMonth = $('dashboardMonth').value; 
-    const [y, mStr] = yearMonth.split('-');
-    const mNames = ['JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'];
-    const monthName = mNames[parseInt(mStr, 10) - 1];
-
-    const wb = new ExcelJS.Workbook();
-    const titleFont = { bold: true, size: 12 };
-    const headerFont = { bold: true };
-
-    const shSum = wb.addWorksheet('SUMMARY');
-    shSum.getCell('B1').value = `LAPORAN KEUANGAN SARI KEDELE CABANG SUBANG ${monthName} ${y}`;
-    shSum.getCell('B1').font = titleFont;
-
-    const shOmset = wb.addWorksheet('OMSET');
-    shOmset.getCell('B2').value = 'OMSET HARIAN UNIT SUBANG';
-    shOmset.getCell('B2').font = titleFont;
-    shOmset.getRow(3).values = [null, 'No.', 'TANGGAL', 'CASH', 'CARD', 'QRIS', 'GRAB', 'PAJAK'];
-    shOmset.getRow(3).font = headerFont;
-    
-    const salesFilter = DB.sales.filter(r => formatDate(r.tanggal).startsWith(yearMonth));
-    salesFilter.sort((a,b) => a.tanggal.localeCompare(b.tanggal));
-    
-    let rowIdx = 4;
-    let totalCash = 0, totalCard = 0, totalQris = 0, totalGrab = 0, totalPajak = 0;
-    
-    salesFilter.forEach((s, idx) => {
-      const dateObj = new Date(formatDate(s.tanggal));
-      shOmset.getRow(rowIdx).values = [
-        null, idx + 1, dateObj, Number(s.cash||0), Number(s.debit_card||0), Number(s.qris||0), Number(s.grab||0), Number(s.pajak||0)
-      ];
-      totalCash += Number(s.cash||0);
-      totalCard += Number(s.debit_card||0);
-      totalQris += Number(s.qris||0);
-      totalGrab += Number(s.grab||0);
-      totalPajak += Number(s.pajak||0);
-      rowIdx++;
-    });
-    shOmset.getRow(rowIdx).values = [null, '', 'TOTAL', totalCash, totalCard, totalQris, totalGrab, totalPajak];
-    shOmset.getRow(rowIdx).font = headerFont;
-
-    const expFilter = DB.expenses.filter(r => formatDate(r.tanggal).startsWith(yearMonth));
-    const expPasar = expFilter.filter(r => r.kategori === 'PASAR');
-    const expCikuda = expFilter.filter(r => r.kategori === 'CIKUDA');
-    const expSkf = expFilter.filter(r => r.kategori === 'SKF');
-    const expLain = expFilter.filter(r => r.kategori === 'LAIN-LAIN' || !r.kategori);
-
-    const shPasar = wb.addWorksheet('PEMBELANJAAN PASAR');
-    shPasar.getCell('B1').value = 'Lampiran 5';
-    shPasar.getCell('B3').value = 'PEMBELANJAAN ALAT DAN BAHAN BAKU';
-    
-    const sumPasar = sum(expPasar.map(r => r.nominal));
-    shPasar.getCell('B5').value = 'TOTAL';
-    shPasar.getCell('D5').value = sumPasar;
-    shPasar.getCell('B5').font = headerFont;
-    shPasar.getCell('D5').font = headerFont;
-
-    rowIdx = 7;
-    const groupedPasar = {};
-    expPasar.forEach(ex => {
-      const groupName = (ex.sub_kategori || 'LAINNYA').trim().toUpperCase();
-      if (!groupedPasar[groupName]) groupedPasar[groupName] = [];
-      groupedPasar[groupName].push(ex);
-    });
-
-    for (const [groupName, items] of Object.entries(groupedPasar)) {
-      shPasar.getCell(`H${rowIdx}`).value = groupName;
-      shPasar.getCell(`H${rowIdx}`).font = headerFont;
-      rowIdx++;
-
-      shPasar.getRow(rowIdx).values = [null, 'NO', 'TANGGAL', 'JENIS BARANG', 'QTY', 'SATUAN', 'HARGA SATUAN', 'JUMLAH (Rp)'];
-      shPasar.getRow(rowIdx).font = headerFont;
-      rowIdx++;
-
-      let subtotalGroup = 0;
-      items.forEach((ex, i) => {
-        shPasar.getRow(rowIdx++).values = [null, i+1, ex.tanggal, ex.sumber, Number(ex.qty||1), ex.satuan||'PCS', Number(ex.harga_satuan||ex.nominal), Number(ex.nominal)];
-        subtotalGroup += Number(ex.nominal);
-      });
-
-      shPasar.getCell(`H${rowIdx}`).value = subtotalGroup;
-      shPasar.getCell(`H${rowIdx}`).font = headerFont;
-      rowIdx += 2; 
-    }
-
-    const shCikuda = wb.addWorksheet('PEMBELANJAAN CIKUDA');
-    shCikuda.getCell('B1').value = 'Lampiran 6';
-    shCikuda.getRow(5).values = [null, 'No', 'Tanggal', 'Nama Barang', 'QTT', 'Harga', 'Total'];
-    shCikuda.getRow(5).font = headerFont;
-    rowIdx = 6;
-    let sumCikuda = 0;
-    expCikuda.forEach((ex, i) => {
-      shCikuda.getRow(rowIdx++).values = [null, i+1, ex.tanggal, ex.sumber, Number(ex.qty|karyawanMgt.push('Karyawan Manajemen ' + (karyawanMgt.length + 1));
-  }
-  const tigaManajemen = karyawanMgt.slice(0, 3);
-
-  let karyawanPabrik = (DB.masterSalary || [])
-    .filter(emp => {
-        const dept = String(emp.departemen).toLowerCase();
-        return dept.includes('pabrik') || dept.includes('produksi');
-    })
-    .map(emp => emp.nama);
-
-  if (karyawanPabrik.length < 3) {
-    const nonMgt = (DB.masterSalary || [])
-      .filter(emp => !String(emp.departemen).toLowerCase().includes('manajemen'))
-      .map(emp => emp.nama);
-    karyawanPabrik = [...new Set([...karyawanPabrik, ...nonMgt])];
-  }
-  
-  const indexZaenal = karyawanPabrik.findIndex(nama => nama.toUpperCase().includes('ZAENAL'));
-  if (indexZaenal > 0) {
-    const namaZaenal = karyawanPabrik.splice(indexZaenal, 1)[0];
-    karyawanPabrik.unshift(namaZaenal);
-  }
-    
-  while (karyawanPabrik.length < 3) {
-    karyawanPabrik.push('Karyawan Pabrik ' + (karyawanPabrik.length + 1));
-  }
-  const tigaPabrik = karyawanPabrik.slice(0, 3);
-
-  const jatahPabrik1 = pabrik * 0.40;
-  const jatahPabrik2 = pabrik * 0.30;
-  const jatahPabrik3 = pabrik * 0.30;
-
-  resultEl.innerHTML = `
-    <div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--card);">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-        
-        <div>
-          <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">1. Perusahaan (50%)</div>
-          <div style="font-size: 14px; color: #059669; font-weight: bold;">${money(perusahaan)}</div>
-        </div>
-
-        <div>
-          <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">2. Manajemen (25%)</div>
-          <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Total: <b>${money(manajemen)}</b></div>
-          <ul style="margin: 0; padding-left: 15px; font-size: 13px; line-height: 1.6;">
-            <li><b>${escapeHtml(tigaManajemen[0])}:</b> ${money(jatahManajemenPerOrang)}</li>
-            <li><b>${escapeHtml(tigaManajemen[1])}:</b> ${money(jatahManajemenPerOrang)}</li>
-            <li><b>${escapeHtml(tigaManajemen[2])}:</b> ${money(jatahManajemenPerOrang)}</li>
-          </ul>
-        </div>
-
-        <div>
-          <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">3. Pabrik (25%)</div>
-          <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Total: <b>${money(pabrik)}</b></div>
-          <ul style="margin: 0; padding-left: 15px; font-size: 13px; line-height: 1.6;">
-            <li><b>${escapeHtml(tigaPabrik[0])} (40%):</b> ${money(jatahPabrik1)}</li>
-            <li><b>${escapeHtml(tigaPabrik[1])} (30%):</b> ${money(jatahPabrik2)}</li>
-            <li><b>${escapeHtml(tigaPabrik[2])} (30%):</b> ${money(jatahPabrik3)}</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-  `;
-};
-
-window.submitLimbah = async function(jenis, idTgl, idNominal) {
-  const tglEl = $(idTgl);
-  const nomEl = $(idNominal);
-  if (!tglEl || !nomEl) return;
-
-  const tanggal = tglEl.value;
-  const nominal = Number(nomEl.value || 0);
-
-  if (!tanggal) { showToast('Tanggal harus diisi.'); return; }
-  if (nominal <= 0) { showToast('Nominal harus lebih dari 0.'); return; }
-
-  showToast('Menyimpan ' + jenis + '...');
-
-  const payload = {
-    tanggal: tanggal,
-    jenis: jenis,
-    qty: 1, 
-    satuan: 'PAKET', 
-    harga_satuan: nominal,
-    nominal: nominal,
-    keterangan: 'Belum Dibagikan'
-  };
-
-  const { error } = await db.from('waste_sales').insert([payload]);
-
-  if (error) {
-    showToast('Gagal menyimpan: ' + error.message);
-  } else {
-    showToast('Berhasil ditambahkan ke saldo!');
-    nomEl.value = ''; 
-    loadData('limbah');
-  }
-};
-
-window.bagikanLimbah = async function(jenis) {
-  if(!confirm(`Anda yakin ingin membagikan seluruh saldo ${jenis}? Tindakan ini akan mereset saldo menjadi Rp 0.`)) return;
-  
-  showToast('Memproses pembagian...');
-  
-  const { error } = await db.from('waste_sales')
-    .update({ keterangan: 'Sudah Dibagikan' })
-    .eq('jenis', jenis)
-    .eq('keterangan', 'Belum Dibagikan');
-    
-  if (error) {
-    showToast('Gagal membagikan: ' + error.message);
-  } else {
-    showToast(`Saldo ${jenis} berhasil dibagikan & dinolkan!`);
-    loadData('limbah'); 
-  }
-};
-
-window.renderWasteSalesTable = function() {
-  const tbody = $('wasteSalesTableBody');
-  if (!tbody) return;
-
-  const list = [...(DB.wasteSales || [])].sort((a,b) => b.tanggal.localeCompare(a.tanggal));
-
-  if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="center empty">Belum ada riwayat penjualan limbah.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = list.map((item, i) => {
-    const isBelum = item.keterangan === 'Belum Dibagikan';
-    const badgeBg = isBelum ? '#f59e0b' : '#10b981';
-    
-    return `
-    <tr style="border-bottom: 1px solid var(--line);">
-      <td class="center" style="color:var(--muted);">${i + 1}</td>
-      <td>${formatDate(item.tanggal)}</td>
-      <td style="font-weight:700;">${escapeHtml(item.jenis)}</td>
-      <td class="center">
-        <span class="badge" style="background:${badgeBg}; color:white; font-size:11px;">
-          ${escapeHtml(item.keterangan)}
-        </span>
-      </td>
-      <td class="right" style="font-weight: 800; font-size:14px;">${money(item.nominal)}</td>
-    </tr>
-  `}).join('');
-};
-
-loadData();
-    <div class="panel">
-      <div class="panel-title">Aksi Cepat</div>
-      <div class="icon-grid">
-        <div class="icon-btn" onclick="showPage('sales')"><i class="fa-solid fa-wallet"></i><span>Pendapatan</span></div>
-        <div class="icon-btn" onclick="showPage('expense')"><i class="fa-solid fa-receipt"></i><span>Pengeluaran</span></div>
-        <div class="icon-btn" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i><span>Absensi</span></div>
-        <div class="icon-btn" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i><span>Gaji</span></div>
-      </div>
-    </div>
-
-    <!-- Panel Diagram Donut Liquid Glass -->
-    <div class="panel">
-      <div class="panel-title">Penjualan per Kategori</div>
-      
-      <div class="chart-wrapper">
-        <div class="donut-chart" id="kategoriDonut">
-          <div class="donut-inner-text">
-            <h3 id="totalItemQty">0</h3>
-            <span>Total Item</span>
-          </div>
-        </div>
-
-        <div class="chart-legend">
-          <div class="legend-item">
-            <div class="legend-color c1"></div>
-            <span class="legend-label">Makanan</span>
-            <span class="legend-percent" id="persenMakanan">0%</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color c2"></div>
-            <span class="legend-label">Minuman</span>
-            <span class="legend-percent" id="persenMinuman">0%</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color c3"></div>
-            <span class="legend-label">Tahu</span>
-            <span class="legend-percent" id="persenTahu">0%</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color c4"></div>
-            <span class="legend-label">Gorengan</span>
-            <span class="legend-percent" id="persenGorengan">0%</span>
-          </div>
-          <div class="legend-item" style="margin-top: -6px;">
-            <div class="legend-color" style="background: var(--muted);"></div>
-            <span class="legend-label">Lainnya</span>
-            <span class="legend-percent" id="persenLainnya">0%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Grafik Tren Omset Bulan Ini</div>
-      <div class="chart-container">
-        <canvas id="monthlySalesChart"></canvas>
-      </div>
-    </div>
-
-    <div id="dashboardBottomMarker" style="height: 10px; width: 100%; margin-bottom: 80px;"></div>
-    
-    <button id="fabExport" class="fab-export" onclick="exportMonthlyExcel()"><i class="fa-solid fa-file-excel"></i> Export Bulanan</button>
-  `,updateDashboardMetrics(currentMonth),setTimeout(()=>{const marker=$("dashboardBottomMarker"),fab=$("fabExport");marker&&fab&&new IntersectionObserver(entries=>{entries[0].isIntersecting?fab.classList.add("show"):fab.classList.remove("show")},{threshold:.1}).observe(marker)},300)}let monthlyChartInstance=null;function updateDashboardMetrics(yearMonth){const[targetYear,targetMonth]=yearMonth.split("-"),monthCounters=(DB.counter||[]).filter(r=>formatDate(r.tanggal).startsWith(yearMonth)),monthExpenses=(DB.expenses||[]).filter(r=>formatDate(r.tanggal).startsWith(yearMonth)),monthSales=(DB.sales||[]).filter(r=>formatDate(r.tanggal).startsWith(yearMonth));$("cardOmset").textContent=money(sum(monthCounters.map(r=>totalCounter(r)))),$("cardExpense").textContent=money(sum(monthExpenses.map(r=>r.nominal)));let sumMakanan=0,sumMinuman=0,sumTahu=0,sumGorengan=0,sumLain=0;monthSales.forEach(s=>{sumMakanan+=Number(s.makanan||0),sumMinuman+=Number(s.minuman||0),sumTahu+=Number(s.tahu||0),sumGorengan+=Number(s.gorengan||0),sumLain+=Number(s.lain_lain||0)});const totalAllKategori=sumMakanan+sumMinuman+sumTahu+sumGorengan+sumLain,pctMakanan=totalAllKategori?Math.round(sumMakanan/totalAllKategori*100):0,pctMinuman=totalAllKategori?Math.round(sumMinuman/totalAllKategori*100):0,pctTahu=totalAllKategori?Math.round(sumTahu/totalAllKategori*100):0,pctGorengan=totalAllKategori?Math.round(sumGorengan/totalAllKategori*100):0,pctLainnya=totalAllKategori?100-(pctMakanan+pctMinuman+pctTahu+pctGorengan):0;$("totalItemQty").textContent=formatNum(totalAllKategori),$("persenMakanan").textContent=`${pctMakanan}%`,$("persenMinuman").textContent=`${pctMinuman}%`,$("persenTahu").textContent=`${pctTahu}%`,$("persenGorengan").textContent=`${pctGorengan}%`,$("persenLainnya").textContent=`${pctLainnya}%`;const donutChart=$("kategoriDonut");if(donutChart)if(totalAllKategori===0)donutChart.style.background="conic-gradient(var(--line) 0% 100%)";else{const stop1=pctMakanan,stop2=stop1+pctMinuman,stop3=stop2+pctTahu,stop4=stop3+pctGorengan;donutChart.style.background=`conic-gradient(
-        var(--wa-primary) 0% ${stop1}%,
-        var(--wa-teal) ${stop1}% ${stop2}%,
-        var(--success) ${stop2}% ${stop3}%,
-        var(--danger) ${stop3}% ${stop4}%,
-        var(--muted) ${stop4}% 100%
-      )`}const ctxMonthly=document.getElementById("monthlySalesChart");if(ctxMonthly){monthlyChartInstance&&monthlyChartInstance.destroy();const daysInMonth=new Date(targetYear,targetMonth,0).getDate(),labels=[],dataOmset=[];for(let day=1;day<=daysInMonth;day++){const dayStr=`${yearMonth}-${String(day).padStart(2,"0")}`;labels.push(String(day));const match=monthCounters.find(r=>formatDate(r.tanggal)===dayStr);dataOmset.push(match?totalCounter(match):0)}monthlyChartInstance=new Chart(ctxMonthly,{type:"line",data:{labels,datasets:[{label:"Omset Harian (Rp)",data:dataOmset,borderColor:"#007aff",backgroundColor:"rgba(0, 122, 255, 0.15)",fill:!0,tension:.3}]},options:{responsive:!0,maintainAspectRatio:!1}})}}function renderSales(){$("content").innerHTML=`
-    <div class="top">
-      <div><div class="title">Modul Pendapatan</div></div>
-      <div style="display:flex; gap:8px;">
-        <button id="subBtnInput" class="sub-nav-btn active-sub" onclick="showSalesSub('input')">Input Data</button>
-        <button id="subBtnReport" class="sub-nav-btn" onclick="showSalesSub('report')">Laporan Harian</button>
-      </div>
-    </div>
-    <div id="salesSubContent"></div>
-  `,showSalesSub("input")}function showSalesSub(type){const container=$("salesSubContent");if(!container)return;const btnIn=$("subBtnInput"),btnRep=$("subBtnReport");btnIn&&btnRep&&(btnIn.classList.toggle("active-sub",type==="input"),btnRep.classList.toggle("active-sub",type==="report")),type==="input"?(container.innerHTML=`
-      <div class="panel">
-        <div class="panel-title">PENDAPATAN ESB</div>
-        <form id="salesForm">
-          <div class="form-grid">
-            ${inputField("tanggal","Tanggal",today(),"date")}
-            ${inputField("makanan","Makanan",0)}
-            ${inputField("minuman","Minuman",0)}
-            ${inputField("tahu","Tahu",0)}
-            ${inputField("gorengan","Gorengan",0)}
-            ${inputField("lain_lain","Lain-lain",0)}
-            ${inputField("pajak","Pajak",0)}
-            ${inputField("cash","Cash",0)}
-            ${inputField("debit_card","Debit Card",0)}
-            ${inputField("grab","Grab",0)}
-            ${inputField("qris","QRIS",0)}
-          </div>
-          <div class="actions"><button class="btn btn-primary" type="submit">Simpan ESB</button></div>
-        </form>
-      </div>
-
-      <div class="panel">
-        <div class="panel-title">PENDAPATAN KONTER</div>
-        <form id="counterForm">
-          <div class="form-grid">
-            ${inputField("tanggal","Tanggal",today(),"date")}
-            ${inputField("cash","Cash",0)}
-            ${inputField("debit_card","Debit Card",0)}
-            ${inputField("grab","Grab",0)}
-            ${inputField("qris","QRIS",0)}
-          </div>
-          <div class="actions"><button class="btn btn-primary" type="submit">Simpan Konter</button></div>
-        </form>
-      </div>
-    `,$("salesForm").onsubmit=async e=>{e.preventDefault();const formData=Object.fromEntries(new FormData(e.target)),{error}=await db.from("sales").upsert([formData],{onConflict:"tanggal"});error?showToast("Gagal: "+error.message):(showToast("Laporan ESB disimpan."),loadData("sales"))},$("counterForm").onsubmit=async e=>{e.preventDefault();const formData=Object.fromEntries(new FormData(e.target)),{error}=await db.from("counter").upsert([formData],{onConflict:"tanggal"});error?showToast("Gagal: "+error.message):(showToast("Laporan Konter disimpan."),loadData("sales"))}):(container.innerHTML=`
-      <div class="panel">
-        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
-          <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
-          <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--card); color:var(--text);">
-          <button class="btn btn-success" onclick="downloadDailyReportImage()"><i class="fa-solid fa-camera"></i> Download Gambar Laporan</button>
-        </div>
-        <div id="reportResult" style="margin-top: 15px; width: 100%;"></div>
-      </div>
-    `,loadReport())}function inputField(name,label,value="",type="number"){return`
-    <div class="field">
-      <label>${label}</label>
-      <input name="${name}" type="${type}" value="${value}" ${type==="number"?'min="0" step="1"':""}>
-    </div>
-  `}function reportRow(label,value,forceDash=!1){const number=Number(value||0),isNegative=number<0,displayValue=Math.abs(number).toLocaleString("id-ID"),display=forceDash||number===0?"-":isNegative?"-"+displayValue:displayValue;return`
-    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13.5px;">
-      <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
-      <span style="white-space: nowrap;">&nbsp;&nbsp;&nbsp;: Rp</span>
-      <span style="text-align: right; min-width: 85px;">${display}</span>
-    </div>
-  `}function loadReport(){const dateEl=$("reportDate"),resultEl=$("reportResult");if(!dateEl){console.error("Elemen #reportDate tidak ditemukan");return}if(!resultEl){console.error("Elemen #reportResult tidak ditemukan");return}try{const selectedDate=normalizeDate(dateEl.value),salesFound=(DB.sales||[]).find(r=>normalizeDate(r.tanggal)===selectedDate),counterFound=(DB.counter||[]).find(r=>normalizeDate(r.tanggal)===selectedDate),sales=salesFound||{},counter=counterFound||{},totalEsb=totalESB(sales),totalKonterVal=totalCounter(counter),diffCash=Number(sales.cash||0)-Number(counter.cash||0),diffDebit=Number(sales.debit_card||0)-Number(counter.debit_card||0),diffGrab=Number(sales.grab||0)-Number(counter.grab||0),diffQris=Number(sales.qris||0)-Number(counter.qris||0),dateObject=new Date(selectedDate+"T00:00:00"),formattedDate=isNaN(dateObject)?selectedDate:dateObject.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),statusInfo=!salesFound&&!counterFound?'<div style="text-align:center; padding: 10px; color: #dc2626; font-weight: bold; margin-bottom: 10px;">Belum ada data penjualan pada tanggal ini.</div>':"";resultEl.innerHTML=`
-      <div class="report-container">
-        ${statusInfo}
-        <div id="captureDailyReport" style="padding: 20px; background: white; color: black; border-radius: 8px; border: 1px solid #e2e8f0; font-family: Arial, sans-serif;">
-          
-          <div style="text-align: center; font-weight: 800; margin-bottom: 5px; font-size: 15px;">
-            RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br><span style="font-size:12px;">UNIT SUBANG</span>
-          </div>
-          <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
-          <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">
-            ${formattedDate}
-          </div>
-
-          <!-- PENDAPATAN PER KATEGORI -->
-          <div style="margin-bottom: 18px;">
-            <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PENDAPATAN PER KATEGORI</div>
-            ${reportRow("MAKANAN",sales.makanan)}
-            ${reportRow("MINUMAN",sales.minuman)}
-            ${reportRow("TAHU",sales.tahu)}
-            ${reportRow("GORENGAN",sales.gorengan)}
-            ${reportRow("LAIN-LAIN",sales.lain_lain)}
-            ${reportRow("PAJAK",sales.pajak)}
-            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
-              ${reportRow("TOTAL PENDAPATAN ESB",totalEsb)}
-            </div>
-          </div>
-
-          <!-- ESB & KONTER BERDAMPINGAN -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
-            <div>
-              <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PEMBAYARAN ESB</div>
-              ${reportRow("CASH",sales.cash)}
-              ${reportRow("DEBIT CARD",sales.debit_card)}
-              ${reportRow("GRAB",sales.grab)}
-              ${reportRow("QRIS",sales.qris)}
-              <div style="margin-top: 6px; paddingem" style="margin-top: -6px;">
+.fab-export:active { transform: scale(0.95); background: #047857; }
+`;
+document.head.appendChild(style); }
+$('content').innerHTML = `
+<div class="top">
+<div>
+<div class="title">Dashboard Keuangan</div>
+<div class="subtitle">Sari Kedele - Subang</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<label style="font-size: 13px; font-weight: 700; color: var(--muted);">Pilih Bulan Rekapitulasi:</label>
+<input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background: var(--card); color: var(--text);">
+</div>
+</div>
+<div class="cards">
+<div class="card card-green">
+<div class="card-label">Omset Konter Bulan Ini</div>
+<div class="card-value" id="cardOmset">Rp 0</div>
+</div>
+<div class="card card-danger">
+<div class="card-label">Pengeluaran Bulan Ini</div>
+<div class="card-value" id="cardExpense">Rp 0</div>
+</div>
+</div>
+<div class="panel">
+<div class="panel-title">Aksi Cepat</div>
+<div class="icon-grid">
+<div class="icon-btn" onclick="showPage('sales')"><i class="fa-solid fa-wallet"></i><span>Pendapatan</span></div>
+<div class="icon-btn" onclick="showPage('expense')"><i class="fa-solid fa-receipt"></i><span>Pengeluaran</span></div>
+<div class="icon-btn" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i><span>Absensi</span></div>
+<div class="icon-btn" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i><span>Gaji</span></div>
+</div>
+</div>
+<!-- Panel Diagram Donut Liquid Glass -->
+<div class="panel">
+<div class="panel-title">Penjualan per Kategori</div>
+<div class="chart-wrapper">
+<div class="donut-chart" id="kategoriDonut">
+<div class="donut-inner-text">
+<h3 id="totalItemQty">0</h3>
+<span>Total Item</span>
+</div>
+</div>
+<div class="chart-legend">
+<div class="legend-item">
+<div class="legend-color c1"></div>
+<span class="legend-label">Makanan</span>
+<span class="legend-percent" id="persenMakanan">0%</span>
+</div>
+<div class="legend-item">
+<div class="legend-color c2"></div>
+<span class="legend-label">Minuman</span>
+<span class="legend-percent" id="persenMinuman">0%</span>
+</div>
+<div class="legend-item">
+<div class="legend-color c3"></div>
+<span class="legend-label">Tahu</span>
+<span class="legend-percent" id="persenTahu">0%</span>
+</div>
+<div class="legend-item">
+<div class="legend-color c4"></div>
+<span class="legend-label">Gorengan</span>
+<span class="legend-percent" id="persenGorengan">0%</span>
+</div>
+<div class="legend-item" style="margin-top: -6px;">
 <div class="legend-color" style="background: var(--muted);"></div>
 <span class="legend-label">Lainnya</span>
 <span class="legend-percent" id="persenLainnya">0%</span>
