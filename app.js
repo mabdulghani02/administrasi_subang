@@ -11,8 +11,469 @@ let DB = {
   advances: [],
   installments: [],
   masterSalary: [],
-  wasteSales: [] // Tambahan tabel limbah
+  wasteSales: []
 };
+
+const STANDARD_WORK_HOURS = 11;
+const RATE_PER_HOUR = 5000;
+let DEFAULT_ALLOWANCE = 15000;
+let DEFAULT_BONUS_LAIN = 40000;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const savedTheme = localStorage.getItem('subang_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeIcon(savedTheme);
+});
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme');
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('subang_theme', newTheme);
+  updateThemeIcon(newTheme);
+}
+
+function updateThemeIcon(theme) {
+  const icon = $('themeIcon');
+  if (icon) {
+    icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+  }
+}
+
+function toggleSidebar() {
+  const sb = $('appSidebar');
+  const ov = $('sidebarOverlay');
+  sb.classList.toggle('open');
+  ov.classList.toggle('active');
+}
+
+const $ = id => document.getElementById(id);
+
+function money(value) {
+  const number = Number(value || 0);
+  return (number < 0 ? '-Rp ' : 'Rp ') + Math.abs(number).toLocaleString('id-ID');
+}
+
+function formatNum(value) {
+  const number = Number(value || 0);
+  return number === 0 ? '-' : number.toLocaleString('id-ID');
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeDate(value) {
+  if (!value) return '';
+  const str = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+    const [d, m, y] = str.split('/');
+    return `${y}-${m}-${d}`;
+  }
+  const date = new Date(str);
+  if (isNaN(date.getTime())) return str.split('T')[0];
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0')
+  ].join('-');
+}
+
+function formatDate(value) {
+  return normalizeDate(value);
+}
+
+function parseTimeMinutes(timeVal) {
+  if (!timeVal) return null;
+  const match = String(timeVal).match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  return { h, m, totalMins: h * 60 + m, formatted: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
+}
+
+function classifyShift(timeStr) {
+  const parsed = parseTimeMinutes(timeStr);
+  if (!parsed) return { shift: 'Tidak Scan', batas: '-', onTime: false, displayTime: '-' };
+  const mins = parsed.totalMins;
+  if (mins >= 210 && mins <= 310) return { shift: 'Pagi', batas: '05:10', onTime: true, displayTime: parsed.formatted };
+  if (mins >= 450 && mins <= 610) return { shift: 'Middle', batas: '10:10', onTime: true, displayTime: parsed.formatted };
+  if (mins > 610 && mins <= 670) return { shift: 'Siang', batas: '11:10', onTime: true, displayTime: parsed.formatted };
+  return { shift: 'Lainnya', batas: '-', onTime: false, displayTime: parsed.formatted };
+}
+
+function calculateHours(masukStr, pulangStr) {
+  const p1 = parseTimeMinutes(masukStr);
+  const p2 = parseTimeMinutes(pulangStr);
+  if (!p1 || !p2) return 0;
+  let t1 = p1.totalMins;
+  let t2 = p2.totalMins;
+  if (t2 < t1) t2 += 24 * 60;
+  const totalMins = t2 - t1;
+  return totalMins > 0 ? (totalMins / 60) : 0;
+}
+
+function sum(values) { return values.reduce((t, v) => t + Number(v || 0), 0); }
+function totalESB(data) { return Number(data.makanan || 0) + Number(data.minuman || 0) + Number(data.tahu || 0) + Number(data.gorengan || 0) + Number(data.lain_lain || 0) + Number(data.pajak || 0); }
+function totalCounter(data) { return Number(data.cash || 0) + Number(data.debit_card || 0) + Number(data.grab || 0) + Number(data.qris || 0); }
+
+function showToast(message) {
+  const toast = $('toast');
+  toast.textContent = message;
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 2500);
+}
+
+function downloadElementAsImage(elementId, filename) {
+  const target = $(elementId);
+  if (!target) { showToast('Area laporan tidak ditemukan.'); return; }
+  showToast('Sedang membuat gambar...');
+
+  html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
+    .then(canvas => {
+      const link = document.createElement('a');
+      link.download = filename + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('Gambar berhasil diunduh.');
+    }).catch(err => { console.error(err); showToast('Gagal mengubah ke gambar.'); });
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function loadData(targetPage = null) {
+  showToast('Memuat data dari Cloud...');
+  try {
+    const [sRes, cRes, eRes, cashRes, attRes, advRes, mRes, iRes, wRes] = await Promise.all([
+      db.from('sales').select('*'),
+      db.from('counter').select('*'),
+      db.from('expenses').select('*'),
+      db.from('cash_positions').select('*'),
+      db.from('attendance').select('*'),
+      db.from('advances').select('*'),
+      db.from('master_salary').select('*'),
+      db.from('installments').select('*'),
+      db.from('waste_sales').select('*')
+    ]);
+
+    if (sRes.error) throw sRes.error;
+    if (cRes.error) throw cRes.error;
+    if (wRes.error) throw wRes.error;
+
+    DB.sales = sRes.data || [];
+    DB.counter = cRes.data || [];
+    DB.expenses = eRes.data || [];
+    DB.cash = cashRes.data || [];
+    DB.attendance = attRes.data || [];
+    DB.advances = advRes.data || [];
+    DB.masterSalary = mRes.data || [];
+    DB.installments = iRes.data || [];
+    DB.wasteSales = wRes.data || [];
+
+    showPage(targetPage || 'dashboard');
+  } catch (error) {
+    console.error(error);
+    showToast('Gagal mengambil data dari Supabase: ' + error.message);
+  }
+}
+
+function showPage(page) {
+  document.querySelectorAll('.nav button, .b-nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.page === page);
+  });
+
+  $('appSidebar').classList.remove('open');
+  $('sidebarOverlay').classList.remove('active');
+
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'sales') renderSales();
+  if (page === 'expense') renderExpense();
+  if (page === 'attendance') renderAttendancePage();
+  if (page === 'payroll') renderPayrollPage();
+  if (page === 'limbah') renderLimbahPage(); 
+}
+
+window.calcExpRow = function(el) {
+  const tr = el.closest('tr');
+  const q = Number(tr.querySelector('.exp-qty').value || 0);
+  const h = Number(tr.querySelector('.exp-harga').value || 0);
+  tr.querySelector('.exp-nominal').value = q * h;
+};
+
+/* ========================================
+   DASHBOARD & EXPORT BULANAN
+======================================== */
+function renderDashboard() {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  if (!document.getElementById('fab-style')) {
+    const style = document.createElement('style');
+    style.id = 'fab-style';
+    style.innerHTML = `
+      .fab-export {
+        position: fixed; bottom: 90px; right: 20px; background: #059669; color: white;
+        border: none; padding: 14px 20px; border-radius: 50px; font-weight: bold;
+        font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
+        z-index: 1000; display: flex; align-items: center; gap: 8px;
+        opacity: 0; transform: translateY(20px); pointer-events: none;
+        transition: opacity 0.3s ease, transform 0.3s ease, background 0.2s;
+      }
+      .fab-export.show {
+        opacity: 1; transform: translateY(0); pointer-events: auto;
+      }
+      .fab-export:active { transform: scale(0.95); background: #047857; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  $('content').innerHTML = `
+    <div class="top">
+      <div>
+        <div class="title">Dashboard Keuangan</div>
+        <div class="subtitle">Sari Kedele - Subang</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 13px; font-weight: 700; color: var(--muted);">Pilih Bulan Rekapitulasi:</label>
+        <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background: var(--card); color: var(--text);">
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card card-green">
+        <div class="card-label">Omset Konter Bulan Ini</div>
+        <div class="card-value" id="cardOmset">Rp 0</div>
+      </div>
+      <div class="card card-danger">
+        <div class="card-label">Pengeluaran Bulan Ini</div>
+        <div class="card-value" id="cardExpense">Rp 0</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Aksi Cepat</div>
+      <div class="icon-grid">
+        <div class="icon-btn" onclick="showPage('sales')"><i class="fa-solid fa-wallet"></i><span>Pendapatan</span></div>
+        <div class="icon-btn" onclick="showPage('expense')"><i class="fa-solid fa-receipt"></i><span>Pengeluaran</span></div>
+        <div class="icon-btn" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i><span>Absensi</span></div>
+        <div class="icon-btn" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i><span>Gaji</span></div>
+      </div>
+    </div>
+
+    <!-- Panel Diagram Donut Liquid Glass -->
+    <div class="panel">
+      <div class="panel-title">Penjualan per Kategori</div>
+      
+      <div class="chart-wrapper">
+        <div class="donut-chart" id="kategoriDonut">
+          <div class="donut-inner-text">
+            <h3 id="totalItemQty">0</h3>
+            <span>Total Item</span>
+          </div>
+        </div>
+
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-color c1"></div>
+            <span class="legend-label">Makanan</span>
+            <span class="legend-percent" id="persenMakanan">0%</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color c2"></div>
+            <span class="legend-label">Minuman</span>
+            <span class="legend-percent" id="persenMinuman">0%</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color c3"></div>
+            <span class="legend-label">Tahu</span>
+            <span class="legend-percent" id="persenTahu">0%</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color c4"></div>
+            <span class="legend-label">Gorengan</span>
+            <span class="legend-percent" id="persenGorengan">0%</span>
+          </div>
+          <div class="legend-item" style="margin-top: -6px;">
+            <div class="legend-color" style="background: var(--muted);"></div>
+            <span class="legend-label">Lainnya</span>
+            <span class="legend-percent" id="persenLainnya">0%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Grafik Tren Omset Bulan Ini</div>
+      <div class="chart-container">
+        <canvas id="monthlySalesChart"></canvas>
+      </div>
+    </div>
+
+    <div id="dashboardBottomMarker" style="height: 10px; width: 100%; margin-bottom: 80px;"></div>
+    
+    <button id="fabExport" class="fab-export" onclick="exportMonthlyExcel()"><i class="fa-solid fa-file-excel"></i> Export Bulanan</button>
+  `;
+
+  updateDashboardMetrics(currentMonth);
+
+  setTimeout(() => {
+    const marker = $('dashboardBottomMarker');
+    const fab = $('fabExport');
+    if (marker && fab) {
+      const obs = new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) {
+          fab.classList.add('show');
+        } else {
+          fab.classList.remove('show');
+        }
+      }, { threshold: 0.1 });
+      obs.observe(marker);
+    }
+  }, 300);
+}
+
+let monthlyChartInstance = null;
+
+function updateDashboardMetrics(yearMonth) {
+  const [targetYear, targetMonth] = yearMonth.split('-');
+
+  const monthCounters = (DB.counter || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+  const monthExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+  const monthSales = (DB.sales || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+
+  $('cardOmset').textContent = money(sum(monthCounters.map(r => totalCounter(r))));
+  $('cardExpense').textContent = money(sum(monthExpenses.map(r => r.nominal)));
+
+  let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
+  monthSales.forEach(s => {
+    sumMakanan += Number(s.makanan || 0);
+    sumMinuman += Number(s.minuman || 0);
+    sumTahu += Number(s.tahu || 0);
+    sumGorengan += Number(s.gorengan || 0);
+    sumLain += Number(s.lain_lain || 0);
+  });
+
+  const totalAllKategori = sumMakanan + sumMinuman + sumTahu + sumGorengan + sumLain;
+  
+  const pctMakanan = totalAllKategori ? Math.round((sumMakanan / totalAllKategori) * 100) : 0;
+  const pctMinuman = totalAllKategori ? Math.round((sumMinuman / totalAllKategori) * 100) : 0;
+  const pctTahu = totalAllKategori ? Math.round((sumTahu / totalAllKategori) * 100) : 0;
+  const pctGorengan = totalAllKategori ? Math.round((sumGorengan / totalAllKategori) * 100) : 0;
+  const pctLainnya = totalAllKategori ? 100 - (pctMakanan + pctMinuman + pctTahu + pctGorengan) : 0;
+
+  $('totalItemQty').textContent = formatNum(totalAllKategori);
+  $('persenMakanan').textContent = `${pctMakanan}%`;
+  $('persenMinuman').textContent = `${pctMinuman}%`;
+  $('persenTahu').textContent = `${pctTahu}%`;
+  $('persenGorengan').textContent = `${pctGorengan}%`;
+  $('persenLainnya').textContent = `${pctLainnya}%`;
+
+  const donutChart = $('kategoriDonut');
+  if (donutChart) {
+    if (totalAllKategori === 0) {
+      donutChart.style.background = `conic-gradient(var(--line) 0% 100%)`;
+    } else {
+      const stop1 = pctMakanan;
+      const stop2 = stop1 + pctMinuman;
+      const stop3 = stop2 + pctTahu;
+      const stop4 = stop3 + pctGorengan;
+      
+      donutChart.style.background = `conic-gradient(
+        var(--wa-primary) 0% ${stop1}%,
+        var(--wa-teal) ${stop1}% ${stop2}%,
+        var(--success) ${stop2}% ${stop3}%,
+        var(--danger) ${stop3}% ${stop4}%,
+        var(--muted) ${stop4}% 100%
+      )`;
+    }
+  }
+
+  const ctxMonthly = document.getElementById('monthlySalesChart');
+  if (ctxMonthly) {
+    if (monthlyChartInstance) monthlyChartInstance.destroy();
+    
+    const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const labels = [];
+    const dataOmset = [];
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
+      labels.push(String(day));
+      const match = monthCounters.find(r => formatDate(r.tanggal) === dayStr);
+      dataOmset.push(match ? totalCounter(match) : 0);
+    }
+
+    const canvasCtx = ctxMonthly.getContext('2d');
+    const gradientFill = canvasCtx.createLinearGradient(0, 0, 0, 220);
+    gradientFill.addColorStop(0, 'rgba(0, 122, 255, 0.4)');
+    gradientFill.addColorStop(1, 'rgba(0, 122, 255, 0.0)');
+
+    monthlyChartInstance = new Chart(ctxMonthly, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Omset Harian (Rp)',
+          data: dataOmset,
+          borderColor: '#007aff',
+          backgroundColor: gradientFill,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          pointHoverBackgroundColor: '#ffffff',
+          pointHoverBorderColor: '#007aff',
+          pointHoverBorderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(30, 30, 32, 0.85)',
+            titleFont: { size: 13, family: '-apple-system, sans-serif' },
+            bodyFont: { size: 15, weight: 'bold', family: '-apple-system, sans-serif' },
+            padding: 12,
+            cornerRadius: 12,
+            displayColors: false,
+            callbacks: {
+              label: function(context) { return 'Rp ' + context.parsed.y.toLocaleString('id-ID'); }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false, drawBorder: false },
+            ticks: { color: '#86868b', font: { family: '-apple-system, sans-serif', weight: '600' } }
+          },
+          y: {
+            grid: { color: 'rgba(120, 120, 128, 0.1)', drawBorder: false, borderDash: [5, 5] },
+            ticks: {
+              color: '#86868b',
+              font: { family: '-apple-system, sans-serif', weight: '600' },
+              callback: function(value) {
+                if (value === 0) return '0';
+                return (value / 1000000) + ' Jt';
+              }
+            },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  }
+}
 
 const STANDARD_WORK_HOURS = 11;
 const RATE_PER_HOUR = 5000;
