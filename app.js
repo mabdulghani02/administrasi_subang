@@ -267,17 +267,52 @@ function renderDashboard() {
       </div>
     </div>
 
+    <!-- Panel Diagram Donut Liquid Glass -->
     <div class="panel">
-      <div class="panel-title">Grafik Tren Omset Bulan Ini</div>
-      <div class="chart-container">
-        <canvas id="monthlySalesChart"></canvas>
+      <div class="panel-title">Penjualan per Kategori</div>
+      
+      <div class="chart-wrapper">
+        <div class="donut-chart" id="kategoriDonut">
+          <div class="donut-inner-text">
+            <h3 id="totalItemQty">0</h3>
+            <span>Total Item</span>
+          </div>
+        </div>
+
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-color c1"></div>
+            <span class="legend-label">Makanan</span>
+            <span class="legend-percent" id="persenMakanan">0%</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color c2"></div>
+            <span class="legend-label">Minuman</span>
+            <span class="legend-percent" id="persenMinuman">0%</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color c3"></div>
+            <span class="legend-label">Tahu</span>
+            <span class="legend-percent" id="persenTahu">0%</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color c4"></div>
+            <span class="legend-label">Gorengan</span>
+            <span class="legend-percent" id="persenGorengan">0%</span>
+          </div>
+          <div class="legend-item" style="margin-top: -6px;">
+            <div class="legend-color" style="background: var(--muted);"></div>
+            <span class="legend-label">Lainnya</span>
+            <span class="legend-percent" id="persenLainnya">0%</span>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-title">Akumulasi Penjualan Berdasarkan Kategori</div>
+      <div class="panel-title">Grafik Tren Omset Bulan Ini</div>
       <div class="chart-container">
-        <canvas id="categorySalesChart"></canvas>
+        <canvas id="monthlySalesChart"></canvas>
       </div>
     </div>
 
@@ -305,7 +340,6 @@ function renderDashboard() {
 }
 
 let monthlyChartInstance = null;
-let categoryChartInstance = null;
 
 function updateDashboardMetrics(yearMonth) {
   const [targetYear, targetMonth] = yearMonth.split('-');
@@ -317,6 +351,7 @@ function updateDashboardMetrics(yearMonth) {
   $('cardOmset').textContent = money(sum(monthCounters.map(r => totalCounter(r))));
   $('cardExpense').textContent = money(sum(monthExpenses.map(r => r.nominal)));
 
+  // Kalkulasi data untuk Diagram Donut
   let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
   monthSales.forEach(s => {
     sumMakanan += Number(s.makanan || 0);
@@ -326,6 +361,47 @@ function updateDashboardMetrics(yearMonth) {
     sumLain += Number(s.lain_lain || 0);
   });
 
+  const totalAllKategori = sumMakanan + sumMinuman + sumTahu + sumGorengan + sumLain;
+  
+  // Mengatasi pembagian dengan nol jika belum ada data penjualan
+  const pctMakanan = totalAllKategori ? Math.round((sumMakanan / totalAllKategori) * 100) : 0;
+  const pctMinuman = totalAllKategori ? Math.round((sumMinuman / totalAllKategori) * 100) : 0;
+  const pctTahu = totalAllKategori ? Math.round((sumTahu / totalAllKategori) * 100) : 0;
+  const pctGorengan = totalAllKategori ? Math.round((sumGorengan / totalAllKategori) * 100) : 0;
+  const pctLainnya = totalAllKategori ? 100 - (pctMakanan + pctMinuman + pctTahu + pctGorengan) : 0; // Sisa persentase agar pas 100%
+
+  // Update Teks Persentase di UI
+  $('totalItemQty').textContent = formatNum(totalAllKategori);
+  $('persenMakanan').textContent = `${pctMakanan}%`;
+  $('persenMinuman').textContent = `${pctMinuman}%`;
+  $('persenTahu').textContent = `${pctTahu}%`;
+  $('persenGorengan').textContent = `${pctGorengan}%`;
+  $('persenLainnya').textContent = `${pctLainnya}%`;
+
+  // Update Conic Gradient untuk Diagram Donut
+  const donutChart = $('kategoriDonut');
+  if (donutChart) {
+    if (totalAllKategori === 0) {
+      // Tampilan jika tidak ada data
+      donutChart.style.background = `conic-gradient(var(--line) 0% 100%)`;
+    } else {
+      // Kalkulasi titik henti gradien (stop points)
+      const stop1 = pctMakanan;
+      const stop2 = stop1 + pctMinuman;
+      const stop3 = stop2 + pctTahu;
+      const stop4 = stop3 + pctGorengan;
+      
+      donutChart.style.background = `conic-gradient(
+        var(--wa-primary) 0% ${stop1}%,
+        var(--wa-teal) ${stop1}% ${stop2}%,
+        var(--success) ${stop2}% ${stop3}%,
+        var(--danger) ${stop3}% ${stop4}%,
+        var(--muted) ${stop4}% 100%
+      )`;
+    }
+  }
+
+  // Update Grafik Garis (Line Chart) Bulanan
   const ctxMonthly = document.getElementById('monthlySalesChart');
   if (ctxMonthly) {
     if (monthlyChartInstance) monthlyChartInstance.destroy();
@@ -344,20 +420,7 @@ function updateDashboardMetrics(yearMonth) {
       type: 'line',
       data: {
         labels: labels,
-        datasets: [{ label: 'Omset Harian (Rp)', data: dataOmset, borderColor: '#00a884', backgroundColor: 'rgba(0, 168, 132, 0.1)', fill: true, tension: 0.2 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
-  }
-
-  const ctxCategory = document.getElementById('categorySalesChart');
-  if (ctxCategory) {
-    if (categoryChartInstance) categoryChartInstance.destroy();
-    categoryChartInstance = new Chart(ctxCategory, {
-      type: 'bar',
-      data: {
-        labels: ['Makanan', 'Minuman', 'Tahu', 'Gorengan', 'Lain-lain'],
-        datasets: [{ label: 'Akumulasi (Rp)', data: [sumMakanan, sumMinuman, sumTahu, sumGorengan, sumLain], backgroundColor: ['#e11d48', '#0284c7', '#f59e0b', '#00a884', '#64748b'] }]
+        datasets: [{ label: 'Omset Harian (Rp)', data: dataOmset, borderColor: '#007aff', backgroundColor: 'rgba(0, 122, 255, 0.15)', fill: true, tension: 0.3 }]
       },
       options: { responsive: true, maintainAspectRatio: false }
     });
