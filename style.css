@@ -1,7 +1,383 @@
+:root {
+  /* Apple iOS Modern Colors */
+  --wa-primary: #007aff;
+  --wa-primary-dark: #0056b3;
+  --wa-primary-glow: rgba(0, 122, 255, 0.4);
+  --wa-teal: #5ac8fa;
+  
+  --red: #ff3b30;
+  --success: #34c759;
+  --danger: #ff3b30;
+  --info: #5ac8fa;
+}
+
+/* TEMA TERANG */
+[data-theme="light"] {
+  --bg-gradient: radial-gradient(circle at 10% 10%, #e0f2fe 0%, #f2f2f7 40%, #eef2ff 100%);
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --line: rgba(60, 60, 67, 0.12);
+  
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-border-inset: rgba(0, 0, 0, 0.05);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+  
+  --input-bg: rgba(255, 255, 255, 0.4);
+  --btn-glass: rgba(255, 255, 255, 0.7);
+}
+
+/* TEMA GELAP */
+[data-theme="dark"] {
+  --bg-gradient: radial-gradient(circle at 10% 10%, #1e1b4b 0%, #000000 40%, #0f172a 100%);
+  --text: #f5f5f7;
+  --muted: #98989d;
+  --line: rgba(235, 235, 245, 0.15);
+  
+  --glass-bg: rgba(30, 30, 32, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-inset: rgba(255, 255, 255, 0.05);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  
+  --input-bg: rgba(0, 0, 0, 0.3);
+  --btn-glass: rgba(120, 120, 128, 0.2);
+}
+
+* { 
+  box-sizing: border-box; 
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1); 
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+  font-size: 15px;
+  padding-bottom: 85px; 
+}
+
+button, input, select { font-family: inherit; }
+
+.app { display: flex; min-height: 100vh; position: relative; width: 100%; overflow-x: hidden; }
+
+/* UTILITY KACA & EFEK AIR */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* SIDEBAR MENGAMBANG ALAM IPHONE */
+.sidebar {
+  width: 290px; padding: 24px 16px;
+  position: fixed; left: 0; top: 0; bottom: 0; overflow-y: auto; z-index: 1000;
+  transform: translateX(-100%); 
+  transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+  background: var(--glass-bg);
+  backdrop-filter: blur(30px) saturate(200%);
+  -webkit-backdrop-filter: blur(30px) saturate(200%);
+  border-right: 1px solid var(--glass-border);
+  box-shadow: 20px 0 50px rgba(0,0,0,0.1);
+}
+.sidebar.open { transform: translateX(0); }
+
+.brand {
+  padding: 6px 4px 24px; font-size: 20px; font-weight: 800; letter-spacing: -0.03em;
+  border-bottom: 1px solid var(--line); margin-bottom: 20px;
+  display: flex; justify-content: space-between; align-items: center; color: var(--text);
+}
+.brand small { display: block; color: var(--muted); font-size: 12px; font-weight: 500; margin-top: 4px; }
+
+.nav { display: grid; gap: 8px; }
+.nav button {
+  width: 100%; border: 0; background: transparent; color: var(--text); text-align: left;
+  padding: 14px 18px; border-radius: 16px; cursor: pointer; font-size: 15px; font-weight: 600; 
+  display: flex; align-items: center; gap: 14px;
+}
+.nav button i { width: 22px; text-align: center; font-size: 18px; color: var(--wa-primary); opacity: 0.8; }
+.nav button:active { transform: scale(0.97); background: var(--btn-glass); }
+
+/* --- EFEK LAPISAN AIR PADA TOMBOL NAVIGASI SAMPING YANG AKTIF --- */
+.nav button.active { 
+  position: relative;
+  overflow: hidden;
+  background: var(--wa-primary); 
+  color: white; 
+  box-shadow: 
+    0 8px 20px var(--wa-primary-glow),
+    inset 0 1px 2px rgba(255, 255, 255, 0.8),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+}
+.nav button.active::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border-radius: 16px 16px 0 0;
+  pointer-events: none;
+}
+.nav button.active i { color: white; opacity: 1; }
+
+/* HEADER MOBILE KACA */
+.mobile-header {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  display: flex; padding: 14px 20px;
+  justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 900;
+  min-height: 68px; width: 100%;
+}
+.mobile-header-title { font-weight: 800 !important; font-size: 18px !important; letter-spacing: -0.03em; }
+
+.hamburger-btn, .theme-toggle-btn {
+  background: var(--btn-glass); border: 1px solid var(--glass-border); 
+  color: var(--text); cursor: pointer; padding: 10px; border-radius: 50%; 
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+.hamburger-btn:active, .theme-toggle-btn:active { transform: scale(0.92); }
+
+.sidebar-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.3); z-index: 999;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.sidebar-overlay.active { display: block; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* BOTTOM NAVIGATION IPHONE DOCK STYLE */
+.bottom-nav {
+  position: fixed; bottom: 16px; left: 16px; right: 16px; height: 70px; 
+  border-radius: 24px; display: flex; justify-content: space-around; align-items: center; z-index: 950;
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.b-nav-btn {
+  background: transparent; border: 0; color: var(--muted); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; flex: 1; height: 100%; cursor: pointer;
+  font-size: 11px; font-weight: 600; gap: 6px; position: relative;
+}
+.b-nav-btn i { font-size: 20px; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 2; }
+.b-nav-btn:active i { transform: scale(0.8) translateY(4px); }
+
+/* --- EFEK LAPISAN AIR (GLOW/RIPPLE) PADA BOTTOM NAV AKTIF --- */
+.b-nav-btn.active { color: var(--wa-primary); }
+.b-nav-btn.active i { transform: translateY(-2px); }
+.b-nav-btn.active::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  width: 36px; height: 36px;
+  background: radial-gradient(circle, rgba(0, 122, 255, 0.25) 0%, rgba(0, 122, 255, 0) 70%);
+  border-radius: 50%;
+  z-index: 1;
+  animation: waterPulse 2s infinite alternate ease-in-out;
+}
+@keyframes waterPulse {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  100% { transform: scale(1.1); opacity: 1; }
+}
+
+.main { margin-left: 0; width: 100%; padding: 20px 16px; min-width: 0; }
+
+.top { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 24px; width: 100%; }
+.title { font-size: 28px; font-weight: 800; line-height: 1.1; letter-spacing: -0.04em; }
+.subtitle { color: var(--muted); font-size: 14px; font-weight: 500; }
+
+.cards { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.card { 
+  border-radius: 24px; padding: 22px; position: relative; overflow: hidden; 
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.card-green::before, .card-danger::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+}
+.card-green::before { background: var(--success); box-shadow: 0 0 15px var(--success); }
+.card-danger::before { background: var(--danger); box-shadow: 0 0 15px var(--danger); }
+
+.card-label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+.card-value { font-size: 32px; font-weight: 800; margin-top: 8px; letter-spacing: -0.03em; }
+
+.panel { 
+  border-radius: 24px; padding: 22px; margin-top: 20px; width: 100%; 
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.panel-title { font-size: 18px; font-weight: 800; margin-bottom: 18px; letter-spacing: -0.02em; }
+
+.icon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.icon-btn {
+  background: var(--btn-glass); border: 1px solid var(--glass-border);
+  border-radius: 20px; padding: 18px 8px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; cursor: pointer; color: var(--text);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn i { font-size: 24px; margin-bottom: 10px; color: var(--wa-primary); filter: drop-shadow(0 4px 6px var(--wa-primary-glow)); }
+.icon-btn span { font-size: 12px; font-weight: 600; text-align: center; letter-spacing: -0.01em; }
+
+.chart-container { position: relative; width: 100%; height: 220px; margin-top: 10px; }
+
+.form-grid { display: grid; grid-template-columns: 1fr; gap: 16px; width: 100%; }
+.field label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; margin-left: 4px; }
+.field input, .field select {
+  width: 100%; padding: 14px 18px; 
+  background: var(--input-bg); color: var(--text); 
+  border: 1px solid var(--glass-border-inset); border-radius: 16px;
+  font-size: 16px; font-weight: 500; outline: none; min-height: 52px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+.field input:focus, .field select:focus { 
+  border-color: var(--wa-primary); background: var(--glass-bg);
+  box-shadow: 0 0 0 4px var(--wa-primary-glow), inset 0 2px 4px rgba(0,0,0,0.01); 
+}
+
+.actions { display: flex; flex-direction: column; gap: 12px; justify-content: flex-end; margin-top: 24px; width: 100%; }
+.btn {
+  border: 0; border-radius: 16px; padding: 14px 20px; cursor: pointer; font-weight: 700; font-size: 16px;
+  min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  letter-spacing: -0.01em;
+}
+
+/* --- EFEK LAPISAN AIR PADA TOMBOL UTAMA (PRIMARY) --- */
+.btn-primary { 
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--wa-teal), var(--wa-primary)); 
+  color: white; 
+  box-shadow: 
+    0 8px 20px var(--wa-primary-glow),
+    inset 0 1px 2px rgba(255, 255, 255, 0.6); 
+  border: 1px solid rgba(255,255,255,0.2); 
+}
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border-radius: 16px 16px 0 0;
+  pointer-events: none;
+}
+.btn-primary:active { transform: scale(0.96); box-shadow: 0 4px 10px var(--wa-primary-glow); }
+
+.btn-secondary { background: var(--btn-glass); border: 1px solid var(--glass-border); color: var(--text); }
+.btn-secondary:active { transform: scale(0.96); }
+.btn-success { background: var(--success); color: white; box-shadow: 0 8px 20px rgba(52, 199, 89, 0.4); }
+.btn-outline-danger { background: transparent; color: var(--danger); border: 2px solid var(--danger); padding: 10px 14px; width: auto; min-height: 42px; border-radius: 14px; }
+
+.table-wrap { overflow-x: auto; margin-top: 10px; width: 100%; border-radius: 16px; border: 1px solid var(--glass-border); }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th, .table td { border-bottom: 1px solid var(--line); padding: 14px 16px; text-align: left; white-space: nowrap; }
+.table th { background: rgba(120, 120, 128, 0.05); font-weight: 700; }
+.table tr:last-child td { border-bottom: none; }
+.right { text-align: right !important; }
+.center { text-align: center !important; }
+
+.badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+.badge-success { background: rgba(52, 199, 89, 0.15); color: var(--success); }
+.badge-danger { background: rgba(255, 59, 48, 0.15); color: var(--danger); }
+.badge-dept { background: var(--btn-glass); color: var(--text); border: 1px solid var(--glass-border); }
+
+.upload-zone { 
+  border: 2px dashed var(--wa-primary); border-radius: 20px; padding: 32px 16px; 
+  text-align: center; background: rgba(0, 122, 255, 0.05); cursor: pointer; 
+}
+.upload-zone:active { transform: scale(0.98); background: rgba(0, 122, 255, 0.1); }
+.upload-zone input { display: none; }
+
+.toast {
+  position: fixed; left: 20px; right: 20px; bottom: 100px; 
+  background: rgba(30, 30, 32, 0.9); color: #fff;
+  padding: 16px 20px; border-radius: 20px; display: none; z-index: 2000; 
+  font-size: 15px; font-weight: 600; text-align: center; 
+  backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1);
+}
+
+.report, .expense-report, .slip-card { background: #ffffff !important; color: #000 !important; }
+.report-container, .expense-report-wrapper { display: flex; justify-content: flex-start; width: 100%; overflow-x: auto; }
+.report, .expense-report { width: 100%; border: 1px solid #cbd5e1; padding: 16px 12px; box-sizing: border-box; min-width: 650px; border-radius: 14px; }
+.report-header { text-align: center; font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: 700; line-height: 1.35; color: #0f172a; }
+.report-red-line { height: 4px; background: var(--red); margin: 16px 0 8px; border-radius: 2px; }
+.report-date { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 14px; }
+.report-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+.report-section-title { font-family: Arial, sans-serif; font-size: 13.5px; font-weight: 800; margin-bottom: 8px; border-bottom: 2px solid #1e293b; padding-bottom: 3px; }
+.report-row { display: grid; grid-template-columns: minmax(105px, 1fr) 10px 24px minmax(75px, 1fr); min-height: 28px; align-items: center; font-size: 12.5px; }
+.report-row .amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.report-total { font-weight: 800; border-top: 1px solid #1e293b; border-bottom: 1px solid #1e293b; margin: 4px 0; padding: 3px 0; }
+.report-payment { margin-top: 20px; }
+.report-selisih { margin-top: 18px; font-size: 13.5px; font-weight: 800; margin-bottom: 6px; border-bottom: 2px solid #1e293b; padding-bottom: 3px; }
+
+.expense-report-header { display: grid; grid-template-columns: 1fr 1fr; align-items: center; margin-bottom: 10px; font-size: 13.5px; font-weight: 800; }
+.expense-report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.expense-report-title { font-size: 13px; font-weight: 800; font-style: italic; margin-bottom: 6px; }
+.expense-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.expense-table th, .expense-table td { border: 1px solid #222; height: 26px; padding: 4px 6px; white-space: nowrap; }
+.expense-table th { background: var(--red); color: #ffffff; text-align: center; font-weight: 800; }
+.expense-table th.no, .expense-table td.no { width: 38px; text-align: center; }
+.expense-table th.nominal, .expense-table td.nominal { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
+.expense-total-row td { font-weight: 800; height: 28px; background: #f8fafc; }
+.expense-report-footer { border: 1px solid #222; border-top: 0; padding: 10px 14px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; background: #f1f5f9; }
+
+.slip-container { background: rgba(120, 120, 128, 0.08); padding: 15px 10px; display: flex; flex-direction: column; align-items: center; width: 100%; border-radius: 14px; }
+.slip-card { width: 100%; max-width: 450px; border: 1px solid rgba(100, 116, 139, 0.25); padding: 18px 16px; background: #ffffff; color: #000 !important; font-size: 12.5px; line-height: 1.4; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; margin-bottom: 16px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); }
+.slip-header { text-align: center; border-bottom: 1px solid #1e293b; padding-bottom: 6px; margin-bottom: 8px; }
+.slip-header-title { font-size: 13px; font-weight: 800; letter-spacing: 0.3px; }
+.slip-header-sub { font-size: 11.5px; font-weight: 700; }
+.slip-header-period { font-size: 11px; font-weight: 800; text-decoration: underline; margin-top: 3px; }
+.slip-bio { display: grid; grid-template-columns: 55px 5px 1fr; margin-bottom: 8px; font-weight: 700; font-size: 11px; }
+.slip-section-bar { background: #f1f5f9; font-weight: 800; text-align: center; padding: 4px 0; font-size: 11px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; margin: 6px 0; }
+.slip-row { display: grid; grid-template-columns: 1fr 18px 80px; padding: 2px 0; font-size: 11px; }
+.slip-subtotal { display: grid; grid-template-columns: 1fr 18px 80px; font-weight: 700; border-top: 0.5px solid #cbd5e1; padding-top: 3px; margin-top: 3px; font-size: 11px; }
+.slip-net-bar { background: #e2e8f0; display: grid; grid-template-columns: 1fr 18px 80px; font-weight: 800; padding: 6px 8px; margin-top: 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px; }
+.slip-footer-date { text-align: right; font-size: 10px; color: #334155; margin-top: 6px; font-style: italic; }
+
+/* SEGMENTED CONTROL / SUBMENU */
+.sub-nav-btn {
+  background: var(--btn-glass); color: var(--text); border: 1px solid var(--glass-border);
+  border-radius: 14px; padding: 12px 20px; font-weight: 600; font-size: 14px;
+  cursor: pointer;
+}
+
+/* --- EFEK LAPISAN AIR PADA SUBMENU AKTIF --- */
+.sub-nav-btn.active-sub {
+  position: relative;
+  overflow: hidden;
+  background: var(--wa-primary) !important; color: white !important;
+  box-shadow: 
+    0 6px 15px var(--wa-primary-glow),
+    inset 0 1px 2px rgba(255, 255, 255, 0.6);
+  border-color: transparent;
+}
+.sub-nav-btn.active-sub::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border-radius: 14px 14px 0 0;
+  pointer-events: none;
+}
+
 /* =========================================================
    MODERN DONUT CHART - LIQUID GLASS (PENJUALAN PER KATEGORI)
    ========================================================= */
-
 .chart-wrapper {
   display: flex;
   align-items: center;
@@ -17,13 +393,7 @@
   width: 200px;
   height: 200px;
   border-radius: 50%;
-  /* Atur persentase di sini (Contoh: Makanan 45%, Minuman 30%, Snack 15%, Lainnya 10%) */
-  background: conic-gradient(
-    var(--wa-primary) 0% 45%,
-    var(--wa-teal) 45% 75%,
-    var(--success) 75% 90%,
-    var(--danger) 90% 100%
-  );
+  background: conic-gradient(var(--line) 0% 100%);
   box-shadow: 
     0 10px 30px rgba(0,0,0,0.1), 
     inset 0 4px 10px rgba(255,255,255,0.4);
@@ -33,7 +403,6 @@
   animation: chartSpin 1s cubic-bezier(0.25, 1, 0.5, 1) forwards;
 }
 
-/* Animasi Muncul Memutar */
 @keyframes chartSpin {
   from { transform: scale(0.8) rotate(-45deg); opacity: 0; }
   to { transform: scale(1) rotate(0); opacity: 1; }
@@ -120,10 +489,7 @@
   font-size: 13px;
 }
 
-/* =========================================================
-   KUSTOMISASI TOOLTIP UNTUK LIBRARY CHART.JS / APEXCHARTS
-   (Jika Anda menggunakan Javascript murni untuk Chart)
-   ========================================================= */
+/* Custom Tooltip Chart.js */
 .apexcharts-tooltip, .chartjs-tooltip {
   background: var(--glass-bg) !important;
   backdrop-filter: blur(24px) saturate(180%) !important;
