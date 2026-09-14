@@ -341,64 +341,89 @@ function renderDashboard() {
 
 let monthlyChartInstance = null;
 
-function updateDashboardMetrics(yearMonth) {
-  const [targetYear, targetMonth] = yearMonth.split('-');
+  // Update Grafik Garis (Line Chart) Bulanan
+  const ctxMonthly = document.getElementById('monthlySalesChart');
+  if (ctxMonthly) {
+    if (monthlyChartInstance) monthlyChartInstance.destroy();
+    const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const labels = [];
+    const dataOmset = [];
 
-  const monthCounters = (DB.counter || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
-  const monthExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
-  const monthSales = (DB.sales || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
-
-  $('cardOmset').textContent = money(sum(monthCounters.map(r => totalCounter(r))));
-  $('cardExpense').textContent = money(sum(monthExpenses.map(r => r.nominal)));
-
-  // Kalkulasi data untuk Diagram Donut
-  let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
-  monthSales.forEach(s => {
-    sumMakanan += Number(s.makanan || 0);
-    sumMinuman += Number(s.minuman || 0);
-    sumTahu += Number(s.tahu || 0);
-    sumGorengan += Number(s.gorengan || 0);
-    sumLain += Number(s.lain_lain || 0);
-  });
-
-  const totalAllKategori = sumMakanan + sumMinuman + sumTahu + sumGorengan + sumLain;
-  
-  // Mengatasi pembagian dengan nol jika belum ada data penjualan
-  const pctMakanan = totalAllKategori ? Math.round((sumMakanan / totalAllKategori) * 100) : 0;
-  const pctMinuman = totalAllKategori ? Math.round((sumMinuman / totalAllKategori) * 100) : 0;
-  const pctTahu = totalAllKategori ? Math.round((sumTahu / totalAllKategori) * 100) : 0;
-  const pctGorengan = totalAllKategori ? Math.round((sumGorengan / totalAllKategori) * 100) : 0;
-  const pctLainnya = totalAllKategori ? 100 - (pctMakanan + pctMinuman + pctTahu + pctGorengan) : 0; // Sisa persentase agar pas 100%
-
-  // Update Teks Persentase di UI
-  $('totalItemQty').textContent = formatNum(totalAllKategori);
-  $('persenMakanan').textContent = `${pctMakanan}%`;
-  $('persenMinuman').textContent = `${pctMinuman}%`;
-  $('persenTahu').textContent = `${pctTahu}%`;
-  $('persenGorengan').textContent = `${pctGorengan}%`;
-  $('persenLainnya').textContent = `${pctLainnya}%`;
-
-  // Update Conic Gradient untuk Diagram Donut
-  const donutChart = $('kategoriDonut');
-  if (donutChart) {
-    if (totalAllKategori === 0) {
-      // Tampilan jika tidak ada data
-      donutChart.style.background = `conic-gradient(var(--line) 0% 100%)`;
-    } else {
-      // Kalkulasi titik henti gradien (stop points)
-      const stop1 = pctMakanan;
-      const stop2 = stop1 + pctMinuman;
-      const stop3 = stop2 + pctTahu;
-      const stop4 = stop3 + pctGorengan;
-      
-      donutChart.style.background = `conic-gradient(
-        var(--wa-primary) 0% ${stop1}%,
-        var(--wa-teal) ${stop1}% ${stop2}%,
-        var(--success) ${stop2}% ${stop3}%,
-        var(--danger) ${stop3}% ${stop4}%,
-        var(--muted) ${stop4}% 100%
-      )`;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
+      labels.push(String(day));
+      const match = monthCounters.find(r => formatDate(r.tanggal) === dayStr);
+      dataOmset.push(match ? totalCounter(match) : 0);
     }
+
+    // Membuat Efek Gradien Kaca untuk Area Bawah Garis
+    const canvasCtx = ctxMonthly.getContext('2d');
+    const gradientFill = canvasCtx.createLinearGradient(0, 0, 0, 220);
+    gradientFill.addColorStop(0, 'rgba(0, 122, 255, 0.4)');  // Biru menyala di atas
+    gradientFill.addColorStop(1, 'rgba(0, 122, 255, 0.0)');  // Transparan di bawah
+
+    monthlyChartInstance = new Chart(ctxMonthly, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Omset Harian (Rp)',
+          data: dataOmset,
+          borderColor: '#007aff', // Warna aksen biru iOS
+          backgroundColor: gradientFill,
+          borderWidth: 3, // Garis lebih tebal & tegas
+          fill: true,
+          tension: 0.4, // Melengkung halus (bouncy curve)
+          pointRadius: 0, // Sembunyikan titik saat diam agar bersih
+          pointHoverRadius: 6, // Munculkan titik membal saat disentuh
+          pointHoverBackgroundColor: '#ffffff',
+          pointHoverBorderColor: '#007aff',
+          pointHoverBorderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: { display: false }, // Sembunyikan legenda bawaan
+          tooltip: {
+            backgroundColor: 'rgba(30, 30, 32, 0.85)', // Tooltip gelap transparan
+            titleFont: { size: 13, family: '-apple-system, sans-serif' },
+            bodyFont: { size: 15, weight: 'bold', family: '-apple-system, sans-serif' },
+            padding: 12,
+            cornerRadius: 12,
+            displayColors: false,
+            callbacks: {
+              label: function(context) {
+                return 'Rp ' + context.parsed.y.toLocaleString('id-ID');
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false, drawBorder: false }, // Hilangkan garis vertikal
+            ticks: { color: '#86868b', font: { family: '-apple-system, sans-serif', weight: '600' } }
+          },
+          y: {
+            grid: { color: 'rgba(120, 120, 128, 0.1)', drawBorder: false, borderDash: [5, 5] }, // Garis horizontal putus-putus samar
+            ticks: {
+              color: '#86868b',
+              font: { family: '-apple-system, sans-serif', weight: '600' },
+              callback: function(value) {
+                if (value === 0) return '0';
+                return (value / 1000000) + ' Jt'; // Singkat angka menjadi jutaan
+              }
+            },
+            beginAtZero: true
+          }
+        }
+      }
+    });
   }
 
   // Update Grafik Garis (Line Chart) Bulanan
