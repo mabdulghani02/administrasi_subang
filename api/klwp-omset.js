@@ -3,7 +3,6 @@ export default async function handler(req, res) {
         const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
 
-        // Menambahkan kolom expense pada parameter select
         const response = await fetch(`${SUPABASE_URL}/rest/v1/counter?select=cash,debit_card,grab,qris,expense`, {
             headers: {
                 'apikey': SUPABASE_ANON_KEY,
@@ -34,10 +33,9 @@ export default async function handler(req, res) {
                 totalExpense += Number(item.expense || 0);
             });
             grandTotal = totalCash + totalDebit + totalGrab + totalQris;
-            netTotal = grandTotal - totalExpense; // Saldo bersih (Omset dikurangi Pengeluaran)
+            netTotal = grandTotal - totalExpense;
         }
 
-        // Mengirimkan seluruh data lengkap dalam format JSON
         res.setHeader('Content-Type', 'application/json');
         res.status(200).json({
             cash: totalCash,
