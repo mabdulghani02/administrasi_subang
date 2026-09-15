@@ -18,10 +18,10 @@ export default async function handler(req, res) {
                           Number(item.qris || 0);
         });
 
-        // Mengirim angka mentah sebagai teks biasa agar mudah dibaca KLWP
-        res.setHeader('Content-Type', 'text/plain');
-        res.status(200).send(totalOmset.toString());
+        // Mengirim dalam format JSON agar sangat stabil dibaca KLWP
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).json({ total: totalOmset });
     } catch (err) {
-        res.status(500).send('0');
+        res.status(500).json({ total: 0 });
     }
 }
