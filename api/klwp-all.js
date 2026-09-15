@@ -30,11 +30,15 @@ export default async function handler(req, res) {
 
         let netTotal = grandTotal - totalExpense;
 
-        const rawText = `Omset: ${grandTotal} | Pengeluaran: ${totalExpense} | Bersih: ${netTotal}`;
-
-        res.setHeader('Content-Type', 'text/plain');
-        res.status(200).send(rawText);
+        // Bagian yang diubah: Mengirimkan format JSON
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).json({
+            omset: grandTotal,
+            pengeluaran: totalExpense,
+            bersih: netTotal
+        });
     } catch (err) {
-        res.status(200).send("Gagal memuat data");
+        res.setHeader('Content-Type', 'application/json');
+        res.status(500).json({ error: "Gagal memuat data" });
     }
 }
