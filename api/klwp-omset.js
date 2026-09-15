@@ -18,10 +18,10 @@ export default async function handler(req, res) {
                           Number(item.qris || 0);
         });
 
-        // Mengirim dalam format JSON agar sangat stabil dibaca KLWP
-        res.setHeader('Content-Type', 'application/json');
-        res.status(200).json({ total: totalOmset });
+        // Langsung kirim sebagai teks biasa
+        res.setHeader('Content-Type', 'text/plain');
+        res.status(200).send(String(totalOmset));
     } catch (err) {
-        res.status(500).json({ total: 0 });
+        res.status(500).send('0');
     }
 }
