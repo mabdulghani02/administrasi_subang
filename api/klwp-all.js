@@ -12,10 +12,9 @@ export default async function handler(req, res) {
         const resCounter = await fetch(`${SUPABASE_URL}/rest/v1/counter?select=cash,debit_card,grab,qris`, { headers });
         const dataCounter = resCounter.ok ? await resCounter.json() : [];
 
-        // 2. Ambil data pengeluaran dari tabel 'expense' (Sesuaikan nama kolom nominal jika bukan 'amount' atau 'nominal')
-        // Contoh di bawah berasumsi kolom nominal pengeluarannya bernama 'amount' atau 'total' atau 'expense'. Kita coba ambil semua kolom agar aman.
-        const resExpense = await fetch(`${SUPABASE_URL}/rest/v1/expense?select=*`, { headers });
-        const dataExpense = resExpense.ok ? await resExpense.json() : [];
+        // 2. Ambil data pengeluaran dari tabel 'expenses'
+        const resExpenses = await fetch(`${SUPABASE_URL}/rest/v1/expenses?select=nominal`, { headers });
+        const dataExpenses = resExpenses.ok ? await resExpenses.json() : [];
 
         let totalCash = 0;
         let totalDebit = 0;
@@ -34,11 +33,10 @@ export default async function handler(req, res) {
         }
 
         let totalExpense = 0;
-        if (Array.isArray(dataExpense)) {
-            dataExpense.forEach(item => {
-                // Mencari kolom angka yang mungkin dipakai di tabel expense (misal: amount, expense, total, nominal, atau value)
-                const expVal = Number(item.amount || item.expense || item.total || item.nominal || item.value || 0);
-                totalExpense += expVal;
+        if (Array.isArray(dataExpenses)) {
+            dataExpenses.forEach(item => {
+                // Menjumlahkan kolom 'nominal' dari tabel expenses
+                totalExpense += Number(item.nominal || 0);
             });
         }
 
