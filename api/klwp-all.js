@@ -30,13 +30,11 @@ export default async function handler(req, res) {
 
         let netTotal = grandTotal - totalExpense;
 
-        // Kirim semua angka dipisah dengan koma (tanpa tanda kutip sama sekali)
-        // Urutan: cash,debit,grab,qris,expense,total,net
-        const resultText = `${totalCash},${totalDebit},${totalGrab},${totalQris},${totalExpense},${grandTotal},${netTotal}`;
+        const rawText = `Omset: ${grandTotal} | Pengeluaran: ${totalExpense} | Bersih: ${netTotal}`;
 
         res.setHeader('Content-Type', 'text/plain');
-        res.status(200).send(resultText);
+        res.status(200).send(rawText);
     } catch (err) {
-        res.status(200).send("0,0,0,0,0,0,0");
+        res.status(200).send("Gagal memuat data");
     }
 }
