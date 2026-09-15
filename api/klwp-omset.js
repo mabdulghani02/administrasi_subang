@@ -3,8 +3,8 @@ export default async function handler(req, res) {
         const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
 
-        // Mengambil data langsung menggunakan fetch standar Vercel
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/counter?select=cash,debit_card,grab,qris`, {
+        // Menambahkan kolom expense pada parameter select
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/counter?select=cash,debit_card,grab,qris,expense`, {
             headers: {
                 'apikey': SUPABASE_ANON_KEY,
                 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
@@ -12,24 +12,43 @@ export default async function handler(req, res) {
         });
 
         if (!response.ok) {
-            return res.status(200).send('0');
+            return res.status(200).json({ cash: 0, debit: 0, grab: 0, qris: 0, expense: 0, total: 0, net: 0 });
         }
 
         const data = await response.json();
 
-        let totalOmset = 0;
+        let totalCash = 0;
+        let totalDebit = 0;
+        let totalGrab = 0;
+        let totalQris = 0;
+        let totalExpense = 0;
+        let grandTotal = 0;
+        let netTotal = 0;
+
         if (Array.isArray(data)) {
             data.forEach(item => {
-                totalOmset += Number(item.cash || 0) + 
-                              Number(item.debit_card || 0) + 
-                              Number(item.grab || 0) + 
-                              Number(item.qris || 0);
+                totalCash += Number(item.cash || 0);
+                totalDebit += Number(item.debit_card || 0);
+                totalGrab += Number(item.grab || 0);
+                totalQris += Number(item.qris || 0);
+                totalExpense += Number(item.expense || 0);
             });
+            grandTotal = totalCash + totalDebit + totalGrab + totalQris;
+            netTotal = grandTotal - totalExpense; // Saldo bersih (Omset dikurangi Pengeluaran)
         }
 
-        res.setHeader('Content-Type', 'text/plain');
-        res.status(200).send(totalOmset.toString());
+        // Mengirimkan seluruh data lengkap dalam format JSON
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).json({
+            cash: totalCash,
+            debit: totalDebit,
+            grab: totalGrab,
+            qris: totalQris,
+            expense: totalExpense,
+            total: grandTotal,
+            net: netTotal
+        });
     } catch (err) {
-        res.status(200).send('0');
+        res.status(200).json({ cash: 0, debit: 0, grab: 0, qris: 0, expense: 0, total: 0, net: 0 });
     }
 }
