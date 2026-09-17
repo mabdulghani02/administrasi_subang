@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const rawExpenses = resExpenses.ok ? await resExpenses.json() : [];
     const rawCash = resCash.ok ? await resCash.json() : [];
 
-    // Validasi array agar method looping tidak menyebabkan server crash
+    // Validasi array
     const dataCounter = Array.isArray(rawCounter) ? rawCounter : [];
     const dataExpenses = Array.isArray(rawExpenses) ? rawExpenses : [];
     const dataCash = Array.isArray(rawCash) ? rawCash : [];
@@ -81,12 +81,15 @@ export default async function handler(req, res) {
       }
     });
 
-    let teksDaftarPengeluaran = "Tidak ada pengeluaran hari ini";
+    // Susun teks terpisah untuk kolom kiri (item) dan kolom kanan (nominal)
+    let teksItem = "Tidak ada pengeluaran";
+    let teksNominal = "-";
+    let teksGabungan = "Tidak ada pengeluaran hari ini";
+
     if (pengeluaranHariIni.length > 0) {
-      teksDaftarPengeluaran = pengeluaranHariIni.map(item => {
-        const nominalFormat = item.nominal.toLocaleString('id-ID');
-        return `• ${item.sumber}: Rp ${nominalFormat}`;
-      }).join('\n');
+      teksItem = pengeluaranHariIni.map(item => `• ${item.sumber}`).join('\n');
+      teksNominal = pengeluaranHariIni.map(item => `Rp ${item.nominal.toLocaleString('id-ID')}`).join('\n');
+      teksGabungan = pengeluaranHariIni.map(item => `• ${item.sumber}: Rp ${item.nominal.toLocaleString('id-ID')}`).join('\n');
     }
 
     // 5. Olah data Cash Positions
@@ -108,7 +111,9 @@ export default async function handler(req, res) {
       bersih: netTotal,
       harian: omsetBulanIni,
       pengeluaran_hari_ini: pengeluaranHariIni,
-      teks_pengeluaran_hari_ini: teksDaftarPengeluaran,
+      teks_pengeluaran_hari_ini: teksGabungan,
+      teks_item_hari_ini: teksItem,
+      teks_nominal_hari_ini: teksNominal,
       total_belanja_hari_ini: totalBelanjaHariIni,
       posisi_kas: {
         saldo_harian: saldoHarianHariIni,
