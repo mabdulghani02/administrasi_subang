@@ -55,6 +55,18 @@ function cleanText(str) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+function isNameMatching(name1, name2) {
+  const n1 = cleanText(name1);
+  const n2 = cleanText(name2);
+  if (!n1 || !n2) return false;
+  if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
+
+  const words1 = String(name1 || '').toLowerCase().trim().split(/\s+/);
+  const words2 = String(name2 || '').toLowerCase().trim().split(/\s+/);
+  return words1.some(w => w.length >= 3 && words2.includes(w)) ||
+         (words1[0] && words2[0] && (words1[0].includes(words2[0]) || words2[0].includes(words1[0])));
+}
+
 function money(value) {
   const number = Number(value || 0);
   return (number < 0 ? '-Rp ' : 'Rp ') + Math.abs(number).toLocaleString('id-ID');
@@ -1297,7 +1309,7 @@ function showAttendanceSub(type) {
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Durasi</th><th class="center">Selisih</th><th class="right">Penyesuaian</th></tr></thead>
+          <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Hari Masuk</th><th class="center">Total Jam</th><th class="center">Total Selisih</th><th class="right">Total Penyesuaian</th></tr></thead>
           <tbody id="workHoursTableBody"></tbody>
         </table>
       </div>
@@ -1407,39 +1419,52 @@ function renderWorkHoursTable() {
     return (!sDate || d >= sDate) && (!eDate || d <= eDate) && r.masuk && r.pulang;
   });
 
-  list.sort((a, b) => formatDate(a.tanggal).localeCompare(formatDate(b.tanggal)));
-
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">Tidak ada data jam kerja pada rentang tanggal ini.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data jam kerja pada rentang tanggal ini.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = list
+  const grouped = {};
+  list.forEach(r => {
+    const key = cleanText(r.nama);
+    if (!grouped[key]) {
+      grouped[key] = {
+        nama: r.nama,
+        departemen: r.departemen || '-',
+        hariMasuk: 0,
+        totalDurasi: 0,
+        totalSelisih: 0,
+        totalNominal: 0
+      };
+    }
+    const durasi = calculateHours(r.masuk, r.pulang);
+    if (durasi > 0) {
+      const diff = durasi - STANDARD_WORK_HOURS;
+      const roundedDiff = Math.round(diff);
+      grouped[key].hariMasuk += 1;
+      grouped[key].totalDurasi += durasi;
+      grouped[key].totalSelisih += roundedDiff;
+      grouped[key].totalNominal += roundedDiff * RATE_PER_HOUR;
+    }
+  });
+
+  const summarized = Object.values(grouped).sort((a, b) => a.nama.localeCompare(b.nama));
+
+  tbody.innerHTML = summarized
     .map((r, i) => {
-      const durasi = calculateHours(r.masuk, r.pulang);
-      let diff = 0;
-      let roundedDiff = 0;
-      let nominal = 0;
-      if (durasi > 0) {
-        diff = durasi - STANDARD_WORK_HOURS;
-        roundedDiff = Math.round(diff);
-        nominal = roundedDiff * RATE_PER_HOUR;
-      }
       return `
       <tr style="border-bottom: 1px solid var(--line);">
         <td class="center" style="color:var(--muted);">${i + 1}</td>
-        <td class="center" style="font-size:12px;">${formatDate(r.tanggal)}</td>
         <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
         <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-        <td class="center" style="font-weight:600;">${r.masuk || '-'}</td>
-        <td class="center" style="font-weight:600;">${r.pulang || '-'}</td>
-        <td class="center" style="color:var(--muted); font-size:12px;">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
-        <td class="center" style="font-weight:800; color:${roundedDiff > 0 ? '#059669' : roundedDiff < 0 ? '#dc2626' : 'var(--text)'};">${
-          roundedDiff !== 0 ? (roundedDiff > 0 ? '+' : '') + roundedDiff + ' Jam' : 'Pas'
-        }</td>
-        <td class="right" style="font-weight:800; color:${nominal > 0 ? '#059669' : nominal < 0 ? '#dc2626' : 'var(--text)'}; font-size: 14px;">${
-          nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'
-        }</td>
+        <td class="center" style="font-weight:600;">${r.hariMasuk} Hari</td>
+        <td class="center" style="color:var(--muted); font-size:12px;">${r.totalDurasi.toFixed(2)} Jam</td>
+        <td class="center" style="font-weight:800; color:${r.totalSelisih > 0 ? '#059669' : r.totalSelisih < 0 ? '#dc2626' : 'var(--text)'};">
+          ${r.totalSelisih !== 0 ? (r.totalSelisih > 0 ? '+' : '') + r.totalSelisih + ' Jam' : 'Pas'}
+        </td>
+        <td class="right" style="font-weight:800; color:${r.totalNominal > 0 ? '#059669' : r.totalNominal < 0 ? '#dc2626' : 'var(--text)'}; font-size: 14px;">
+          ${r.totalNominal !== 0 ? (r.totalNominal > 0 ? '+' : '') + money(r.totalNominal) : 'Rp 0'}
+        </td>
       </tr>
       `;
     })
@@ -1907,16 +1932,12 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
-      const advName = cleanText(adv.nama);
-      const isNameMatch = advName === nmKey || advName.includes(nmKey) || nmKey.includes(advName);
-      return isNameMatch && (!sDate || advDate >= sDate) && (!eDate || advDate <= eDate);
+      const isMatch = isNameMatching(adv.nama, emp.nama);
+      return isMatch && (!sDate || advDate >= sDate) && (!eDate || advDate <= eDate);
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
 
-    const empInstallments = (DB.installments || []).filter(ins => {
-      const insName = cleanText(ins.nama);
-      return insName === nmKey || insName.includes(nmKey) || nmKey.includes(insName);
-    });
+    const empInstallments = (DB.installments || []).filter(ins => isNameMatching(ins.nama, emp.nama));
     let cicilanPeriode = 0;
     empInstallments.forEach(ins => {
       const insDate = new Date(formatDate(ins.tanggal));
@@ -1933,9 +1954,8 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
     const empAttendance = (DB.attendance || []).filter(att => {
       const attDate = formatDate(att.tanggal);
-      const attName = cleanText(att.nama);
-      const isNameMatch = attName === nmKey || attName.includes(nmKey) || nmKey.includes(attName);
-      return isNameMatch && (!sDate || attDate >= sDate) && (!eDate || attDate <= eDate);
+      const isMatch = isNameMatching(att.nama, emp.nama);
+      return isMatch && (!sDate || attDate >= sDate) && (!eDate || attDate <= eDate);
     });
 
     let totalPenyesuaianJam = 0;
