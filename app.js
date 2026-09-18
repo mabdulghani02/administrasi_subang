@@ -51,9 +51,8 @@ const $ = id => document.getElementById(id);
 
 function cleanText(str) {
   return String(str || '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toUpperCase();
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 }
 
 function money(value) {
@@ -672,7 +671,7 @@ async function exportMonthlyExcel() {
     const attFilter = DB.attendance.filter(r => formatDate(r.tanggal).startsWith(yearMonth));
     const groupedUangJajan = {};
     attFilter.forEach(att => {
-      if (att.status === 'Hadir') {
+      if (att.status === 'Hadir' && att.masuk) {
         const shift = classifyShift(att.masuk);
         if (shift.onTime) {
           const tgl = formatDate(att.tanggal);
@@ -1208,6 +1207,7 @@ function renderAttendancePage() {
       <button id="attBtnLog" class="sub-nav-btn active-sub" onclick="showAttendanceSub('log')">Log</button>
       <button id="attBtnAllow" class="sub-nav-btn" onclick="showAttendanceSub('allowance')">Uang Jajan</button>
       <button id="attBtnHours" class="sub-nav-btn" onclick="showAttendanceSub('hours')">Jam Kerja</button>
+      <button id="attBtnLibur" class="sub-nav-btn" onclick="showAttendanceSub('libur')">Daftar Libur</button>
     </div>
   </div>
   <div id="attendanceSubContent"></div>
@@ -1221,11 +1221,20 @@ function showAttendanceSub(type) {
   const btnLog = $('attBtnLog');
   const btnAllow = $('attBtnAllow');
   const btnHours = $('attBtnHours');
-  if (btnLog && btnAllow && btnHours) {
+  const btnLibur = $('attBtnLibur');
+  if (btnLog && btnAllow && btnHours && btnLibur) {
     btnLog.classList.toggle('active-sub', type === 'log');
     btnAllow.classList.toggle('active-sub', type === 'allowance');
     btnHours.classList.toggle('active-sub', type === 'hours');
+    btnLibur.classList.toggle('active-sub', type === 'libur');
   }
+
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const lastD = new Date(y, d.getMonth() + 1, 0).getDate();
+  const defaultStart = `${y}-${m}-01`;
+  const defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
 
   if (type === 'log') {
     container.innerHTML = `
@@ -1238,13 +1247,19 @@ function showAttendanceSub(type) {
       <div id="uploadProgress" style="display:none; margin-top:12px; font-weight:700; color:var(--wa-primary);">⏳ Memproses file...</div>
     </div>
     <div class="panel">
-      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
-        <div class="panel-title" style="margin-bottom:0;">Riwayat Absensi Harian</div>
-        <input type="date" id="attendanceFilterDate" value="${today()}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%;">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
+          <input type="date" id="attLogStart" value="${defaultStart}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
+          <input type="date" id="attLogEnd" value="${defaultEnd}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Status</th></tr></thead>
+          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Status</th></tr></thead>
           <tbody id="attendanceTableBody"></tbody>
         </table>
       </div>
@@ -1267,47 +1282,85 @@ function showAttendanceSub(type) {
     </div>
     `;
     renderAllowanceTable();
-  } else {
+  } else if (type === 'hours') {
     container.innerHTML = `
     <div class="panel">
-      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
-        <label style="font-weight:700;">Pilih Tanggal:</label>
-        <input type="date" id="workHoursFilterDate" value="${today()}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
+          <input type="date" id="hoursStart" value="${defaultStart}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
+          <input type="date" id="hoursEnd" value="${defaultEnd}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Durasi</th><th class="center">Selisih</th><th class="right">Penyesuaian</th></tr></thead>
+          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Masuk</th><th class="center">Pulang</th><th class="center">Durasi</th><th class="center">Selisih</th><th class="right">Penyesuaian</th></tr></thead>
           <tbody id="workHoursTableBody"></tbody>
         </table>
       </div>
     </div>
     `;
     renderWorkHoursTable();
+  } else {
+    container.innerHTML = `
+    <div class="panel">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
+          <input type="date" id="liburStart" value="${defaultStart}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
+          <input type="date" id="liburEnd" value="${defaultEnd}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
+      </div>
+      <div id="liburListContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
+    </div>
+    `;
+    renderLiburList();
   }
 }
 
 function renderAttendanceTable() {
-  const fDate = formatDate($('attendanceFilterDate')?.value) || today();
-  const list = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
+  const sDate = $('attLogStart')?.value;
+  const eDate = $('attLogEnd')?.value;
   const tbody = $('attendanceTableBody');
   if (!tbody) return;
+
+  const list = (DB.attendance || []).filter(r => {
+    const d = formatDate(r.tanggal);
+    return (!sDate || d >= sDate) && (!eDate || d <= eDate);
+  });
+
+  list.sort((a, b) => formatDate(a.tanggal).localeCompare(formatDate(b.tanggal)));
+
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">Belum ada absensi tanggal ${fDate}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data absensi pada rentang tanggal ini.</td></tr>`;
     return;
   }
+
   tbody.innerHTML = list
-    .map(
-      (r, i) => `
-    <tr>
-      <td class="center">${i + 1}</td>
-      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
-      <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
-      <td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td>
-      <td class="center" style="font-weight:700;">${r.pulang || '-'}</td>
-      <td class="center"><span class="badge ${r.status === 'Hadir' ? 'badge-success' : 'badge-danger'}">${r.status}</span></td>
-    </tr>
-    `
-    )
+    .map((r, i) => {
+      const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
+      return `
+      <tr>
+        <td class="center">${i + 1}</td>
+        <td class="center" style="font-size:12px;">${formatDate(r.tanggal)}</td>
+        <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+        <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
+        <td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td>
+        <td class="center" style="font-weight:700;">${r.pulang || '-'}</td>
+        <td class="center">
+          <span class="badge ${isLibur ? 'badge-danger' : 'badge-success'}">
+            ${isLibur ? 'Libur' : 'Hadir'}
+          </span>
+        </td>
+      </tr>
+      `;
+    })
     .join('');
 }
 
@@ -1344,14 +1397,23 @@ function renderAllowanceTable() {
 }
 
 function renderWorkHoursTable() {
-  const fDate = formatDate($('workHoursFilterDate')?.value) || today();
-  const list = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
+  const sDate = $('hoursStart')?.value;
+  const eDate = $('hoursEnd')?.value;
   const tbody = $('workHoursTableBody');
   if (!tbody) return;
+
+  const list = (DB.attendance || []).filter(r => {
+    const d = formatDate(r.tanggal);
+    return (!sDate || d >= sDate) && (!eDate || d <= eDate) && r.masuk && r.pulang;
+  });
+
+  list.sort((a, b) => formatDate(a.tanggal).localeCompare(formatDate(b.tanggal)));
+
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada data.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">Tidak ada data jam kerja pada rentang tanggal ini.</td></tr>`;
     return;
   }
+
   tbody.innerHTML = list
     .map((r, i) => {
       const durasi = calculateHours(r.masuk, r.pulang);
@@ -1366,6 +1428,7 @@ function renderWorkHoursTable() {
       return `
       <tr style="border-bottom: 1px solid var(--line);">
         <td class="center" style="color:var(--muted);">${i + 1}</td>
+        <td class="center" style="font-size:12px;">${formatDate(r.tanggal)}</td>
         <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
         <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
         <td class="center" style="font-weight:600;">${r.masuk || '-'}</td>
@@ -1378,6 +1441,60 @@ function renderWorkHoursTable() {
           nominal !== 0 ? (nominal > 0 ? '+' : '') + money(nominal) : 'Rp 0'
         }</td>
       </tr>
+      `;
+    })
+    .join('');
+}
+
+function renderLiburList() {
+  const sDate = $('liburStart')?.value;
+  const eDate = $('liburEnd')?.value;
+  const container = $('liburListContainer');
+  if (!container) return;
+
+  const list = (DB.attendance || []).filter(r => {
+    const d = formatDate(r.tanggal);
+    const inRange = (!sDate || d >= sDate) && (!eDate || d <= eDate);
+    const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
+    return inRange && isLibur;
+  });
+
+  if (!list.length) {
+    container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);">Tidak ada karyawan yang libur pada rentang tanggal ini.</div>`;
+    return;
+  }
+
+  const grouped = {};
+  list.forEach(r => {
+    const tgl = formatDate(r.tanggal);
+    if (!grouped[tgl]) grouped[tgl] = [];
+    grouped[tgl].push(r);
+  });
+
+  const sortedDates = Object.keys(grouped).sort();
+  container.innerHTML = sortedDates
+    .map(tgl => {
+      const items = grouped[tgl];
+      const dObj = new Date(tgl + 'T00:00:00');
+      const dateText = isNaN(dObj) ? tgl : dObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      return `
+      <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--card);">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 8px;">
+          <b style="color: var(--text);">${dateText}</b>
+          <span class="badge badge-danger">${items.length} Orang Libur</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          ${items
+            .map(
+              item => `
+            <span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;">
+              ${escapeHtml(item.nama)} <small style="color:var(--muted);">(${escapeHtml(item.departemen || '-')})</small>
+            </span>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
       `;
     })
     .join('');
@@ -1478,7 +1595,7 @@ function handleExcelUpload(event) {
               departemen: deptVal,
               masuk: masukVal,
               pulang: pulangVal,
-              status: times.length > 0 ? 'Hadir' : 'Tidak Hadir'
+              status: masukVal ? 'Hadir' : 'Libur'
             });
           }
           i += 1;
@@ -1786,7 +1903,7 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
   return masterList.map(emp => {
     const nmKey = cleanText(emp.nama);
-    const lainLain = nmKey === 'ZAENAL ARIFIN' ? DEFAULT_BONUS_LAIN : 0;
+    const lainLain = nmKey.includes('zaenal') ? DEFAULT_BONUS_LAIN : 0;
 
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
