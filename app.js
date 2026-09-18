@@ -15,6 +15,7 @@ let DB = {
 };
 
 const STANDARD_WORK_HOURS = 11;
+const MAX_OVERTIME_PER_DAY = 5; // Batas maksimal lembur per hari: 5 jam
 const RATE_PER_HOUR = 5000;
 let DEFAULT_ALLOWANCE = 15000;
 let DEFAULT_BONUS_LAIN = 40000;
@@ -43,8 +44,8 @@ function updateThemeIcon(theme) {
 function toggleSidebar() {
   const sb = $('appSidebar');
   const ov = $('sidebarOverlay');
-  sb.classList.toggle('open');
-  ov.classList.toggle('active');
+  sb?.classList.toggle('open');
+  ov?.classList.toggle('active');
 }
 
 const $ = id => document.getElementById(id);
@@ -55,14 +56,20 @@ function cleanText(str) {
     .replace(/[^a-z0-9]/g, '');
 }
 
-function isNameMatching(name1, name2) {
-  const n1 = cleanText(name1);
-  const n2 = cleanText(name2);
+function isRecordMatching(emp, record) {
+  const empNo = emp.no_absen || emp.nomor || emp.no || emp.id_karyawan;
+  const recNo = record.no_absen || record.nomor || record.no || record.id_karyawan;
+  if (empNo && recNo && String(empNo).trim() === String(recNo).trim()) {
+    return true;
+  }
+
+  const n1 = cleanText(emp.nama);
+  const n2 = cleanText(record.nama);
   if (!n1 || !n2) return false;
   if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
 
-  const words1 = String(name1 || '').toLowerCase().trim().split(/\s+/);
-  const words2 = String(name2 || '').toLowerCase().trim().split(/\s+/);
+  const words1 = String(emp.nama || '').toLowerCase().trim().split(/\s+/);
+  const words2 = String(record.nama || '').toLowerCase().trim().split(/\s+/);
   return words1.some(w => w.length >= 3 && words2.includes(w)) ||
          (words1[0] && words2[0] && (words1[0].includes(words2[0]) || words2[0].includes(words1[0])));
 }
@@ -136,6 +143,15 @@ function calculateHours(masukStr, pulangStr) {
   if (t2 < t1) t2 += 24 * 60;
   const totalMins = t2 - t1;
   return totalMins > 0 ? totalMins / 60 : 0;
+}
+
+// Menghitung kelebihan jam kerja per hari (maksimal 5 jam/hari)
+function calculateDailyOvertimeHours(masukStr, pulangStr) {
+  const durasi = calculateHours(masukStr, pulangStr);
+  if (durasi <= STANDARD_WORK_HOURS) return 0;
+  const rawOvertime = durasi - STANDARD_WORK_HOURS;
+  const roundedHours = Math.round(rawOvertime);
+  return Math.max(0, Math.min(MAX_OVERTIME_PER_DAY, roundedHours));
 }
 
 function sum(values) {
@@ -1309,7 +1325,19 @@ function showAttendanceSub(type) {
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Hari Masuk</th><th class="center">Total Jam</th><th class="center">Total Selisih</th><th class="right">Total Penyesuaian</th></tr></thead>
+          <thead>
+            <tr>
+              <th style="width:40px;" class="center">No</th>
+              <th style="width:95px;" class="center">Tanggal</th>
+              <th>Nama Karyawan</th>
+              <th>Divisi</th>
+              <th class="center">Masuk</th>
+              <th class="center">Pulang</th>
+              <th class="center">Durasi</th>
+              <th class="center">Kelebihan (Maks 5j)</th>
+              <th class="right">Penyesuaian</th>
+            </tr>
+          </thead>
           <tbody id="workHoursTableBody"></tbody>
         </table>
       </div>
@@ -1419,51 +1447,33 @@ function renderWorkHoursTable() {
     return (!sDate || d >= sDate) && (!eDate || d <= eDate) && r.masuk && r.pulang;
   });
 
+  list.sort((a, b) => formatDate(a.tanggal).localeCompare(formatDate(b.tanggal)));
+
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data jam kerja pada rentang tanggal ini.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">Tidak ada data jam kerja pada rentang tanggal ini.</td></tr>`;
     return;
   }
 
-  const grouped = {};
-  list.forEach(r => {
-    const key = cleanText(r.nama);
-    if (!grouped[key]) {
-      grouped[key] = {
-        nama: r.nama,
-        departemen: r.departemen || '-',
-        hariMasuk: 0,
-        totalDurasi: 0,
-        totalSelisih: 0,
-        totalNominal: 0
-      };
-    }
-    const durasi = calculateHours(r.masuk, r.pulang);
-    if (durasi > 0) {
-      const diff = durasi - STANDARD_WORK_HOURS;
-      const roundedDiff = Math.round(diff);
-      grouped[key].hariMasuk += 1;
-      grouped[key].totalDurasi += durasi;
-      grouped[key].totalSelisih += roundedDiff;
-      grouped[key].totalNominal += roundedDiff * RATE_PER_HOUR;
-    }
-  });
-
-  const summarized = Object.values(grouped).sort((a, b) => a.nama.localeCompare(b.nama));
-
-  tbody.innerHTML = summarized
+  tbody.innerHTML = list
     .map((r, i) => {
+      const durasi = calculateHours(r.masuk, r.pulang);
+      const overtimeHours = calculateDailyOvertimeHours(r.masuk, r.pulang);
+      const nominal = overtimeHours * RATE_PER_HOUR;
+
       return `
       <tr style="border-bottom: 1px solid var(--line);">
         <td class="center" style="color:var(--muted);">${i + 1}</td>
+        <td class="center" style="font-size:12px;">${formatDate(r.tanggal)}</td>
         <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
-        <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-        <td class="center" style="font-weight:600;">${r.hariMasuk} Hari</td>
-        <td class="center" style="color:var(--muted); font-size:12px;">${r.totalDurasi.toFixed(2)} Jam</td>
-        <td class="center" style="font-weight:800; color:${r.totalSelisih > 0 ? '#059669' : r.totalSelisih < 0 ? '#dc2626' : 'var(--text)'};">
-          ${r.totalSelisih !== 0 ? (r.totalSelisih > 0 ? '+' : '') + r.totalSelisih + ' Jam' : 'Pas'}
+        <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
+        <td class="center" style="font-weight:600;">${r.masuk || '-'}</td>
+        <td class="center" style="font-weight:600;">${r.pulang || '-'}</td>
+        <td class="center" style="color:var(--muted); font-size:12px;">${durasi ? durasi.toFixed(2) + ' Jam' : '-'}</td>
+        <td class="center" style="font-weight:800; color:${overtimeHours > 0 ? '#059669' : 'var(--text)'};">
+          ${overtimeHours > 0 ? '+' + overtimeHours + ' Jam' : 'Pas'}
         </td>
-        <td class="right" style="font-weight:800; color:${r.totalNominal > 0 ? '#059669' : r.totalNominal < 0 ? '#dc2626' : 'var(--text)'}; font-size: 14px;">
-          ${r.totalNominal !== 0 ? (r.totalNominal > 0 ? '+' : '') + money(r.totalNominal) : 'Rp 0'}
+        <td class="right" style="font-weight:800; color:${nominal > 0 ? '#059669' : 'var(--text)'}; font-size: 14px;">
+          ${nominal > 0 ? '+' + money(nominal) : 'Rp 0'}
         </td>
       </tr>
       `;
@@ -1566,10 +1576,18 @@ function handleExcelUpload(event) {
           const daysRow = i > 0 ? rows[i - 1] : [];
           const infoRow = rows[i];
           const punchRow = i + 1 < rows.length ? rows[i + 1] : [];
-          let namaVal = '', deptVal = '';
+          let namaVal = '', deptVal = '', noVal = '';
+
           for (let c = 0; c < infoRow.length; c++) {
             const cellStr = String(infoRow[c]).trim();
-            if (cellStr.includes('Nama :')) {
+            if (cellStr.includes('No :')) {
+              for (let k = c + 1; k < infoRow.length; k++) {
+                if (String(infoRow[k]).trim()) {
+                  noVal = String(infoRow[k]).trim();
+                  break;
+                }
+              }
+            } else if (cellStr.includes('Nama :')) {
               for (let k = c + 1; k < infoRow.length; k++) {
                 if (String(infoRow[k]).trim()) {
                   namaVal = String(infoRow[k]).trim();
@@ -1615,6 +1633,7 @@ function handleExcelUpload(event) {
               pulangVal = times[times.length - 1];
             }
             parsedRecords.push({
+              no_absen: noVal,
               tanggal: dateStr,
               nama: namaVal,
               departemen: deptVal,
@@ -1932,12 +1951,12 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
-      const isMatch = isNameMatching(adv.nama, emp.nama);
+      const isMatch = isRecordMatching(emp, adv);
       return isMatch && (!sDate || advDate >= sDate) && (!eDate || advDate <= eDate);
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
 
-    const empInstallments = (DB.installments || []).filter(ins => isNameMatching(ins.nama, emp.nama));
+    const empInstallments = (DB.installments || []).filter(ins => isRecordMatching(emp, ins));
     let cicilanPeriode = 0;
     empInstallments.forEach(ins => {
       const insDate = new Date(formatDate(ins.tanggal));
@@ -1954,22 +1973,19 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
     const empAttendance = (DB.attendance || []).filter(att => {
       const attDate = formatDate(att.tanggal);
-      const isMatch = isNameMatching(att.nama, emp.nama);
+      const isMatch = isRecordMatching(emp, att);
       return isMatch && (!sDate || attDate >= sDate) && (!eDate || attDate <= eDate);
     });
 
-    let totalPenyesuaianJam = 0;
+    // Hitung akumulasi kelebihan jam lembur harian (maksimal 5 jam per hari, tanpa minus)
+    let totalKelebihanJam = 0;
     empAttendance.forEach(att => {
       if (att.masuk && att.pulang) {
-        const durasi = calculateHours(att.masuk, att.pulang);
-        if (durasi > 0) {
-          const diff = durasi - STANDARD_WORK_HOURS;
-          const roundedDiff = Math.round(diff);
-          totalPenyesuaianJam += roundedDiff * RATE_PER_HOUR;
-        }
+        totalKelebihanJam += calculateDailyOvertimeHours(att.masuk, att.pulang);
       }
     });
 
+    const totalPenyesuaianJam = totalKelebihanJam * RATE_PER_HOUR;
     const gajiPokok = Number(emp.gaji_pokok || 0);
     const jabatan = Number(emp.jabatan || 0);
     const prestasi = Number(emp.prestasi || 0);
