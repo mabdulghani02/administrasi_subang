@@ -50,7 +50,10 @@ function toggleSidebar() {
 const $ = id => document.getElementById(id);
 
 function cleanText(str) {
-  return String(str || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  return String(str || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
 }
 
 function money(value) {
@@ -90,7 +93,8 @@ function formatDate(value) {
 
 function parseTimeMinutes(timeVal) {
   if (!timeVal) return null;
-  const match = String(timeVal).match(/(\d{1,2}):(\d{2})/);
+  const str = String(timeVal).trim();
+  const match = str.match(/(\d{1,2})[:.](\d{2})/);
   if (!match) return null;
   const h = parseInt(match[1], 10);
   const m = parseInt(match[2], 10);
@@ -1355,9 +1359,9 @@ function renderWorkHoursTable() {
       let roundedDiff = 0;
       let nominal = 0;
       if (durasi > 0) {
-        diff = durasi - 11;
+        diff = durasi - STANDARD_WORK_HOURS;
         roundedDiff = Math.round(diff);
-        nominal = roundedDiff * 5000;
+        nominal = roundedDiff * RATE_PER_HOUR;
       }
       return `
       <tr style="border-bottom: 1px solid var(--line);">
@@ -1459,7 +1463,7 @@ function handleExcelUpload(event) {
             const times = punchStr
               .split(/[\n\r]+/)
               .map(t => t.trim())
-              .filter(t => t.includes(':'));
+              .filter(t => t.includes(':') || t.includes('.'));
             let masukVal = '';
             let pulangVal = '';
             if (times.length > 0) {
@@ -1786,11 +1790,16 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
-      return cleanText(adv.nama) === nmKey && advDate >= sDate && advDate <= eDate;
+      const advName = cleanText(adv.nama);
+      const isNameMatch = advName === nmKey || advName.includes(nmKey) || nmKey.includes(advName);
+      return isNameMatch && (!sDate || advDate >= sDate) && (!eDate || advDate <= eDate);
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
 
-    const empInstallments = (DB.installments || []).filter(ins => cleanText(ins.nama) === nmKey);
+    const empInstallments = (DB.installments || []).filter(ins => {
+      const insName = cleanText(ins.nama);
+      return insName === nmKey || insName.includes(nmKey) || nmKey.includes(insName);
+    });
     let cicilanPeriode = 0;
     empInstallments.forEach(ins => {
       const insDate = new Date(formatDate(ins.tanggal));
@@ -1807,14 +1816,14 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
     const empAttendance = (DB.attendance || []).filter(att => {
       const attDate = formatDate(att.tanggal);
-      return cleanText(att.nama) === nmKey && attDate >= sDate && attDate <= eDate;
+      const attName = cleanText(att.nama);
+      const isNameMatch = attName === nmKey || attName.includes(nmKey) || nmKey.includes(attName);
+      return isNameMatch && (!sDate || attDate >= sDate) && (!eDate || attDate <= eDate);
     });
 
     let totalPenyesuaianJam = 0;
     empAttendance.forEach(att => {
-      const isHadir = String(att.status || '').toLowerCase().includes('hadir');
-      const hasHours = Boolean(att.masuk && att.pulang);
-      if (isHadir || hasHours) {
+      if (att.masuk && att.pulang) {
         const durasi = calculateHours(att.masuk, att.pulang);
         if (durasi > 0) {
           const diff = durasi - STANDARD_WORK_HOURS;
