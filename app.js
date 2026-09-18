@@ -2,6 +2,32 @@ const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Pemetaan resmi ID, Nama Mesin Absen, dan Nama Asli Master Gaji
+const EMPLOYEE_MAPPING = [
+  { id: '2',  absen: 'AQSHAL',     master: 'MUHAMMAD AQSHAL LESMANA' },
+  { id: '4',  absen: 'EDISOPANDI', master: 'EDI SOPANDI' },
+  { id: '5',  absen: 'ABDUL GHANI',master: 'MUHAMMAD ADBUL GHANI' },
+  { id: '9',  absen: 'JULIAN',     master: 'JULIAN TRI SAPUTRA' },
+  { id: '10', absen: 'DAFA',       master: 'DAFFA CAHYA NUGRAHA' },
+  { id: '13', absen: 'ENJANG',     master: 'ENJANG ANDRI' },
+  { id: '14', absen: 'ENTIS',      master: 'TISNA SURYANA' },
+  { id: '15', absen: 'IRGI',       master: 'IRGY MAULANA' },
+  { id: '16', absen: 'TATANG',     master: 'TATANG TARYANA' },
+  { id: '17', absen: 'YAYAN',      master: 'YAYAN ZATNIKA' },
+  { id: '27', absen: 'HAIKAL',     master: 'HAIKAL' },
+  { id: '11', absen: 'OCHA',       master: 'OCHA HERDIATNA' },
+  { id: '26', absen: 'BIMA',       master: 'BIMA NAZWA OKTA PRIYANA' },
+  { id: '1',  absen: 'REIHAN',     master: 'REIHAN MUHAMMAD ALIEF' },
+  { id: '20', absen: 'ASPIA',      master: 'HAPSOH ASPIA' },
+  { id: '12', absen: 'EKA R',      master: 'EKA RAMDANI' },
+  { id: '19', absen: 'DIAN',       master: 'DIAN FAZRIANA' },
+  { id: '21', absen: 'SALMA',      master: 'SALMA NUR HABILAH' },
+  { id: '18', absen: 'PIPIN',      master: 'PIPIN SAEPULOH' },
+  { id: '22', absen: 'ZEY',        master: 'ZAENAL ARIFIN' },
+  { id: '24', absen: 'ILHAM',      master: 'MUHAMMAD NAZRAUL ILHAM' },
+  { id: '25', absen: 'YUSUF',      master: 'MUHAMAD YUSUF' }
+];
+
 let DB = {
   sales: [],
   counter: [],
@@ -20,15 +46,11 @@ const RATE_PER_HOUR = 5000;
 let DEFAULT_ALLOWANCE = 15000;
 let DEFAULT_BONUS_LAIN = 40000;
 
-// Jalankan tampilan sesegera mungkin
 window.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('subang_theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeIcon(savedTheme);
-  
-  // Tampilkan dashboard langsung agar tidak layar putih
   showPage('dashboard');
-  // Muat data dari cloud di latar belakang
   loadData('dashboard');
 });
 
@@ -62,23 +84,24 @@ function cleanText(str) {
     .replace(/[^a-z0-9]/g, '');
 }
 
-function isRecordMatching(emp, record) {
-  if (!emp || !record) return false;
-  const empNo = emp.no_absen || emp.nomor || emp.no || emp.id_karyawan;
-  const recNo = record.no_absen || record.nomor || record.no || record.id_karyawan;
-  if (empNo && recNo && String(empNo).trim() === String(recNo).trim()) {
-    return true;
+// Fungsi pencocokan mutlak menggunakan tabel mapping
+function isRecordMatching(empMaster, attRecord) {
+  if (!empMaster || !attRecord) return false;
+
+  const mNama = cleanText(empMaster.nama);
+  const aNama = cleanText(attRecord.nama);
+  const aId = String(attRecord.no_absen || attRecord.id_karyawan || '').trim();
+
+  const map = EMPLOYEE_MAPPING.find(m => cleanText(m.master) === mNama || mNama.includes(cleanText(m.master)));
+
+  if (map) {
+    if (aId && String(map.id) === aId) return true;
+    if (aNama && (cleanText(map.absen) === aNama || aNama.includes(cleanText(map.absen)))) return true;
+    if (aNama && (cleanText(map.master) === aNama || aNama.includes(cleanText(map.master)))) return true;
   }
 
-  const n1 = cleanText(emp.nama);
-  const n2 = cleanText(record.nama);
-  if (!n1 || !n2) return false;
-  if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
-
-  const words1 = String(emp.nama || '').toLowerCase().trim().split(/\s+/);
-  const words2 = String(record.nama || '').toLowerCase().trim().split(/\s+/);
-  return words1.some(w => w.length >= 3 && words2.includes(w)) ||
-         (words1[0] && words2[0] && (words1[0].includes(words2[0]) || words2[0].includes(words1[0])));
+  // Cadangan pencocokan langsung
+  return aNama === mNama || aNama.includes(mNama) || mNama.includes(aNama);
 }
 
 function money(value) {
@@ -232,7 +255,7 @@ async function loadData(targetPage = null) {
     };
 
     const [sales, counter, expenses, cash, attendance, advances, masterSalary, installments, wasteSales] =
-      await Promise.all([
+      await Promise.allSettled([
         fetchTable('sales'),
         fetchTable('counter'),
         fetchTable('expenses'),
@@ -244,15 +267,15 @@ async function loadData(targetPage = null) {
         fetchTable('waste_sales')
       ]);
 
-    DB.sales = sales;
-    DB.counter = counter;
-    DB.expenses = expenses;
-    DB.cash = cash;
-    DB.attendance = attendance;
-    DB.advances = advances;
-    DB.masterSalary = masterSalary;
-    DB.installments = installments;
-    DB.wasteSales = wasteSales;
+    DB.sales = sales.status === 'fulfilled' ? sales.value : [];
+    DB.counter = counter.status === 'fulfilled' ? counter.value : [];
+    DB.expenses = expenses.status === 'fulfilled' ? expenses.value : [];
+    DB.cash = cash.status === 'fulfilled' ? cash.value : [];
+    DB.attendance = attendance.status === 'fulfilled' ? attendance.value : [];
+    DB.advances = advances.status === 'fulfilled' ? advances.value : [];
+    DB.masterSalary = masterSalary.status === 'fulfilled' ? masterSalary.value : [];
+    DB.installments = installments.status === 'fulfilled' ? installments.value : [];
+    DB.wasteSales = wasteSales.status === 'fulfilled' ? wasteSales.value : [];
 
     showPage(targetPage || 'dashboard');
   } catch (error) {
@@ -1125,11 +1148,14 @@ function renderWorkHoursTable() {
 
   const grouped = {};
   list.forEach(r => {
-    const key = r.no_absen ? `ID_${r.no_absen}` : `NAME_${cleanText(r.nama)}`;
+    const rNamaClean = cleanText(r.nama);
+    const map = EMPLOYEE_MAPPING.find(m => cleanText(m.absen) === rNamaClean || cleanText(m.master) === rNamaClean);
+    const key = map ? map.id : (r.no_absen ? `ID_${r.no_absen}` : `NAME_${rNamaClean}`);
+
     if (!grouped[key]) {
       grouped[key] = {
-        no_absen: r.no_absen || '-',
-        nama: r.nama,
+        no_absen: map ? map.id : (r.no_absen || '-'),
+        nama: map ? map.master : r.nama,
         departemen: r.departemen || '-',
         hariMasuk: 0,
         totalDurasiHours: 0,
