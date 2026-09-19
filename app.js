@@ -567,10 +567,10 @@ function reportRow(label, value, forceDash = false) {
   const displayValue = Math.abs(number).toLocaleString('id-ID');
   const display = forceDash || number === 0 ? '-' : (isNegative ? '-' + displayValue : displayValue);
   return `
-  <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13.5px;">
-    <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
-    <span style="white-space: nowrap;">&nbsp;&nbsp;&nbsp;: Rp</span>
-    <span style="text-align: right; min-width: 85px;">${display}</span>
+  <div style="display: grid; grid-template-columns: 1fr 24px 85px; align-items: center; margin-bottom: 4px; font-size: 13px;">
+    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
+    <span style="text-align: center;">: Rp</span>
+    <span style="text-align: right;">${display}</span>
   </div>
   `;
 }
@@ -1478,7 +1478,7 @@ function showPayrollSub(type) {
         <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
       </div>
     </div>
-    <div class="slip-container" id="slipPrintContainer" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px;"></div>
+    <div class="slip-container" id="slipPrintContainer" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px;"></div>
     `;
     renderSlipPages();
   } else if (type === 'kasbon') {
@@ -1843,6 +1843,15 @@ function renderSlipPages() {
     periodMonth = pDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase();
   }
 
+  // Baris slip menggunakan CSS Grid 3 kolom tetap agar simbol Rp sejajar tegak lurus
+  const slipRow = (label, val, isBold = false) => `
+    <div style="display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; margin-bottom: 1.5px; ${isBold ? 'font-weight: 800;' : ''}">
+      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
+      <span style="text-align: center;">Rp</span>
+      <span style="text-align: right;">${val}</span>
+    </div>
+  `;
+
   let html = '';
   list.forEach(emp => {
     const totalPendapatan =
@@ -1871,25 +1880,31 @@ function renderSlipPages() {
         </div>
         
         <div style="background: #f1f5f9; font-weight: 800; padding: 2px 4px; font-size: 9px; margin-bottom: 2px; border-left: 3px solid #0284c7;">RINCIAN GAJI</div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>GAJI POKOK</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.pokok)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>JABATAN</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.jabatan)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>PRESTASI</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.prestasi)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>KESEHATAN</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.kesehatan)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>JAM KERJA (+/-)</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${emp.jamKerja < 0 ? '-' + formatNum(Math.abs(emp.jamKerja)) : formatNum(emp.jamKerja)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>ZAKAT</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.zakat)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>KEBERSIHAN/LOYALITAS</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.loyalitas)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>LAIN-LAIN</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.lainLain)}</span></div>
-        <div style="display: flex; justify-content: space-between; font-weight: 800; border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;"><span>Jumlah Pendapatan</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(totalPendapatan)}</span></div>
+        ${slipRow('GAJI POKOK', formatNum(emp.pokok))}
+        ${slipRow('JABATAN', formatNum(emp.jabatan))}
+        ${slipRow('PRESTASI', formatNum(emp.prestasi))}
+        ${slipRow('KESEHATAN', formatNum(emp.kesehatan))}
+        ${slipRow('JAM KERJA (+/-)', emp.jamKerja < 0 ? '-' + formatNum(Math.abs(emp.jamKerja)) : formatNum(emp.jamKerja))}
+        ${slipRow('ZAKAT', formatNum(emp.zakat))}
+        ${slipRow('KEBERSIHAN/LOYALITAS', formatNum(emp.loyalitas))}
+        ${slipRow('LAIN-LAIN', formatNum(emp.lainLain))}
+        <div style="border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;">
+          ${slipRow('Jumlah Pendapatan', formatNum(totalPendapatan), true)}
+        </div>
         
         <div style="background: #fef2f2; font-weight: 800; padding: 2px 4px; font-size: 9px; margin: 3px 0 2px 0; border-left: 3px solid #ef4444;">POTONGAN</div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>KASBON</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.kasbon)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>BPJS</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.bpjs)}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>CICILAN</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.cicilan)}</span></div>
-        <div style="display: flex; justify-content: space-between; font-weight: 800; border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;"><span>Jumlah Potongan</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(totalPotongan)}</span></div>
+        ${slipRow('KASBON', formatNum(emp.kasbon))}
+        ${slipRow('BPJS', formatNum(emp.bpjs))}
+        ${slipRow('CICILAN', formatNum(emp.cicilan))}
+        <div style="border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;">
+          ${slipRow('Jumlah Potongan', formatNum(totalPotongan), true)}
+        </div>
       </div>
       <div>
-        <div style="background: #ecfdf5; font-weight: 800; padding: 3px 6px; display: flex; justify-content: space-between; border-radius: 4px; border: 1px solid #a7f3d0; margin-top: 3px; font-size: 10px;">
-          <span>Gaji Diterima</span><span>Rp</span><span style="text-align: right; min-width: 65px; color: #047857;">${formatNum(emp.gajiBersih)}</span>
+        <div style="background: #ecfdf5; font-weight: 800; padding: 3px 6px; display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; border-radius: 4px; border: 1px solid #a7f3d0; margin-top: 3px; font-size: 10px;">
+          <span>Gaji Diterima</span>
+          <span style="text-align: center;">Rp</span>
+          <span style="text-align: right; color: #047857;">${formatNum(emp.gajiBersih)}</span>
         </div>
         <div style="text-align: right; font-size: 8px; color: #64748b; margin-top: 2px;">${escapeHtml(printDate)}</div>
       </div>
@@ -1899,7 +1914,7 @@ function renderSlipPages() {
   container.innerHTML = html;
 }
 
-// Layout PDF tepi penuh (margin mendekati 0 mm)
+// Ekspor PDF dengan margin minimal mendekati nol (1 mm sisi, 1.5 mm atas-bawah)
 async function exportSlipsToPDF() {
   const container = $('slipPrintContainer');
   if (!container || container.innerHTML.trim() === '') {
@@ -1917,9 +1932,6 @@ async function exportSlipsToPDF() {
 
     const pdf = new jsPDF('p', 'mm', 'a4'); // A4 = 210 mm x 297 mm
     
-    // Tata letak mepet margin:
-    // Lebar slip = 104 mm (2 kolom x 104 = 208 mm, sisa margin kiri-kanan = 1 mm)
-    // Tinggi slip = 98 mm (3 baris x 98 = 294 mm, sisa margin atas-bawah = 1.5 mm)
     const cardWidth = 104;
     const cardHeight = 98;
     const marginX = 1;
