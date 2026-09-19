@@ -91,10 +91,8 @@ function isRecordMatching(empMaster, attRecord) {
   const aId = String(attRecord.no_absen || '').trim();
   const mId = String(empMaster.no_absen || '').trim();
 
-  // 1. Cocokkan no_absen langsung jika keduanya ada
   if (mId && aId && mId === aId) return true;
 
-  // 2. Cocokkan dengan mapping tabel
   const map = EMPLOYEE_MAPPING.find(m => cleanText(m.master) === mNama || mNama.includes(cleanText(m.master)));
   if (map) {
     if (aId && String(map.id) === aId) return true;
@@ -102,7 +100,6 @@ function isRecordMatching(empMaster, attRecord) {
     if (aNama && (cleanText(map.master) === aNama || aNama.includes(cleanText(map.master)))) return true;
   }
 
-  // 3. Cadangan pencocokan string nama
   return aNama === mNama || aNama.includes(mNama) || mNama.includes(aNama);
 }
 
@@ -1481,7 +1478,7 @@ function showPayrollSub(type) {
         <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
       </div>
     </div>
-    <div class="slip-container" id="slipPrintContainer"></div>
+    <div class="slip-container" id="slipPrintContainer" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px;"></div>
     `;
     renderSlipPages();
   } else if (type === 'kasbon') {
@@ -1860,39 +1857,41 @@ function renderSlipPages() {
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
 
     html += `
-    <div class="slip-card">
+    <div class="slip-card" style="width: 390px; height: 368px; padding: 8px 12px; box-sizing: border-box; background: white; border: 1px dashed #cbd5e1; display: flex; flex-direction: column; justify-content: space-between; font-family: Arial, sans-serif; font-size: 10px; margin: 0;">
       <div>
-        <div class="slip-header">
-          <div class="slip-header-title">RUMAH MAKAN TAHU SUMEDANG</div>
-          <div class="slip-header-sub">SARI KEDELE</div>
-          <div style="font-size: 9px; color: #475569;">UNIT SUBANG</div>
-          <div class="slip-header-period">SLIP GAJI PERIODE ${periodMonth}</div>
+        <div style="text-align: center; margin-bottom: 3px; line-height: 1.15;">
+          <div style="font-weight: 800; font-size: 11px;">RUMAH MAKAN TAHU SUMEDANG</div>
+          <div style="font-weight: 700; font-size: 10px; color: #1e293b;">SARI KEDELE</div>
+          <div style="font-size: 8px; color: #64748b;">UNIT SUBANG</div>
+          <div style="font-weight: 800; font-size: 9px; margin-top: 2px; border-bottom: 1px solid #94a3b8; padding-bottom: 2px;">SLIP GAJI PERIODE ${periodMonth}</div>
         </div>
-        <div class="slip-bio">
+        <div style="display: grid; grid-template-columns: 50px 8px 1fr; margin-bottom: 3px; font-weight: bold; font-size: 9.5px; line-height: 1.2;">
           <span>NAMA</span><span>:</span><span>${escapeHtml(emp.nama)}</span>
           <span>POSISI</span><span>:</span><span>${escapeHtml(emp.departemen)}</span>
         </div>
-        <div class="slip-section-bar">RINCIAN GAJI</div>
-        <div class="slip-row"><span>GAJI POKOK</span><span>Rp</span><span class="right">${formatNum(emp.pokok)}</span></div>
-        <div class="slip-row"><span>JABATAN</span><span>Rp</span><span class="right">${formatNum(emp.jabatan)}</span></div>
-        <div class="slip-row"><span>PRESTASI</span><span>Rp</span><span class="right">${formatNum(emp.prestasi)}</span></div>
-        <div class="slip-row"><span>KESEHATAN</span><span>Rp</span><span class="right">${formatNum(emp.kesehatan)}</span></div>
-        <div class="slip-row"><span>JAM KERJA (+/-)</span><span>Rp</span><span class="right">${
-          emp.jamKerja < 0 ? '-' + formatNum(Math.abs(emp.jamKerja)) : formatNum(emp.jamKerja)
-        }</span></div>
-        <div class="slip-row"><span>ZAKAT</span><span>Rp</span><span class="right">${formatNum(emp.zakat)}</span></div>
-        <div class="slip-row"><span>KEBERSIHAN/LOYALITAS</span><span>Rp</span><span class="right">${formatNum(emp.loyalitas)}</span></div>
-        <div class="slip-row"><span>LAIN-LAIN</span><span>Rp</span><span class="right">${formatNum(emp.lainLain)}</span></div>
-        <div class="slip-subtotal"><span>Jumlah Pendapatan</span><span>Rp</span><span class="right">${formatNum(totalPendapatan)}</span></div>
-        <div class="slip-section-bar">POTONGAN</div>
-        <div class="slip-row"><span>KASBON</span><span>Rp</span><span class="right">${formatNum(emp.kasbon)}</span></div>
-        <div class="slip-row"><span>BPJS</span><span>Rp</span><span class="right">${formatNum(emp.bpjs)}</span></div>
-        <div class="slip-row"><span>CICILAN</span><span>Rp</span><span class="right">${formatNum(emp.cicilan)}</span></div>
-        <div class="slip-subtotal"><span>Jumlah Potongan</span><span>Rp</span><span class="right">${formatNum(totalPotongan)}</span></div>
+        
+        <div style="background: #f1f5f9; font-weight: 800; padding: 2px 4px; font-size: 9px; margin-bottom: 2px; border-left: 3px solid #0284c7;">RINCIAN GAJI</div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>GAJI POKOK</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.pokok)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>JABATAN</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.jabatan)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>PRESTASI</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.prestasi)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>KESEHATAN</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.kesehatan)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>JAM KERJA (+/-)</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${emp.jamKerja < 0 ? '-' + formatNum(Math.abs(emp.jamKerja)) : formatNum(emp.jamKerja)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>ZAKAT</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.zakat)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>KEBERSIHAN/LOYALITAS</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.loyalitas)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>LAIN-LAIN</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.lainLain)}</span></div>
+        <div style="display: flex; justify-content: space-between; font-weight: 800; border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;"><span>Jumlah Pendapatan</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(totalPendapatan)}</span></div>
+        
+        <div style="background: #fef2f2; font-weight: 800; padding: 2px 4px; font-size: 9px; margin: 3px 0 2px 0; border-left: 3px solid #ef4444;">POTONGAN</div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>KASBON</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.kasbon)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>BPJS</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.bpjs)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1.5px;"><span>CICILAN</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(emp.cicilan)}</span></div>
+        <div style="display: flex; justify-content: space-between; font-weight: 800; border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;"><span>Jumlah Potongan</span><span>Rp</span><span style="text-align: right; min-width: 65px;">${formatNum(totalPotongan)}</span></div>
       </div>
       <div>
-        <div class="slip-net-bar"><span>Gaji Diterima</span><span>Rp</span><span class="right">${formatNum(emp.gajiBersih)}</span></div>
-        <div class="slip-footer-date">${escapeHtml(printDate)}</div>
+        <div style="background: #ecfdf5; font-weight: 800; padding: 3px 6px; display: flex; justify-content: space-between; border-radius: 4px; border: 1px solid #a7f3d0; margin-top: 3px; font-size: 10px;">
+          <span>Gaji Diterima</span><span>Rp</span><span style="text-align: right; min-width: 65px; color: #047857;">${formatNum(emp.gajiBersih)}</span>
+        </div>
+        <div style="text-align: right; font-size: 8px; color: #64748b; margin-top: 2px;">${escapeHtml(printDate)}</div>
       </div>
     </div>
     `;
@@ -1900,6 +1899,7 @@ function renderSlipPages() {
   container.innerHTML = html;
 }
 
+// Layout PDF tepi penuh (margin mendekati 0 mm)
 async function exportSlipsToPDF() {
   const container = $('slipPrintContainer');
   if (!container || container.innerHTML.trim() === '') {
@@ -1914,26 +1914,36 @@ async function exportSlipsToPDF() {
       showToast('Slip gaji kosong.');
       return;
     }
-    const pdf = new jsPDF('p', 'mm', 'a4');
+
+    const pdf = new jsPDF('p', 'mm', 'a4'); // A4 = 210 mm x 297 mm
+    
+    // Tata letak mepet margin:
+    // Lebar slip = 104 mm (2 kolom x 104 = 208 mm, sisa margin kiri-kanan = 1 mm)
+    // Tinggi slip = 98 mm (3 baris x 98 = 294 mm, sisa margin atas-bawah = 1.5 mm)
+    const cardWidth = 104;
+    const cardHeight = 98;
+    const marginX = 1;
+    const marginY = 1.5;
+
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
       const canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
-      const imgWidth = 90;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      const col = i % 2;
-      const row = Math.floor((i / 2) % 3);
-      const marginX = 12;
-      const marginY = 12;
-      const gapX = 6;
-      const gapY = 6;
-      const posX = marginX + col * (imgWidth + gapX);
-      const posY = marginY + row * (imgHeight + gapY);
-      if (i > 0 && i % 6 === 0) {
+
+      const indexOnPage = i % 6;
+      if (i > 0 && indexOnPage === 0) {
         pdf.addPage();
       }
-      pdf.addImage(imgData, 'PNG', posX, posY, imgWidth, imgHeight);
+
+      const col = indexOnPage % 2;
+      const row = Math.floor(indexOnPage / 2);
+
+      const posX = marginX + (col * cardWidth);
+      const posY = marginY + (row * cardHeight);
+
+      pdf.addImage(imgData, 'PNG', posX, posY, cardWidth, cardHeight);
     }
+
     const sDate = $('slipStartDate')?.value || 'periode';
     pdf.save(`SLIP_GAJI_${sDate}.pdf`);
     showToast('PDF berhasil diunduh!');
