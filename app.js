@@ -2,30 +2,56 @@ const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const EMPLOYEE_MAPPING = [
-  { id: '2',  absen: 'AQSHAL',     master: 'MUHAMMAD AQSHAL LESMANA' },
-  { id: '4',  absen: 'EDISOPANDI', master: 'EDI SOPANDI' },
-  { id: '5',  absen: 'ABDUL GHANI',master: 'MUHAMMAD ADBUL GHANI' },
-  { id: '9',  absen: 'JULIAN',     master: 'JULIAN TRI SAPUTRA' },
-  { id: '10', absen: 'DAFA',       master: 'DAFFA CAHYA NUGRAHA' },
-  { id: '13', absen: 'ENJANG',     master: 'ENJANG ANDRI' },
-  { id: '14', absen: 'ENTIS',      master: 'TISNA SURYANA' },
-  { id: '15', absen: 'IRGI',       master: 'IRGY MAULANA' },
-  { id: '16', absen: 'TATANG',     master: 'TATANG TARYANA' },
-  { id: '17', absen: 'YAYAN',      master: 'YAYAN ZATNIKA' },
-  { id: '27', absen: 'HAIKAL',     master: 'HAIKAL' },
-  { id: '11', absen: 'OCHA',       master: 'OCHA HERDIATNA' },
-  { id: '26', absen: 'BIMA',       master: 'BIMA NAZWA OKTA PRIYANA' },
-  { id: '1',  absen: 'REIHAN',     master: 'REIHAN MUHAMMAD ALIEF' },
-  { id: '20', absen: 'ASPIA',      master: 'HAPSOH ASPIA' },
-  { id: '12', absen: 'EKA R',      master: 'EKA RAMDANI' },
-  { id: '19', absen: 'DIAN',       master: 'DIAN FAZRIANA' },
-  { id: '21', absen: 'SALMA',      master: 'SALMA NUR HABILAH' },
-  { id: '18', absen: 'PIPIN',      master: 'PIPIN SAEPULOH' },
-  { id: '22', absen: 'ZEY',        master: 'ZAENAL ARIFIN' },
-  { id: '24', absen: 'ILHAM',      master: 'MUHAMMAD NAZRAUL ILHAM' },
-  { id: '25', absen: 'YUSUF',      master: 'MUHAMAD YUSUF' }
-];
+// Master Relasi Resmi: Mengunci kecocokan murni berbasis ID Mesin Absen
+const EMPLOYEE_MAP = {
+  '1':  { absenName: 'REIHAN',     masterName: 'REIHAN MUHAMMAD ALIEF' },
+  '2':  { absenName: 'AQSHAL',     masterName: 'MUHAMMAD AQSHAL LESMANA' },
+  '4':  { absenName: 'EDISOPANDI', masterName: 'EDI SOPANDI' },
+  '5':  { absenName: 'ABDUL GHANI',masterName: 'MUHAMMAD ADBUL GHANI' },
+  '9':  { absenName: 'JULIAN',     masterName: 'JULIAN TRI SAPUTRA' },
+  '10': { absenName: 'DAFA',       masterName: 'DAFFA CAHYA NUGRAHA' },
+  '11': { absenName: 'OCHA',       masterName: 'OCHA HERDIATNA' },
+  '12': { absenName: 'EKA R',      masterName: 'EKA RAMDANI' },
+  '13': { absenName: 'ENJANG',     masterName: 'ENJANG ANDRI' },
+  '14': { absenName: 'ENTIS',      masterName: 'TISNA SURYANA' },
+  '15': { absenName: 'IRGI',       masterName: 'IRGY MAULANA' },
+  '16': { absenName: 'TATANG',     masterName: 'TATANG TARYANA' },
+  '17': { absenName: 'YAYAN',      masterName: 'YAYAN ZATNIKA' },
+  '18': { absenName: 'PIPIN',      masterName: 'PIPIN SAEPULOH' },
+  '19': { absenName: 'DIAN',       masterName: 'DIAN FAZRIANA' },
+  '20': { absenName: 'ASPIA',      masterName: 'HAPSOH ASPIA' },
+  '21': { absenName: 'SALMA',      masterName: 'SALMA NUR HABILAH' },
+  '22': { absenName: 'ZEY',        masterName: 'ZAENAL ARIFIN' },
+  '24': { absenName: 'ILHAM',      masterName: 'MUHAMMAD NAZRAUL ILHAM' },
+  '25': { absenName: 'YUSUF',      masterName: 'MUHAMAD YUSUF' },
+  '26': { absenName: 'BIMA',       masterName: 'BIMA NAZWA OKTA PRIYANA' },
+  '27': { absenName: 'HAIKAL',     masterName: 'HAIKAL' }
+};
+
+// Mendapatkan ID Absen murni dari record data apa pun
+function resolveEmployeeId(record) {
+  if (!record) return null;
+  const directId = record.no_absen || record.nomor || record.id_absen || record.id_karyawan;
+  if (directId && EMPLOYEE_MAP[String(directId).trim()]) {
+    return String(directId).trim();
+  }
+  const clean = String(record.nama || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  for (const [id, val] of Object.entries(EMPLOYEE_MAP)) {
+    const cleanAbsen = val.absenName.replace(/[^A-Z0-9]/g, '');
+    const cleanMaster = val.masterName.replace(/[^A-Z0-9]/g, '');
+    if (clean === cleanAbsen || clean === cleanMaster) {
+      return id;
+    }
+  }
+  return null;
+}
+
+function getDisplayNameById(empId, fallbackName = '') {
+  if (empId && EMPLOYEE_MAP[empId]) {
+    return EMPLOYEE_MAP[empId].masterName;
+  }
+  return fallbackName || '-';
+}
 
 let DB = {
   sales: [],
@@ -76,42 +102,6 @@ function toggleSidebar() {
 }
 
 const $ = id => document.getElementById(id);
-
-function cleanText(str) {
-  return String(str || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
-
-function getMasterName(rawName, rawId = '') {
-  const clean = cleanText(rawName);
-  const idStr = String(rawId || '').trim();
-  const map = EMPLOYEE_MAPPING.find(m => {
-    if (idStr && String(m.id) === idStr) return true;
-    return cleanText(m.absen) === clean || cleanText(m.master) === clean || clean.includes(cleanText(m.absen));
-  });
-  return map ? map.master : rawName;
-}
-
-function isRecordMatching(empMaster, attRecord) {
-  if (!empMaster || !attRecord) return false;
-
-  const mNama = cleanText(empMaster.nama);
-  const aNama = cleanText(attRecord.nama);
-  const aId = String(attRecord.no_absen || '').trim();
-  const mId = String(empMaster.no_absen || '').trim();
-
-  if (mId && aId && mId === aId) return true;
-
-  const map = EMPLOYEE_MAPPING.find(m => cleanText(m.master) === mNama || mNama.includes(cleanText(m.master)));
-  if (map) {
-    if (aId && String(map.id) === aId) return true;
-    if (aNama && (cleanText(map.absen) === aNama || aNama.includes(cleanText(map.absen)))) return true;
-    if (aNama && (cleanText(map.master) === aNama || aNama.includes(cleanText(map.master)))) return true;
-  }
-
-  return aNama === mNama || aNama.includes(mNama) || mNama.includes(aNama);
-}
 
 function money(value) {
   const number = Number(value || 0);
@@ -259,7 +249,6 @@ function escapeHtml(value) {
 async function loadData(targetPage = null) {
   try {
     const fetchTable = async table => {
-      // Ambil hingga 10.000 baris agar tidak terpotong oleh limit bawaan Supabase
       const res = await db.from(table).select('*').limit(10000);
       return res.data || [];
     };
@@ -1079,19 +1068,13 @@ function renderAttendanceTable() {
     return (!sDate || d >= sDate) && (!eDate || d <= eDate);
   });
 
-  // Urutkan berdasarkan Tanggal lalu urutan nomor ID mesin absen (1 s.d. 27)
+  // Urutan murni berdasarkan Tanggal lalu ID Mesin Absen
   list.sort((a, b) => {
     const dComp = formatDate(a.tanggal).localeCompare(formatDate(b.tanggal));
     if (dComp !== 0) return dComp;
 
-    const cleanA = cleanText(a.nama);
-    const cleanB = cleanText(b.nama);
-    const mapA = EMPLOYEE_MAPPING.find(m => cleanText(m.absen) === cleanA || cleanText(m.master) === cleanA || cleanA.includes(cleanText(m.absen)));
-    const mapB = EMPLOYEE_MAPPING.find(m => cleanText(m.absen) === cleanB || cleanText(m.master) === cleanB || cleanB.includes(cleanText(m.absen)));
-
-    const idA = mapA ? Number(mapA.id) : (Number(a.no_absen) || 999);
-    const idB = mapB ? Number(mapB.id) : (Number(b.no_absen) || 999);
-
+    const idA = Number(resolveEmployeeId(a)) || 999;
+    const idB = Number(resolveEmployeeId(b)) || 999;
     return idA - idB;
   });
 
@@ -1103,7 +1086,8 @@ function renderAttendanceTable() {
   tbody.innerHTML = list
     .map((r, i) => {
       const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
-      const displayName = getMasterName(r.nama, r.no_absen);
+      const empId = resolveEmployeeId(r);
+      const displayName = getDisplayNameById(empId, r.nama);
       return `
       <tr>
         <td class="center">${i + 1}</td>
@@ -1142,7 +1126,7 @@ function renderAllowanceTable() {
       (r, i) => `
     <tr style="border-bottom: 1px solid var(--line);">
       <td class="center" style="color:var(--muted);">${i + 1}</td>
-      <td style="font-weight:700;">${escapeHtml(getMasterName(r.nama, r.no_absen))}</td>
+      <td style="font-weight:700;">${escapeHtml(getDisplayNameById(resolveEmployeeId(r), r.nama))}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
       <td class="center"><span class="badge" style="background:#e0f2fe; color:#0369a1; border: 1px solid #bae6fd;">${r.c.shift}</span></td>
       <td class="center" style="font-weight:800;">${r.c.displayTime}</td>
@@ -1173,15 +1157,13 @@ function renderWorkHoursTable() {
 
   const grouped = {};
   list.forEach(r => {
-    const rNamaClean = cleanText(r.nama);
-    const rId = String(r.no_absen || '').trim();
-    const map = EMPLOYEE_MAPPING.find(m => (rId && String(m.id) === rId) || cleanText(m.absen) === rNamaClean || cleanText(m.master) === rNamaClean || rNamaClean.includes(cleanText(m.absen)));
-    const key = map ? map.id : (rId ? `ID_${rId}` : `NAME_${rNamaClean}`);
+    const empId = resolveEmployeeId(r);
+    const key = empId ? `ID_${empId}` : `RAW_${r.nama}`;
 
     if (!grouped[key]) {
       grouped[key] = {
-        no_absen: map ? map.id : (rId || '-'),
-        nama: map ? map.master : r.nama,
+        empId: empId || '-',
+        nama: getDisplayNameById(empId, r.nama),
         departemen: r.departemen || '-',
         hariMasuk: 0,
         totalDurasiHours: 0,
@@ -1200,8 +1182,8 @@ function renderWorkHoursTable() {
   });
 
   const summarized = Object.values(grouped).sort((a, b) => {
-    const idA = Number(a.no_absen) || 999;
-    const idB = Number(b.no_absen) || 999;
+    const idA = Number(a.empId) || 999;
+    const idB = Number(b.empId) || 999;
     return idA - idB;
   });
 
@@ -1211,7 +1193,7 @@ function renderWorkHoursTable() {
       return `
       <tr style="border-bottom: 1px solid var(--line);">
         <td class="center" style="color:var(--muted);">${i + 1}</td>
-        <td class="center" style="font-weight:700; color:var(--muted);">${escapeHtml(r.no_absen)}</td>
+        <td class="center" style="font-weight:700; color:var(--muted);">${escapeHtml(r.empId)}</td>
         <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
         <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
         <td class="center" style="font-weight:600;">${r.hariMasuk} Hari</td>
@@ -1270,7 +1252,7 @@ function renderLiburList() {
             .map(
               item => `
             <span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;">
-              ${escapeHtml(getMasterName(item.nama, item.no_absen))} <small style="color:var(--muted);">(${escapeHtml(item.departemen || '-')})</small>
+              ${escapeHtml(getDisplayNameById(resolveEmployeeId(item), item.nama))} <small style="color:var(--muted);">(${escapeHtml(item.departemen || '-')})</small>
             </span>
           `
             )
@@ -1697,24 +1679,32 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     masterList = masterList.filter(r => cleanText(r.departemen) === cleanText(fDept));
   }
 
-  masterList.sort((a, b) => String(a.nama).localeCompare(String(b.nama)));
+  masterList.sort((a, b) => {
+    const idA = Number(resolveEmployeeId(a)) || 999;
+    const idB = Number(resolveEmployeeId(b)) || 999;
+    return idA - idB;
+  });
 
   const eDateObj = new Date(eDate || today());
   const eYear = eDateObj.getFullYear();
   const eMonth = eDateObj.getMonth();
 
   return masterList.map(emp => {
-    const nmKey = cleanText(emp.nama);
-    const lainLain = nmKey.includes('zaenal') ? DEFAULT_BONUS_LAIN : 0;
+    const empId = resolveEmployeeId(emp);
+    const lainLain = (empId === '22') ? DEFAULT_BONUS_LAIN : 0; // Zaenal Arifin (ID 22)
 
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
-      const isMatch = isRecordMatching(emp, adv);
+      const advId = resolveEmployeeId(adv);
+      const isMatch = empId ? (advId === empId) : isRecordMatching(emp, adv);
       return isMatch && (!sDate || advDate >= sDate) && (!eDate || advDate <= eDate);
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
 
-    const empInstallments = (DB.installments || []).filter(ins => isRecordMatching(emp, ins));
+    const empInstallments = (DB.installments || []).filter(ins => {
+      const insId = resolveEmployeeId(ins);
+      return empId ? (insId === empId) : isRecordMatching(emp, ins);
+    });
     let cicilanPeriode = 0;
     empInstallments.forEach(ins => {
       const insDate = new Date(formatDate(ins.tanggal));
@@ -1731,7 +1721,8 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
     const empAttendance = (DB.attendance || []).filter(att => {
       const attDate = formatDate(att.tanggal);
-      const isMatch = isRecordMatching(emp, att);
+      const attId = resolveEmployeeId(att);
+      const isMatch = empId ? (attId === empId) : isRecordMatching(emp, att);
       return isMatch && (!sDate || attDate >= sDate) && (!eDate || attDate <= eDate);
     });
 
@@ -1764,7 +1755,7 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
 
     return {
-      nama: emp.nama,
+      nama: getDisplayNameById(empId, emp.nama),
       departemen: emp.departemen,
       pokok: gajiPokok,
       jabatan: jabatan,
