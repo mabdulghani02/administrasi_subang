@@ -36,6 +36,7 @@ function resolveEmployeeId(record) {
     return String(directId).trim();
   }
   const clean = String(record.nama || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (clean.includes('YUSUF')) return '25';
   for (const [id, val] of Object.entries(EMPLOYEE_MAP)) {
     const cleanAbsen = val.absenName.replace(/[^A-Z0-9]/g, '');
     const cleanMaster = val.masterName.replace(/[^A-Z0-9]/g, '');
@@ -1084,19 +1085,40 @@ function renderAttendanceTable() {
   const tbody = $('attendanceTableBody');
   if (!tbody) return;
 
-  const list = (DB.attendance || []).filter(r => {
-    const d = formatDate(r.tanggal);
+  const rawList = (DB.attendance || []).filter(r => {
+    const d = String(r.tanggal || '').slice(0, 10);
     return (!sDate || d >= sDate) && (!eDate || d <= eDate);
   });
 
-  // Urutan murni berdasarkan Tanggal lalu ID Mesin Absen (1 s/d 27)
-  list.sort((a, b) => {
-    const dComp = formatDate(a.tanggal).localeCompare(formatDate(b.tanggal));
-    if (dComp !== 0) return dComp;
+  const uniqueMap = new Map();
+  rawList.forEach(r => {
+    const tgl = String(r.tanggal || '').slice(0, 10);
+    let idAbsen = String(r.no_absen || '').trim();
+    
+    if (!idAbsen || !EMPLOYEE_MAP[idAbsen]) {
+      const cleanName = String(r.nama || '').trim().toUpperCase();
+      if (cleanName.includes('YUSUF')) idAbsen = '25';
+      else {
+        for (const [id, val] of Object.entries(EMPLOYEE_MAP)) {
+          if (cleanName === val.absenName || cleanName === val.masterName) {
+            idAbsen = id;
+            break;
+          }
+        }
+      }
+    }
 
-    const idA = Number(a.no_absen || resolveEmployeeId(a)) || 999;
-    const idB = Number(b.no_absen || resolveEmployeeId(b)) || 999;
-    return idA - idB;
+    if (idAbsen) {
+      uniqueMap.set(`${tgl}_${idAbsen}`, { ...r, no_absen: idAbsen });
+    }
+  });
+
+  let list = Array.from(uniqueMap.values());
+
+  list.sort((a, b) => {
+    const dComp = String(a.tanggal || '').slice(0, 10).localeCompare(String(b.tanggal || '').slice(0, 10));
+    if (dComp !== 0) return dComp;
+    return Number(a.no_absen) - Number(b.no_absen);
   });
 
   if (!list.length) {
@@ -1107,12 +1129,13 @@ function renderAttendanceTable() {
   tbody.innerHTML = list
     .map((r, i) => {
       const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
-      const empId = String(r.no_absen || resolveEmployeeId(r) || '').trim();
-      const displayName = getDisplayNameById(empId, r.nama);
+      const displayName = EMPLOYEE_MAP[r.no_absen] ? EMPLOYEE_MAP[r.no_absen].masterName : r.nama;
+      const tanggalStr = String(r.tanggal || '').slice(0, 10);
+
       return `
       <tr>
         <td class="center">${i + 1}</td>
-        <td class="center" style="font-size:12px;">${formatDate(r.tanggal)}</td>
+        <td class="center" style="font-size:12px;">${tanggalStr}</td>
         <td style="font-weight:700;">${escapeHtml(displayName)}</td>
         <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
         <td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td>
