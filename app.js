@@ -83,6 +83,16 @@ function cleanText(str) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+function getMasterName(rawName, rawId = '') {
+  const clean = cleanText(rawName);
+  const idStr = String(rawId || '').trim();
+  const map = EMPLOYEE_MAPPING.find(m => {
+    if (idStr && String(m.id) === idStr) return true;
+    return cleanText(m.absen) === clean || cleanText(m.master) === clean;
+  });
+  return map ? map.master : rawName;
+}
+
 function isRecordMatching(empMaster, attRecord) {
   if (!empMaster || !attRecord) return false;
 
@@ -1078,11 +1088,12 @@ function renderAttendanceTable() {
   tbody.innerHTML = list
     .map((r, i) => {
       const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
+      const displayName = getMasterName(r.nama, r.no_absen);
       return `
       <tr>
         <td class="center">${i + 1}</td>
         <td class="center" style="font-size:12px;">${formatDate(r.tanggal)}</td>
-        <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+        <td style="font-weight:700;">${escapeHtml(displayName)}</td>
         <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
         <td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td>
         <td class="center" style="font-weight:700;">${r.pulang || '-'}</td>
@@ -1116,7 +1127,7 @@ function renderAllowanceTable() {
       (r, i) => `
     <tr style="border-bottom: 1px solid var(--line);">
       <td class="center" style="color:var(--muted);">${i + 1}</td>
-      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+      <td style="font-weight:700;">${escapeHtml(getMasterName(r.nama, r.no_absen))}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
       <td class="center"><span class="badge" style="background:#e0f2fe; color:#0369a1; border: 1px solid #bae6fd;">${r.c.shift}</span></td>
       <td class="center" style="font-weight:800;">${r.c.displayTime}</td>
@@ -1148,12 +1159,13 @@ function renderWorkHoursTable() {
   const grouped = {};
   list.forEach(r => {
     const rNamaClean = cleanText(r.nama);
-    const map = EMPLOYEE_MAPPING.find(m => cleanText(m.absen) === rNamaClean || cleanText(m.master) === rNamaClean);
-    const key = map ? map.id : (r.no_absen ? `ID_${r.no_absen}` : `NAME_${rNamaClean}`);
+    const rId = String(r.no_absen || '').trim();
+    const map = EMPLOYEE_MAPPING.find(m => (rId && String(m.id) === rId) || cleanText(m.absen) === rNamaClean || cleanText(m.master) === rNamaClean);
+    const key = map ? map.id : (rId ? `ID_${rId}` : `NAME_${rNamaClean}`);
 
     if (!grouped[key]) {
       grouped[key] = {
-        no_absen: map ? map.id : (r.no_absen || '-'),
+        no_absen: map ? map.id : (rId || '-'),
         nama: map ? map.master : r.nama,
         departemen: r.departemen || '-',
         hariMasuk: 0,
@@ -1239,7 +1251,7 @@ function renderLiburList() {
             .map(
               item => `
             <span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;">
-              ${escapeHtml(item.nama)} <small style="color:var(--muted);">(${escapeHtml(item.departemen || '-')})</small>
+              ${escapeHtml(getMasterName(item.nama, item.no_absen))} <small style="color:var(--muted);">(${escapeHtml(item.departemen || '-')})</small>
             </span>
           `
             )
@@ -1843,7 +1855,6 @@ function renderSlipPages() {
     periodMonth = pDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase();
   }
 
-  // Baris slip menggunakan CSS Grid 3 kolom tetap agar simbol Rp sejajar tegak lurus
   const slipRow = (label, val, isBold = false) => `
     <div style="display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; margin-bottom: 1.5px; ${isBold ? 'font-weight: 800;' : ''}">
       <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
@@ -1914,7 +1925,6 @@ function renderSlipPages() {
   container.innerHTML = html;
 }
 
-// Ekspor PDF dengan margin minimal mendekati nol (1 mm sisi, 1.5 mm atas-bawah)
 async function exportSlipsToPDF() {
   const container = $('slipPrintContainer');
   if (!container || container.innerHTML.trim() === '') {
@@ -1930,7 +1940,7 @@ async function exportSlipsToPDF() {
       return;
     }
 
-    const pdf = new jsPDF('p', 'mm', 'a4'); // A4 = 210 mm x 297 mm
+    const pdf = new jsPDF('p', 'mm', 'a4');
     
     const cardWidth = 104;
     const cardHeight = 98;
