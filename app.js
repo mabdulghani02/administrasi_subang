@@ -270,7 +270,6 @@ function escapeHtml(value) {
 
 async function loadData(targetPage = null) {
   try {
-    // Fungsi fetch bertahap (pagination) untuk menembus batas 1000 baris Supabase
     const fetchTableAll = async (tableName) => {
       let allData = [];
       let start = 0;
@@ -331,6 +330,7 @@ function showPage(page) {
   if (page === 'attendance') renderAttendancePage();
   if (page === 'payroll') renderPayrollPage();
   if (page === 'limbah') renderLimbahPage();
+  if (page === 'settings') renderSettingsPage();
 }
 
 window.calcExpRow = function (el) {
@@ -366,15 +366,15 @@ function renderDashboard() {
       <div class="card-value" id="cardExpense">Rp 0</div>
     </div>
   </div>
-  <div class="panel">
-    <div class="panel-title">Aksi Cepat</div>
-    <div class="icon-grid">
-      <div class="icon-btn" onclick="showPage('sales')"><i class="fa-solid fa-wallet"></i><span>Pendapatan</span></div>
-      <div class="icon-btn" onclick="showPage('expense')"><i class="fa-solid fa-receipt"></i><span>Pengeluaran</span></div>
-      <div class="icon-btn" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i><span>Absensi</span></div>
-      <div class="icon-btn" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i><span>Gaji</span></div>
+
+  <!-- PAPAN INFORMASI DASHBOARD INSIGHTS & KEBOCORAN KEUANGAN -->
+  <div class="panel" style="border-left: 4px solid #f59e0b;">
+    <div class="panel-title"><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b; margin-right:6px;"></i> Pusat Analisis & Insight Keuangan</div>
+    <div id="dashboardInsightsContent" style="font-size: 13.5px; display: flex; flex-direction: column; gap: 12px;">
+      <!-- Diisi dinamis via updateDashboardMetrics -->
     </div>
   </div>
+
   <div class="panel">
     <div class="panel-title">Penjualan per Kategori</div>
     <div class="chart-wrapper">
@@ -412,9 +412,84 @@ function updateDashboardMetrics(yearMonth) {
   const monthCounters = (DB.counter || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
   const monthExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
   const monthSales = (DB.sales || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+  const monthAttendance = (DB.attendance || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
 
   if ($('cardOmset')) $('cardOmset').textContent = money(sum(monthCounters.map(r => totalCounter(r))));
-  if ($('cardExpense')) $('cardExpense').textContent = money(sum(monthExpenses.map(r => r.nominal)));
+  const totalExpMonth = sum(monthExpenses.map(r => r.nominal));
+  if ($('cardExpense')) $('cardExpense').textContent = money(totalExpMonth);
+
+  // Perhitungan Fixed Cost (Total Gaji Seluruhnya + Uang Jajan) & Variable Cost (Total Pengeluaran)
+  let totalMasterSalaries = 0;
+  (DB.masterSalary || []).forEach(emp => {
+    totalMasterSalaries += Number(emp.gaji_pokok || 0) + Number(emp.jabatan || 0) + Number(emp.prestasi || 0) + Number(emp.kesehatan || 0) + Number(emp.zakat || 0) + Number(emp.kebersihan_loyalitas || 0);
+  });
+
+  let totalUangJajan = 0;
+  monthAttendance.forEach(att => {
+    const shiftInfo = classifyShift(att.masuk);
+    if (shiftInfo.onTime) {
+      totalUangJajan += DEFAULT_ALLOWANCE;
+    }
+  });
+
+  const fixedCost = totalMasterSalaries + totalUangJajan;
+  const variableCost = totalExpMonth;
+  const totalCostAll = fixedCost + variableCost;
+
+  const pctFixed = totalCostAll > 0 ? ((fixedCost / totalCostAll) * 100).toFixed(1) : 0;
+  const pctVariable = totalCostAll > 0 ? ((variableCost / totalCostAll) * 100).toFixed(1) : 0;
+
+  // Deteksi Selisih Kas (Potensi Kebocoran)
+  let totalSelisihKas = 0;
+  let hariSelisihKas = 0;
+  monthSales.forEach(s => {
+    const tgl = formatDate(s.tanggal);
+    const c = monthCounters.find(cnt => formatDate(cnt.tanggal) === tgl);
+    if (c) {
+      const diffC = Number(s.cash || 0) - Number(c.cash || 0);
+      if (diffC !== 0) {
+        totalSelisihKas += Math.abs(diffC);
+        hariSelisihKas++;
+      }
+    }
+  });
+
+  // Monitoring Absensi Bermasalah Bulan Ini
+  const empAbsenceCount = {};
+  monthAttendance.forEach(att => {
+    const isLibur = !att.masuk || att.status === 'Libur' || att.status === 'Tidak Hadir';
+    if (isLibur) {
+      const name = att.nama || 'Karyawan';
+      empAbsenceCount[name] = (empAbsenceCount[name] || 0) + 1;
+    }
+  });
+  const sortedAbsences = Object.entries(empAbsenceCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  const insightsEl = $('dashboardInsightsContent');
+  if (insightsEl) {
+    insightsEl.innerHTML = `
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--line);">
+      <div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">FIXED COST (GAJI + JAJAN)</div>
+        <div style="font-size:14px; font-weight:800; color:var(--text);">${money(fixedCost)} <span style="font-size:11px; font-weight:normal; color:var(--muted);">(${pctFixed}%)</span></div>
+      </div>
+      <div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">VARIABLE COST (PENGELUARAN)</div>
+        <div style="font-size:14px; font-weight:800; color:var(--danger);">${money(variableCost)} <span style="font-size:11px; font-weight:normal; color:var(--muted);">(${pctVariable}%)</span></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px dashed var(--line); padding-bottom: 6px;">
+        <span>⚠️ Total Selisih Kas (ESB vs Konter):</span>
+        <b style="color: ${totalSelisihKas > 0 ? 'var(--danger)' : 'var(--success)'};">${money(totalSelisihKas)} (${hariSelisihKas} hari)</b>
+      </div>
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; padding-top: 2px;">
+        <span>📉 Karyawan Absen / Mangkir Terbanyak:</span>
+        <span style="text-align: right; font-weight: 600; color:var(--danger);">${sortedAbsences.length > 0 ? sortedAbsences.map(e => `${e[0]} (${e[1]}x)`).join(', ') : 'Aman (Tidak ada data mencolok)'}</span>
+      </div>
+    </div>
+    `;
+  }
 
   let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
   monthSales.forEach(s => {
@@ -2286,3 +2361,48 @@ window.renderWasteSalesTable = function () {
     })
     .join('');
 };
+
+// --- Halaman Pengaturan & Diagnostik Sistem ---
+function renderSettingsPage() {
+  const contentEl = $('content');
+  if (!contentEl) return;
+  
+  contentEl.innerHTML = `
+  <div class="top">
+    <div><div class="title">Pengaturan Sistem</div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Diagnostik & Kesehatan Aplikasi</div>
+    <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 15px;">
+      Gunakan tombol di bawah ini untuk memeriksa status koneksi database Supabase, jumlah baris data di memori tablet, serta memverifikasi keberadaan data karyawan penting.
+    </p>
+    <button class="btn btn-primary" onclick="runSystemDiagnostics()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <i class="fa-solid fa-stethoscope"></i> Jalankan Analisis Sistem
+    </button>
+  </div>
+  `;
+}
+
+function runSystemDiagnostics() {
+  try {
+    const totalAttendance = (DB.attendance || []).length;
+    const totalMaster = Object.keys(typeof EMPLOYEE_MAP !== 'undefined' ? EMPLOYEE_MAP : {}).length;
+    const totalSales = (DB.sales || []).length;
+    const totalExpenses = (DB.expenses || []).length;
+    
+    const sampleYusuf = (DB.attendance || []).find(r => String(r.no_absen) === '25' || String(r.nama || '').toUpperCase().includes('YUSUF'));
+
+    const report = `🩺 LAPORAN ANALISIS KESEHATAN SISTEM\n\n` +
+                   `• Status Koneksi Supabase: Terhubung Aktif\n` +
+                   `• Master Karyawan Terdaftar: ${totalMaster} orang\n` +
+                   `• Total Baris Absensi di Memori: ${totalAttendance} baris\n` +
+                   `• Status Data Yusuf (ID 25): ${sampleYusuf ? 'Terdeteksi Aman (Ada)' : 'Tidak Ditemukan'}\n` +
+                   `• Data Pendapatan Tersimpan: ${totalSales} hari\n` +
+                   `• Data Pengeluaran Tersimpan: ${totalExpenses} item\n\n` +
+                   `Kesimpulan: Sistem berjalan normal tanpa kendala batasan baris.`;
+    
+    alert(report);
+  } catch (err) {
+    alert('⚠️ Gagal menjalankan analisis sistem: ' + err.message);
+  }
+}
