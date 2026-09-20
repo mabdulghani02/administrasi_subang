@@ -10,7 +10,8 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=Admin+Subang&background=121212&color=20c997&size=192">
 
-  <link rel="stylesheet" href="style.css">
+  <!-- Tambahkan parameter ?v=1.1 untuk memaksa browser mengambil CSS baru jika ada -->
+  <link rel="stylesheet" href="style.css?v=1.1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -84,7 +85,8 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js"></script>
+<!-- MENGUBAH NAMA FILE SECARA VIRTUAL AGAR CACHE TABLET TERHAPUS -->
+<script src="app.js?v=1.1"></script>
   
 <!-- Skrip Pendaftaran Pekerja Layanan -->
 <script>
