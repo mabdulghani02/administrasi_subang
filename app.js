@@ -270,22 +270,35 @@ function escapeHtml(value) {
 
 async function loadData(targetPage = null) {
   try {
-    const fetchTable = async table => {
-      const res = await db.from(table).select('*').limit(10000);
-      return res.data || [];
+    // Fungsi fetch bertahap (pagination) untuk menembus batas 1000 baris Supabase
+    const fetchTableAll = async (tableName) => {
+      let allData = [];
+      let start = 0;
+      const step = 999;
+      
+      while (true) {
+        const { data, error } = await db.from(tableName).select('*').range(start, start + step);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData.push(...data);
+        if (data.length <= step) break; 
+        start += step + 1;
+      }
+      return allData;
     };
 
     const [sales, counter, expenses, cash, attendance, advances, masterSalary, installments, wasteSales] =
       await Promise.allSettled([
-        fetchTable('sales'),
-        fetchTable('counter'),
-        fetchTable('expenses'),
-        fetchTable('cash_positions'),
-        fetchTable('attendance'),
-        fetchTable('advances'),
-        fetchTable('master_salary'),
-        fetchTable('installments'),
-        fetchTable('waste_sales')
+        fetchTableAll('sales'),
+        fetchTableAll('counter'),
+        fetchTableAll('expenses'),
+        fetchTableAll('cash_positions'),
+        fetchTableAll('attendance'),
+        fetchTableAll('advances'),
+        fetchTableAll('master_salary'),
+        fetchTableAll('installments'),
+        fetchTableAll('waste_sales')
       ]);
 
     DB.sales = sales.status === 'fulfilled' ? sales.value : [];
