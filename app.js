@@ -103,6 +103,27 @@ function toggleSidebar() {
 
 const $ = id => document.getElementById(id);
 
+function cleanText(str) {
+  return String(str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function isRecordMatching(empMaster, attRecord) {
+  if (!empMaster || !attRecord) return false;
+
+  const mId = resolveEmployeeId(empMaster);
+  const aId = resolveEmployeeId(attRecord);
+
+  if (mId && aId) {
+    return mId === aId;
+  }
+
+  const mNama = cleanText(empMaster.nama);
+  const aNama = cleanText(attRecord.nama);
+  return aNama === mNama || aNama.includes(mNama) || mNama.includes(aNama);
+}
+
 function money(value) {
   const number = Number(value || 0);
   return (number < 0 ? '-Rp ' : 'Rp ') + Math.abs(number).toLocaleString('id-ID');
@@ -1068,13 +1089,13 @@ function renderAttendanceTable() {
     return (!sDate || d >= sDate) && (!eDate || d <= eDate);
   });
 
-  // Urutan murni berdasarkan Tanggal lalu ID Mesin Absen
+  // Urutan murni berdasarkan Tanggal lalu ID Mesin Absen (1 s/d 27)
   list.sort((a, b) => {
     const dComp = formatDate(a.tanggal).localeCompare(formatDate(b.tanggal));
     if (dComp !== 0) return dComp;
 
-    const idA = Number(resolveEmployeeId(a)) || 999;
-    const idB = Number(resolveEmployeeId(b)) || 999;
+    const idA = Number(a.no_absen || resolveEmployeeId(a)) || 999;
+    const idB = Number(b.no_absen || resolveEmployeeId(b)) || 999;
     return idA - idB;
   });
 
@@ -1086,7 +1107,7 @@ function renderAttendanceTable() {
   tbody.innerHTML = list
     .map((r, i) => {
       const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
-      const empId = resolveEmployeeId(r);
+      const empId = String(r.no_absen || resolveEmployeeId(r) || '').trim();
       const displayName = getDisplayNameById(empId, r.nama);
       return `
       <tr>
@@ -1157,7 +1178,7 @@ function renderWorkHoursTable() {
 
   const grouped = {};
   list.forEach(r => {
-    const empId = resolveEmployeeId(r);
+    const empId = String(r.no_absen || resolveEmployeeId(r) || '').trim();
     const key = empId ? `ID_${empId}` : `RAW_${r.nama}`;
 
     if (!grouped[key]) {
@@ -1691,7 +1712,7 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
 
   return masterList.map(emp => {
     const empId = resolveEmployeeId(emp);
-    const lainLain = (empId === '22') ? DEFAULT_BONUS_LAIN : 0; // Zaenal Arifin (ID 22)
+    const lainLain = (empId === '22') ? DEFAULT_BONUS_LAIN : 0;
 
     const empAdvances = (DB.advances || []).filter(adv => {
       const advDate = formatDate(adv.tanggal);
