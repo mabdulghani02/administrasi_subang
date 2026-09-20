@@ -88,7 +88,7 @@ function getMasterName(rawName, rawId = '') {
   const idStr = String(rawId || '').trim();
   const map = EMPLOYEE_MAPPING.find(m => {
     if (idStr && String(m.id) === idStr) return true;
-    return cleanText(m.absen) === clean || cleanText(m.master) === clean;
+    return cleanText(m.absen) === clean || cleanText(m.master) === clean || clean.includes(cleanText(m.absen));
   });
   return map ? map.master : rawName;
 }
@@ -259,7 +259,8 @@ function escapeHtml(value) {
 async function loadData(targetPage = null) {
   try {
     const fetchTable = async table => {
-      const res = await db.from(table).select('*');
+      // Ambil hingga 10.000 baris agar tidak terpotong oleh limit bawaan Supabase
+      const res = await db.from(table).select('*').limit(10000);
       return res.data || [];
     };
 
@@ -978,7 +979,7 @@ function showAttendanceSub(type) {
       </div>
       <div id="uploadProgress" style="display:none; margin-top:12px; font-weight:700; color:var(--wa-primary);">⏳ Memproses file...</div>
     </div>
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
@@ -1000,7 +1001,7 @@ function showAttendanceSub(type) {
     renderAttendanceTable();
   } else if (type === 'allowance') {
     container.innerHTML = `
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
         <label style="font-weight:700;">Pilih Tanggal:</label>
         <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;">
@@ -1016,7 +1017,7 @@ function showAttendanceSub(type) {
     renderAllowanceTable();
   } else if (type === 'hours') {
     container.innerHTML = `
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
@@ -1049,7 +1050,7 @@ function showAttendanceSub(type) {
     renderWorkHoursTable();
   } else {
     container.innerHTML = `
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
@@ -1078,7 +1079,21 @@ function renderAttendanceTable() {
     return (!sDate || d >= sDate) && (!eDate || d <= eDate);
   });
 
-  list.sort((a, b) => formatDate(a.tanggal).localeCompare(formatDate(b.tanggal)));
+  // Urutkan berdasarkan Tanggal lalu urutan nomor ID mesin absen (1 s.d. 27)
+  list.sort((a, b) => {
+    const dComp = formatDate(a.tanggal).localeCompare(formatDate(b.tanggal));
+    if (dComp !== 0) return dComp;
+
+    const cleanA = cleanText(a.nama);
+    const cleanB = cleanText(b.nama);
+    const mapA = EMPLOYEE_MAPPING.find(m => cleanText(m.absen) === cleanA || cleanText(m.master) === cleanA || cleanA.includes(cleanText(m.absen)));
+    const mapB = EMPLOYEE_MAPPING.find(m => cleanText(m.absen) === cleanB || cleanText(m.master) === cleanB || cleanB.includes(cleanText(m.absen)));
+
+    const idA = mapA ? Number(mapA.id) : (Number(a.no_absen) || 999);
+    const idB = mapB ? Number(mapB.id) : (Number(b.no_absen) || 999);
+
+    return idA - idB;
+  });
 
   if (!list.length) {
     tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data absensi pada rentang tanggal ini.</td></tr>`;
@@ -1160,7 +1175,7 @@ function renderWorkHoursTable() {
   list.forEach(r => {
     const rNamaClean = cleanText(r.nama);
     const rId = String(r.no_absen || '').trim();
-    const map = EMPLOYEE_MAPPING.find(m => (rId && String(m.id) === rId) || cleanText(m.absen) === rNamaClean || cleanText(m.master) === rNamaClean);
+    const map = EMPLOYEE_MAPPING.find(m => (rId && String(m.id) === rId) || cleanText(m.absen) === rNamaClean || cleanText(m.master) === rNamaClean || rNamaClean.includes(cleanText(m.absen)));
     const key = map ? map.id : (rId ? `ID_${rId}` : `NAME_${rNamaClean}`);
 
     if (!grouped[key]) {
@@ -1184,7 +1199,11 @@ function renderWorkHoursTable() {
     }
   });
 
-  const summarized = Object.values(grouped).sort((a, b) => a.nama.localeCompare(b.nama));
+  const summarized = Object.values(grouped).sort((a, b) => {
+    const idA = Number(a.no_absen) || 999;
+    const idB = Number(b.no_absen) || 999;
+    return idA - idB;
+  });
 
   tbody.innerHTML = summarized
     .map((r, i) => {
@@ -1461,7 +1480,7 @@ function showPayrollSub(type) {
         </div>
       </div>
     </div>
-    <div id="payrollCardsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px;"></div>
+    <div id="payrollCardsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px; padding-bottom: 120px;"></div>
     `;
     renderPayrollCards();
   } else if (type === 'slips') {
@@ -1490,7 +1509,7 @@ function showPayrollSub(type) {
         <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
       </div>
     </div>
-    <div class="slip-container" id="slipPrintContainer" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px;"></div>
+    <div class="slip-container" id="slipPrintContainer" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px; padding-bottom: 120px;"></div>
     `;
     renderSlipPages();
   } else if (type === 'kasbon') {
@@ -1517,7 +1536,7 @@ function showPayrollSub(type) {
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
       </form>
     </div>
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
         <label style="font-weight:700;">Lihat Histori Kasbon Bulan:</label>
         <input type="month" id="kasbonFilterMonth" value="${currentMonth}" onchange="renderKasbonTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
@@ -1577,7 +1596,7 @@ function showPayrollSub(type) {
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan Cicilan</button></div>
       </form>
     </div>
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
         <label style="font-weight:700;">Lihat Histori Cicilan (Bulan Masuk):</label>
         <input type="month" id="cicilanFilterMonth" value="${currentMonth}" onchange="renderCicilanTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
@@ -1941,7 +1960,6 @@ async function exportSlipsToPDF() {
     }
 
     const pdf = new jsPDF('p', 'mm', 'a4');
-    
     const cardWidth = 104;
     const cardHeight = 98;
     const marginX = 1;
@@ -2037,7 +2055,7 @@ function renderLimbahPage() {
         </button>
       </div>
     </div>
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div class="panel-title">Histori Penjualan Limbah</div>
       <div class="table-wrap">
         <table class="table">
