@@ -10,7 +10,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=Admin+Subang&background=121212&color=20c997&size=192">
 
-  <link rel="stylesheet" href="style.css?v=1.3">
+  <link rel="stylesheet" href="style.css?v=1.7">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -27,9 +27,10 @@
 
 <div class="mobile-header">
   <div class="mobile-header-title">ADMINISTRASI SUBANG</div>
-  <div style="display: flex; gap: 8px;">
+  <div style="display: flex; gap: 8px; align-items: center;">
     <button class="theme-toggle-btn" onclick="toggleTheme()"><i id="themeIcon" class="fa-solid fa-moon"></i></button>
-    <button class="hamburger-btn" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i> Menu</button>
+    <!-- Tombol menu diubah menjadi ikon hamburger saja tanpa teks "Menu" -->
+    <button class="hamburger-btn" onclick="toggleSidebar()" style="padding: 8px 10px; border-radius: 8px;"><i class="fa-solid fa-bars"></i></button>
   </div>
 </div>
 
@@ -52,51 +53,41 @@
       <button data-page="attendance" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i> Absensi</button>
       <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i> Daftar Gaji</button>
       <button data-page="limbah" onclick="showPage('limbah')"><i class="fa-solid fa-recycle"></i> Penjualan Limbah</button>
+      <button data-page="settings" onclick="showPage('settings')"><i class="fa-solid fa-gear"></i> Pengaturan</button>
     </div>
   </aside>
 
   <main class="main">
-    <!-- TOMBOL DIAGNOSTIK UNTUK TABLET -->
-    <div style="padding: 10px; background: #fff; border-bottom: 1px solid #e2e8f0;">
-      <button onclick="
-        const data20 = (DB.attendance || []).filter(r => String(r.tanggal || '').includes('2026-09-20'));
-        const adaYusuf = data20.find(r => String(r.no_absen) === '25' || String(r.nama || '').toUpperCase().includes('YUSUF'));
-        alert('Total baris tgl 20 di memori: ' + data20.length + '\nApakah Yusuf terdeteksi?: ' + (adaYusuf ? 'ADA (ID: ' + adaYusuf.no_absen + ')' : 'TIDAK ADA'));
-      " style="background: #dc2626; color: white; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; border: none; font-size: 14px;">
-        🔍 TEST DIAGNOSTIK: APAKAH YUSUF MASUK KE TABLET?
-      </button>
-    </div>
-
     <div id="content"></div>
   </main>
 </div>
 
-<!-- BOTTOM NAVIGATION BAR ALA WHATSAPP -->
-<nav class="bottom-nav">
-  <button class="b-nav-btn" data-page="dashboard" onclick="showPage('dashboard')">
-    <i class="fa-solid fa-house"></i><span>Home</span>
+<!-- BOTTOM NAVIGATION BAR (Dirapikan agar fleksibel & pas di layar sempit) -->
+<nav class="bottom-nav" style="display: flex; justify-content: space-around; align-items: center; padding: 4px 2px;">
+  <button class="b-nav-btn" data-page="dashboard" onclick="showPage('dashboard')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
+    <i class="fa-solid fa-house" style="font-size: 15px;"></i><span>Home</span>
   </button>
-  <button class="b-nav-btn" data-page="sales" onclick="showPage('sales')">
-    <i class="fa-solid fa-wallet"></i><span>Pendapatan</span>
+  <button class="b-nav-btn" data-page="sales" onclick="showPage('sales')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
+    <i class="fa-solid fa-wallet" style="font-size: 15px;"></i><span>Pendapatan</span>
   </button>
-  <button class="b-nav-btn" data-page="expense" onclick="showPage('expense')">
-    <i class="fa-solid fa-receipt"></i><span>Pengeluaran</span>
+  <button class="b-nav-btn" data-page="expense" onclick="showPage('expense')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
+    <i class="fa-solid fa-receipt" style="font-size: 15px;"></i><span>Pengeluaran</span>
   </button>
-  <button class="b-nav-btn" data-page="attendance" onclick="showPage('attendance')">
-    <i class="fa-solid fa-user-clock"></i><span>Absensi</span>
+  <button class="b-nav-btn" data-page="attendance" onclick="showPage('attendance')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
+    <i class="fa-solid fa-user-clock" style="font-size: 15px;"></i><span>Absensi</span>
   </button>
-  <button class="b-nav-btn" data-page="payroll" onclick="showPage('payroll')">
-    <i class="fa-solid fa-file-invoice-dollar"></i><span>Gaji</span>
+  <button class="b-nav-btn" data-page="payroll" onclick="showPage('payroll')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
+    <i class="fa-solid fa-file-invoice-dollar" style="font-size: 15px;"></i><span>Gaji</span>
   </button>
-  <button class="b-nav-btn" data-page="limbah" onclick="showPage('limbah')">
-    <i class="fa-solid fa-recycle"></i><span>Limbah</span>
+  <button class="b-nav-btn" data-page="limbah" onclick="showPage('limbah')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
+    <i class="fa-solid fa-recycle" style="font-size: 15px;"></i><span>Limbah</span>
   </button>
 </nav>
 
 <div id="toast" class="toast"></div>
 
-<!-- PEMANGGILAN SCRIPT DENGAN VERSI BARU AGAR CACHE TABLET BERSIH -->
-<script src="app.js?v=1.3"></script>
+<!-- PEMANGGILAN SCRIPT UTAMA -->
+<script src="app.js?v=1.7"></script>
   
 <!-- Skrip Pendaftaran Pekerja Layanan -->
 <script>
