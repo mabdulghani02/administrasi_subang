@@ -10,7 +10,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=Admin+Subang&background=121212&color=20c997&size=192">
 
-  <link rel="stylesheet" href="style.css?v=1.7">
+  <link rel="stylesheet" href="style.css?v=1.8">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -53,6 +53,7 @@
       <button data-page="attendance" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i> Absensi</button>
       <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i> Daftar Gaji</button>
       <button data-page="limbah" onclick="showPage('limbah')"><i class="fa-solid fa-recycle"></i> Penjualan Limbah</button>
+      <button data-page="aichat" onclick="showPage('aichat')"><i class="fa-solid fa-robot"></i> Asisten AI</button>
       <button data-page="settings" onclick="showPage('settings')"><i class="fa-solid fa-gear"></i> Pengaturan</button>
     </div>
   </aside>
@@ -62,7 +63,7 @@
   </main>
 </div>
 
-<!-- BOTTOM NAVIGATION BAR (Dirapikan agar fleksibel & pas di layar sempit) -->
+<!-- BOTTOM NAVIGATION BAR (Dirapikan & ditambah menu AI Chat) -->
 <nav class="bottom-nav" style="display: flex; justify-content: space-around; align-items: center; padding: 4px 2px;">
   <button class="b-nav-btn" data-page="dashboard" onclick="showPage('dashboard')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
     <i class="fa-solid fa-house" style="font-size: 15px;"></i><span>Home</span>
@@ -79,15 +80,15 @@
   <button class="b-nav-btn" data-page="payroll" onclick="showPage('payroll')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
     <i class="fa-solid fa-file-invoice-dollar" style="font-size: 15px;"></i><span>Gaji</span>
   </button>
-  <button class="b-nav-btn" data-page="limbah" onclick="showPage('limbah')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
-    <i class="fa-solid fa-recycle" style="font-size: 15px;"></i><span>Limbah</span>
+  <button class="b-nav-btn" data-page="aichat" onclick="showPage('aichat')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
+    <i class="fa-solid fa-robot" style="font-size: 15px;"></i><span>AI Chat</span>
   </button>
 </nav>
 
 <div id="toast" class="toast"></div>
 
 <!-- PEMANGGILAN SCRIPT UTAMA -->
-<script src="app.js?v=1.7"></script>
+<script src="app.js?v=1.8"></script>
   
 <!-- Skrip Pendaftaran Pekerja Layanan -->
 <script>
