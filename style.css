@@ -54,7 +54,7 @@ button, input, select { font-family: inherit; }
 
 .app { display: flex; min-height: 100vh; position: relative; width: 100%; overflow-x: hidden; }
 
-/* SIDEBAR & OVERLAY DIPERBAIKI AGAR RESPONSIF */
+/* SIDEBAR & OVERLAY */
 .sidebar {
   width: 290px; padding: 24px 16px;
   position: fixed; left: 0; top: 0; bottom: 0; overflow-y: auto; z-index: 1000;
@@ -180,3 +180,94 @@ button, input, select { font-family: inherit; }
   position: fixed; left: 20px; right: 20px; bottom: 100px; background: rgba(30, 30, 32, 0.95); color: #fff;
   padding: 16px; border-radius: 16px; display: none; z-index: 2000; text-align: center; font-weight: 600;
 }
+
+/* =========================================================
+   PERBAIKAN DONUT CHART (AGAR PROPORSIONAL & TIDAK MELUBER)
+   ========================================================= */
+.chart-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 15px 0;
+  width: 100%;
+}
+
+.donut-chart {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  min-width: 160px;
+  border-radius: 50%;
+  background: conic-gradient(var(--line) 0% 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.donut-chart::before {
+  content: '';
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  background: var(--card);
+  border-radius: 50%;
+}
+
+.donut-inner-text {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.donut-inner-text h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.donut-inner-text span {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--line);
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.legend-color.c1 { background: var(--wa-primary); }
+.legend-color.c2 { background: var(--wa-teal); }
+.legend-color.c3 { background: var(--success); }
+.legend-color.c4 { background: var(--danger); }
+
+.legend-label { flex: 1; }
+.legend-percent { font-weight: 800; font-size: 12px; }
+
+.chart-container { position: relative; width: 100%; height: 220px; margin-top: 10px; }
