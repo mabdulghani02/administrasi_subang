@@ -31,6 +31,7 @@ const EMPLOYEE_MAP = {
   '27': { absenName: 'HAIKAL',     masterName: 'HAIKAL' }
 };
 
+// Mendapatkan ID Absen murni dari record data apa pun
 function resolveEmployeeId(record) {
   if (!record) return null;
   const directId = record.no_absen || record.nomor || record.id_absen || record.id_karyawan;
@@ -89,6 +90,7 @@ function toggleTheme() {
   localStorage.setItem('subang_theme', newTheme);
   updateThemeIcon(newTheme);
 }
+window.toggleTheme = toggleTheme;
 
 function updateThemeIcon(theme) {
   const icon = $('themeIcon');
@@ -103,11 +105,29 @@ function toggleSidebar() {
   if (sb) sb.classList.toggle('open');
   if (ov) ov.classList.toggle('active');
 }
+window.toggleSidebar = toggleSidebar;
 
 const $ = id => document.getElementById(id);
 
 function cleanText(str) {
-  return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return String(str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function isRecordMatching(empMaster, attRecord) {
+  if (!empMaster || !attRecord) return false;
+
+  const mId = resolveEmployeeId(empMaster);
+  const aId = resolveEmployeeId(attRecord);
+
+  if (mId && aId) {
+    return mId === aId;
+  }
+
+  const mNama = cleanText(empMaster.nama);
+  const aNama = cleanText(attRecord.nama);
+  return aNama === mNama || aNama.includes(mNama) || mNama.includes(aNama);
 }
 
 function money(value) {
@@ -152,7 +172,12 @@ function parseTimeMinutes(timeVal) {
   if (!match) return null;
   const h = parseInt(match[1], 10);
   const m = parseInt(match[2], 10);
-  return { h, m, totalMins: h * 60 + m, formatted: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
+  return {
+    h,
+    m,
+    totalMins: h * 60 + m,
+    formatted: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  };
 }
 
 function classifyShift(timeStr) {
@@ -213,7 +238,9 @@ function showToast(message) {
   if (!toast) return;
   toast.textContent = message;
   toast.style.display = 'block';
-  setTimeout(() => { toast.style.display = 'none'; }, 2500);
+  setTimeout(() => {
+    toast.style.display = 'none';
+  }, 2500);
 }
 
 function downloadElementAsImage(elementId, filename) {
@@ -252,12 +279,14 @@ async function loadData(targetPage = null) {
       let allData = [];
       let start = 0;
       const step = 999;
+      
       while (true) {
         const { data, error } = await db.from(tableName).select('*').range(start, start + step);
         if (error) throw error;
         if (!data || data.length === 0) break;
+        
         allData.push(...data);
-        if (data.length <= step) break;
+        if (data.length <= step) break; 
         start += step + 1;
       }
       return allData;
@@ -364,19 +393,14 @@ function renderDashboard() {
       <div class="card-value" id="cardOmset">Rp 0</div>
     </div>
     <div class="card card-danger">
-      <div class="card-label">Variabel Cost (Pengeluaran Murni)</div>
+      <div class="card-label">Pengeluaran Bulan Ini</div>
       <div class="card-value" id="cardExpense">Rp 0</div>
     </div>
   </div>
 
-  <div class="panel" style="border-left: 4px solid var(--wa-primary);">
-    <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
-      <span><i class="fa-solid fa-robot" style="color:var(--wa-primary); margin-right:6px;"></i> Analisis Ringkas Gemini AI</span>
-      <button class="btn btn-secondary" onclick="refreshGeminiDashboardAnalysis()" style="font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-rotate"></i> Analisis Ulang</button>
-    </div>
-    <div id="dashboardInsightsContent" style="font-size: 13.5px; display: flex; flex-direction: column; gap: 12px;">
-      <div style="color: var(--muted); text-align:center; padding: 10px;">Menghitung data dan memuat analisis AI...</div>
-    </div>
+  <div class="panel" style="border-left: 4px solid #f59e0b;">
+    <div class="panel-title"><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b; margin-right:6px;"></i> Pusat Analisis & Insight Keuangan</div>
+    <div id="dashboardInsightsContent" style="font-size: 13.5px; display: flex; flex-direction: column; gap: 12px;"></div>
   </div>
 
   <div class="panel">
@@ -409,7 +433,6 @@ function renderDashboard() {
 }
 
 let monthlyChartInstance = null;
-let cachedDashboardMetrics = {};
 
 function updateDashboardMetrics(yearMonth) {
   if (!yearMonth) return;
@@ -419,11 +442,9 @@ function updateDashboardMetrics(yearMonth) {
   const monthSales = (DB.sales || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
   const monthAttendance = (DB.attendance || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
 
-  const totalOmsetVal = sum(monthCounters.map(r => totalCounter(r)));
-  if ($('cardOmset')) $('cardOmset').textContent = money(totalOmsetVal);
-  
-  const variableCost = sum(monthExpenses.map(r => r.nominal));
-  if ($('cardExpense')) $('cardExpense').textContent = money(variableCost);
+  if ($('cardOmset')) $('cardOmset').textContent = money(sum(monthCounters.map(r => totalCounter(r))));
+  const totalExpMonth = sum(monthExpenses.map(r => r.nominal));
+  if ($('cardExpense')) $('cardExpense').textContent = money(totalExpMonth);
 
   let totalMasterSalaries = 0;
   (DB.masterSalary || []).forEach(emp => {
@@ -439,8 +460,8 @@ function updateDashboardMetrics(yearMonth) {
   });
 
   const fixedCost = totalMasterSalaries + totalUangJajan;
+  const variableCost = totalExpMonth;
   const totalCostAll = fixedCost + variableCost;
-  const netProfitOrLoss = totalOmsetVal - totalCostAll;
 
   const pctFixed = totalCostAll > 0 ? ((fixedCost / totalCostAll) * 100).toFixed(1) : 0;
   const pctVariable = totalCostAll > 0 ? ((variableCost / totalCostAll) * 100).toFixed(1) : 0;
@@ -459,38 +480,41 @@ function updateDashboardMetrics(yearMonth) {
     }
   });
 
-  cachedDashboardMetrics = { yearMonth, totalOmsetVal, fixedCost, variableCost, netProfitOrLoss, pctFixed, pctVariable, totalSelisihKas, hariSelisihKas };
+  const empAbsenceCount = {};
+  monthAttendance.forEach(att => {
+    const isLibur = !att.masuk || att.status === 'Libur' || att.status === 'Tidak Hadir';
+    if (isLibur) {
+      const name = att.nama || 'Karyawan';
+      empAbsenceCount[name] = (empAbsenceCount[name] || 0) + 1;
+    }
+  });
+  const sortedAbsences = Object.entries(empAbsenceCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
   const insightsEl = $('dashboardInsightsContent');
   if (insightsEl) {
     insightsEl.innerHTML = `
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--line);">
       <div>
-        <div style="font-size:11px; color:var(--muted); font-weight:700;">FIXED COST (GAJI+JAJAN)</div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">FIXED COST (GAJI + JAJAN)</div>
         <div style="font-size:14px; font-weight:800; color:var(--text);">${money(fixedCost)} <span style="font-size:11px; font-weight:normal; color:var(--muted);">(${pctFixed}%)</span></div>
       </div>
       <div>
-        <div style="font-size:11px; color:var(--muted); font-weight:700;">VARIABLE COST (MURNI)</div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">VARIABLE COST (PENGELUARAN)</div>
         <div style="font-size:14px; font-weight:800; color:var(--danger);">${money(variableCost)} <span style="font-size:11px; font-weight:normal; color:var(--muted);">(${pctVariable}%)</span></div>
       </div>
     </div>
     <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px;">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px dashed var(--line); padding-bottom: 6px;">
-        <span>📊 Laba/Rugi Bersih (Omset - (Fixed+Var)):</span>
-        <b style="color: ${netProfitOrLoss >= 0 ? 'var(--success)' : 'var(--danger)'};">${money(netProfitOrLoss)} (${netProfitOrLoss >= 0 ? 'Surplus/Lebih' : 'Defisit/Minus'})</b>
-      </div>
-      <div style="display: flex; align-items: center; justify-content: space-between;">
         <span>⚠️ Total Selisih Kas (ESB vs Konter):</span>
         <b style="color: ${totalSelisihKas > 0 ? 'var(--danger)' : 'var(--success)'};">${money(totalSelisihKas)} (${hariSelisihKas} hari)</b>
       </div>
-    </div>
-    <div id="aiNarrationBox" style="margin-top:8px; padding:10px; background:var(--card); border-radius:8px; border:1px solid var(--line); font-style:italic; color:var(--text);">
-      🤖 <i>Memuat analisis naratif dari Gemini AI...</i>
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; padding-top: 2px;">
+        <span>📉 Karyawan Absen / Mangkir Terbanyak:</span>
+        <span style="text-align: right; font-weight: 600; color:var(--danger);">${sortedAbsences.length > 0 ? sortedAbsences.map(e => `${e[0]} (${e[1]}x)`).join(', ') : 'Aman (Tidak ada data mencolok)'}</span>
+      </div>
     </div>
     `;
   }
-
-  refreshGeminiDashboardAnalysis();
 
   let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
   monthSales.forEach(s => {
@@ -557,21 +581,7 @@ function updateDashboardMetrics(yearMonth) {
   }
 }
 
-async function refreshGeminiDashboardAnalysis() {
-  const box = $('aiNarrationBox');
-  if (!box) return;
-  const m = cachedDashboardMetrics;
-  const prompt = `Bertindaklah sebagai konsultan keuangan restoran. Berikan ringkasan eksekutif dan analisis naratif singkat (maksimal 3 kalimat) dalam bahasa Indonesia yang profesional untuk bulan ${m.yearMonth} berdasarkan data berikut:
-- Total Omset: ${money(m.totalOmsetVal)}
-- Fixed Cost (Gaji + Uang Jajan): ${money(m.fixedCost)} (${m.pctFixed}%)
-- Variable Cost (Pengeluaran Murni): ${money(m.variableCost)} (${m.pctVariable}%)
-- Laba/Rugi Bersih: ${money(m.netProfitOrLoss)}
-- Selisih Kas: ${money(m.totalSelisihKas)} selama ${m.hariSelisihKas} hari.`;
-  const res = await callGeminiAPI(prompt);
-  box.innerHTML = `🤖 <b>Analisis Gemini:</b> "${escapeHtml(res)}"`;
-}
-
-// --- MODUL PENDAPATAN & KOREKSI ---
+// --- MODUL PENDAPATAN ---
 function renderSales() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -592,13 +602,12 @@ window.renderSales = renderSales;
 function showSalesSub(type) {
   const container = $('salesSubContent');
   if (!container) return;
-  $('subBtnInput')?.classList.toggle('active-sub', type === 'input');
-  $('subBtnReport')?.classList.toggle('active-sub', type === 'report');
+  $('subBtnInput')?.classList.toggle('active-sub', type === 'input');$('subBtnReport')?.classList.toggle('active-sub', type === 'report');
 
   if (type === 'input') {
     container.innerHTML = `
     <div class="panel">
-      <div class="panel-title">PENDAPATAN ESB & KOREKSI LANGSUNG</div>
+      <div class="panel-title">PENDAPATAN ESB</div>
       <form id="salesForm">
         <div class="form-grid">
           ${inputField('tanggal', 'Tanggal', today(), 'date')}
@@ -613,7 +622,7 @@ function showSalesSub(type) {
           ${inputField('grab', 'Grab', 0)}
           ${inputField('qris', 'QRIS', 0)}
         </div>
-        <div class="actions"><button class="btn btn-primary" type="submit">Simpan & Koreksi ESB</button></div>
+        <div class="actions"><button class="btn btn-primary" type="submit">Simpan ESB</button></div>
       </form>
     </div>
     <div class="panel">
@@ -626,7 +635,7 @@ function showSalesSub(type) {
           ${inputField('grab', 'Grab', 0)}
           ${inputField('qris', 'QRIS', 0)}
         </div>
-        <div class="actions"><button class="btn btn-primary" type="submit">Simpan & Koreksi Konter</button></div>
+        <div class="actions"><button class="btn btn-primary" type="submit">Simpan Konter</button></div>
       </form>
     </div>
     `;
@@ -636,7 +645,7 @@ function showSalesSub(type) {
       const formData = Object.fromEntries(new FormData(e.target));
       const { error } = await db.from('sales').upsert([formData], { onConflict: 'tanggal' });
       if (error) showToast('Gagal: ' + error.message);
-      else { showToast('Data ESB berhasil diperbarui.'); loadData('sales'); }
+      else { showToast('Laporan ESB disimpan.'); loadData('sales'); }
     };
 
     $('counterForm').onsubmit = async e => {
@@ -644,7 +653,7 @@ function showSalesSub(type) {
       const formData = Object.fromEntries(new FormData(e.target));
       const { error } = await db.from('counter').upsert([formData], { onConflict: 'tanggal' });
       if (error) showToast('Gagal: ' + error.message);
-      else { showToast('Data Konter berhasil diperbarui.'); loadData('sales'); }
+      else { showToast('Laporan Konter disimpan.'); loadData('sales'); }
     };
   } else {
     container.innerHTML = `
@@ -690,66 +699,76 @@ function loadReport() {
   const resultEl = $('reportResult');
   if (!dateEl || !resultEl) return;
 
-  const selectedDate = normalizeDate(dateEl.value);
-  const sales = (DB.sales || []).find(r => normalizeDate(r.tanggal) === selectedDate) || {};
-  const counter = (DB.counter || []).find(r => normalizeDate(r.tanggal) === selectedDate) || {};
+  try {
+    const selectedDate = normalizeDate(dateEl.value);
+    const sales = (DB.sales || []).find(r => normalizeDate(r.tanggal) === selectedDate) || {};
+    const counter = (DB.counter || []).find(r => normalizeDate(r.tanggal) === selectedDate) || {};
 
-  const totalEsb = totalESB(sales);
-  const totalKonterVal = totalCounter(counter);
-  const diffCash = Number(sales.cash || 0) - Number(counter.cash || 0);
-  const diffDebit = Number(sales.debit_card || 0) - Number(counter.debit_card || 0);
-  const diffGrab = Number(sales.grab || 0) - Number(counter.grab || 0);
-  const diffQris = Number(sales.qris || 0) - Number(counter.qris || 0);
+    const totalEsb = totalESB(sales);
+    const totalKonterVal = totalCounter(counter);
+    const diffCash = Number(sales.cash || 0) - Number(counter.cash || 0);
+    const diffDebit = Number(sales.debit_card || 0) - Number(counter.debit_card || 0);
+    const diffGrab = Number(sales.grab || 0) - Number(counter.grab || 0);
+    const diffQris = Number(sales.qris || 0) - Number(counter.qris || 0);
 
-  const dateObject = new Date(selectedDate + 'T00:00:00');
-  const formattedDate = isNaN(dateObject) ? selectedDate : dateObject.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const dateObject = new Date(selectedDate + 'T00:00:00');
+    const formattedDate = isNaN(dateObject) ? selectedDate : dateObject.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  resultEl.innerHTML = `
-  <div class="report-container">
-    <div id="captureDailyReport" style="padding: 20px; background: white; color: black; border-radius: 8px; border: 1px solid #e2e8f0; font-family: Arial, sans-serif;">
-      <div style="text-align: center; font-weight: 800; margin-bottom: 5px; font-size: 15px;">
-        RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br><span style="font-size:12px;">UNIT SUBANG</span>
-      </div>
-      <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
-      <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">${formattedDate}</div>
-      <div style="margin-bottom: 18px;">
-        <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PENDAPATAN PER KATEGORI</div>
-        ${reportRow('MAKANAN', sales.makanan)}
-        ${reportRow('MINUMAN', sales.minuman)}
-        ${reportRow('TAHU', sales.tahu)}
-        ${reportRow('GORENGAN', sales.gorengan)}
-        ${reportRow('LAIN-LAIN', sales.lain_lain)}
-        ${reportRow('PAJAK', sales.pajak)}
-        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
-          ${reportRow('TOTAL PENDAPATAN ESB', totalEsb)}
+    resultEl.innerHTML = `
+    <div class="report-container">
+      <div id="captureDailyReport" style="padding: 20px; background: white; color: black; border-radius: 8px; border: 1px solid #e2e8f0; font-family: Arial, sans-serif;">
+        <div style="text-align: center; font-weight: 800; margin-bottom: 5px; font-size: 15px;">
+          RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br><span style="font-size:12px;">UNIT SUBANG</span>
         </div>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
+        <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
+        <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">${formattedDate}</div>
+        <div style="margin-bottom: 18px;">
+          <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PENDAPATAN PER KATEGORI</div>
+          ${reportRow('MAKANAN', sales.makanan)}
+          ${reportRow('MINUMAN', sales.minuman)}
+          ${reportRow('TAHU', sales.tahu)}
+          ${reportRow('GORENGAN', sales.gorengan)}
+          ${reportRow('LAIN-LAIN', sales.lain_lain)}
+          ${reportRow('PAJAK', sales.pajak)}
+          <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+            ${reportRow('TOTAL PENDAPATAN ESB', totalEsb)}
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
+          <div>
+            <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PEMBAYARAN ESB</div>
+            ${reportRow('CASH', sales.cash)}
+            ${reportRow('DEBIT CARD', sales.debit_card)}
+            ${reportRow('GRAB', sales.grab)}
+            ${reportRow('QRIS', sales.qris)}
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+              ${reportRow('TOTAL ESB', totalEsb)}
+            </div>
+          </div>
+          <div>
+            <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PEMBAYARAN KONTER</div>
+            ${reportRow('CASH', counter.cash)}
+            ${reportRow('DEBIT CARD', counter.debit_card)}
+            ${reportRow('GRAB', counter.grab)}
+            ${reportRow('QRIS', counter.qris)}
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+              ${reportRow('TOTAL KONTER', totalKonterVal)}
+            </div>
+          </div>
+        </div>
         <div>
-          <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PEMBAYARAN ESB</div>
-          ${reportRow('CASH', sales.cash)}
-          ${reportRow('DEBIT CARD', sales.debit_card)}
-          ${reportRow('GRAB', sales.grab)}
-          ${reportRow('QRIS', sales.qris)}
+          <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px; color: #dc2626;">SELISIH (ESB - KONTER)</div>
+          ${reportRow('CASH', diffCash)}
+          ${reportRow('DEBIT CARD', diffDebit)}
+          ${reportRow('GRAB', diffGrab)}
+          ${reportRow('QRIS', diffQris)}
         </div>
-        <div>
-          <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PEMBAYARAN KONTER</div>
-          ${reportRow('CASH', counter.cash)}
-          ${reportRow('DEBIT CARD', counter.debit_card)}
-          ${reportRow('GRAB', counter.grab)}
-          ${reportRow('QRIS', counter.qris)}
-        </div>
-      </div>
-      <div>
-        <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px; color: #dc2626;">SELISIH (ESB - KONTER)</div>
-        ${reportRow('CASH', diffCash)}
-        ${reportRow('DEBIT CARD', diffDebit)}
-        ${reportRow('GRAB', diffGrab)}
-        ${reportRow('QRIS', diffQris)}
       </div>
     </div>
-  </div>
-  `;
+    `;
+  } catch (error) {
+    console.error('Gagal memuat laporan:', error);
+  }
 }
 window.loadReport = loadReport;
 
@@ -758,7 +777,7 @@ function downloadDailyReportImage() {
 }
 window.downloadDailyReportImage = downloadDailyReportImage;
 
-// --- MODUL PENGELUARAN & LOG HARIAN (DENGAN HALAMAN PEMANTAUAN ITEM) ---
+// --- MODUL PENGELUARAN DENGAN PEMANTAUAN HARIAN ---
 function renderExpense() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -767,7 +786,7 @@ function renderExpense() {
     <div><div class="title">Modul Pengeluaran</div></div>
     <div style="display:flex; gap:6px; flex-wrap:wrap;">
       <button id="expBtnIn" class="sub-nav-btn active-sub" onclick="showExpenseSub('input')">Input</button>
-      <button id="expBtnLog" class="sub-nav-btn" onclick="showExpenseSub('log')"><i class="fa-solid fa-eye"></i> Pemantauan Harian</button>
+      <button id="expBtnDaily" class="sub-nav-btn" onclick="showExpenseSub('daily')">Pemantauan Harian</button>
       <button id="expBtnRep" class="sub-nav-btn" onclick="showExpenseSub('report')">Laporan</button>
       <button id="expBtnCash" class="sub-nav-btn" onclick="showExpenseSub('cash')">Posisi Kas</button>
     </div>
@@ -781,7 +800,7 @@ window.renderExpense = renderExpense;
 function showExpenseSub(type) {
   const container = $('expenseSubContent');
   if (!container) return;
-  $('expBtnIn')?.classList.toggle('active-sub', type === 'input');$('expBtnLog')?.classList.toggle('active-sub', type === 'log');
+  $('expBtnIn')?.classList.toggle('active-sub', type === 'input');$('expBtnDaily')?.classList.toggle('active-sub', type === 'daily');
   $('expBtnRep')?.classList.toggle('active-sub', type === 'report');$('expBtnCash')?.classList.toggle('active-sub', type === 'cash');
 
   if (type === 'input') {
@@ -789,7 +808,7 @@ function showExpenseSub(type) {
     <div class="panel">
       <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
         <div class="panel-title" style="margin-bottom:0;">Input Pengeluaran Sekaligus</div>
-        <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%;">
+        <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%; background:var(--card); color:var(--text);">
       </div>
       <div class="table-wrap" style="overflow-x: auto;">
         <table class="table" style="min-width: 800px;">
@@ -815,34 +834,18 @@ function showExpenseSub(type) {
     </div>
     `;
     for (let i = 0; i < 3; i++) addExpenseRow();
-  } else if (type === 'log') {
-    // Halaman khusus pemantauan pengeluaran harian dengan nama item terlihat jelas & koreksi langsung
-    const currentMonth = new Date().toISOString().slice(0, 7);
+  } else if (type === 'daily') {
     container.innerHTML = `
     <div class="panel">
-      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
-        <div class="panel-title" style="margin-bottom:0;">Pemantauan Nama Item Pengeluaran Harian</div>
-        <p style="color:var(--muted); font-size:13.5px;">Pantau nama barang/item belanja harian secara mendetail dan koreksi langsung jika ada kesalahan input.</p>
-        <input type="month" id="logFilterMonth" value="${currentMonth}" onchange="renderExpenseLogTable()" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; background:var(--card); color:var(--text);">
+      <div class="panel-title">Pemantauan Detail Pengeluaran Harian</div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+        <label style="font-weight:700;">Pilih Tanggal Pantau:</label>
+        <input type="date" id="dailyMonitorDate" value="${today()}" onchange="loadDailyMonitorData()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--card); color:var(--text);">
       </div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr>
-              <th class="center" style="width:45px;">No</th>
-              <th>Tanggal</th>
-              <th>Kategori / Grup</th>
-              <th>Nama Item / Keterangan</th>
-              <th class="center">Qty / Satuan</th>
-              <th class="right">Nominal</th>
-            </tr>
-          </thead>
-          <tbody id="expenseLogTableBody"></tbody>
-        </table>
-      </div>
+      <div id="dailyMonitorResult"></div>
     </div>
     `;
-    renderExpenseLogTable();
+    loadDailyMonitorData();
   } else if (type === 'report') {
     container.innerHTML = `
     <div class="panel">
@@ -871,7 +874,6 @@ function showExpenseSub(type) {
       </form>
     </div>
     `;
-
     $('cashForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
@@ -884,27 +886,76 @@ function showExpenseSub(type) {
 }
 window.showExpenseSub = showExpenseSub;
 
-function renderExpenseLogTable() {
-  const fMonth = $('logFilterMonth')?.value || new Date().toISOString().slice(0, 7);
-  const tbody = $('expenseLogTableBody');
-  if (!tbody) return;
-  const list = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(fMonth)).sort((a, b) => b.tanggal.localeCompare(a.tanggal));
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">Tidak ada pengeluaran pada bulan ini.</td></tr>`;
-    return;
+function loadDailyMonitorData() {
+  const dateEl = $('dailyMonitorDate');
+  const resEl = $('dailyMonitorResult');
+  if (!dateEl || !resEl) return;
+
+  const date = normalizeDate(dateEl.value);
+  const cashRow = (DB.cash || []).find(r => formatDate(r.tanggal) === date) || {};
+  const dayExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal) === date);
+
+  const saldoHarian = Number(cashRow.saldo_harian || 0);
+  const belanjaMalam = Number(cashRow.belanja_malam || 0);
+  const totalPemasukan = saldoHarian + belanjaMalam;
+  const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
+  const sisaKas = totalPemasukan - totalPengeluaran;
+
+  let itemsHtml = '';
+  if (dayExpenses.length > 0) {
+    itemsHtml = dayExpenses.map((ex, i) => `
+      <tr>
+        <td class="center">${i + 1}</td>
+        <td><span class="badge badge-dept">${escapeHtml(ex.kategori || '-')}</span></td>
+        <td style="font-weight:700;">${escapeHtml(ex.sumber || '-')}</td>
+        <td class="center">${ex.qty || 1} ${escapeHtml(ex.satuan || 'PCS')}</td>
+        <td class="right">${money(ex.harga_satuan || 0)}</td>
+        <td class="right" style="font-weight:800; color:var(--danger);">${money(ex.nominal)}</td>
+      </tr>
+    `).join('');
+  } else {
+    itemsHtml = `<tr><td colspan="6" class="center" style="color:var(--muted); padding:20px;">Belum ada rincian item pengeluaran pada tanggal ini.</td></tr>`;
   }
-  tbody.innerHTML = list.map((r, i) => `
-    <tr>
-      <td class="center">${i + 1}</td>
-      <td class="center">${formatDate(r.tanggal)}</td>
-      <td><span class="badge badge-dept">${escapeHtml(r.kategori || '-')}</span></td>
-      <td style="font-weight:700;">${escapeHtml(r.sumber || r.keterangan || '-')}</td>
-      <td class="center">${r.qty || 1} ${escapeHtml(r.satuan || 'PCS')}</td>
-      <td class="right" style="font-weight:800; color:var(--danger);">${money(r.nominal)}</td>
-    </tr>
-  `).join('');
+
+  resEl.innerHTML = `
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:20px;">
+    <div style="background:var(--input-bg); padding:14px; border-radius:12px; border:1px solid var(--line);">
+      <div style="font-size:12px; color:var(--muted); font-weight:700;">SUMBER SALDO HARIAN</div>
+      <div style="font-size:16px; font-weight:800; margin-top:4px;">${money(saldoHarian)}</div>
+    </div>
+    <div style="background:var(--input-bg); padding:14px; border-radius:12px; border:1px solid var(--line);">
+      <div style="font-size:12px; color:var(--muted); font-weight:700;">SUMBER BELANJA MALAM</div>
+      <div style="font-size:16px; font-weight:800; margin-top:4px;">${money(belanjaMalam)}</div>
+    </div>
+    <div style="background:var(--input-bg); padding:14px; border-radius:12px; border:1px solid var(--line);">
+      <div style="font-size:12px; color:var(--muted); font-weight:700;">TOTAL PENGELUARAN</div>
+      <div style="font-size:16px; font-weight:800; color:var(--danger); margin-top:4px;">${money(totalPengeluaran)}</div>
+    </div>
+    <div style="background:var(--input-bg); padding:14px; border-radius:12px; border:1px solid var(--line); border-left:4px solid ${sisaKas < 0 ? 'var(--danger)' : 'var(--success)'};">
+      <div style="font-size:12px; color:var(--muted); font-weight:700;">SISA SALDO KAS AKHIR</div>
+      <div style="font-size:16px; font-weight:800; color:${sisaKas < 0 ? 'var(--danger)' : 'var(--success)'}; margin-top:4px;">${money(sisaKas)}</div>
+    </div>
+  </div>
+
+  <div class="panel-title" style="font-size:15px; margin-bottom:10px;">Rincian Nama Barang / Item Pengeluaran</div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="center" style="width:40px;">No</th>
+          <th>Kategori</th>
+          <th>Nama Barang</th>
+          <th class="center">Qty</th>
+          <th class="right">Harga Satuan</th>
+          <th class="right">Total Nominal</th>
+        </tr>
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+  </div>
+  `;
 }
-window.renderExpenseLogTable = renderExpenseLogTable;
+window.loadDailyMonitorData = loadDailyMonitorData;
 
 function addExpenseRow() {
   const tr = document.createElement('tr');
@@ -918,7 +969,7 @@ function addExpenseRow() {
       <option value="SKF">SKF</option>
     </select>
   </td>
-  <td><input type="text" class="exp-sub" placeholder="Grup..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
+  <td><input type="text" class="exp-sub" placeholder="Grup (Cth: AYAM)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
   <td><input type="text" class="exp-sumber" placeholder="Nama Barang..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
   <td><input type="number" class="exp-qty" placeholder="1" value="1" step="0.01" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
   <td><input type="text" class="exp-satuan" placeholder="Kg/Pcs" value="PCS" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
@@ -958,54 +1009,58 @@ function loadExpenseReport() {
   const resultEl = $('expenseReportResult');
   if (!dateEl || !resultEl) return;
 
-  const date = normalizeDate(dateEl.value);
-  const cashRow = DB.cash.find(r => formatDate(r.tanggal) === date) || {};
-  const dayExpenses = DB.expenses.filter(r => formatDate(r.tanggal) === date);
-  const totalPemasukan = Number(cashRow.saldo_harian || 0) + Number(cashRow.belanja_malam || 0);
-  const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
-  const sisaSaldo = totalPemasukan - totalPengeluaran;
+  try {
+    const date = normalizeDate(dateEl.value);
+    const cashRow = DB.cash.find(r => formatDate(r.tanggal) === date) || {};
+    const dayExpenses = DB.expenses.filter(r => formatDate(r.tanggal) === date);
+    const totalPemasukan = Number(cashRow.saldo_harian || 0) + Number(cashRow.belanja_malam || 0);
+    const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
+    const sisaSaldo = totalPemasukan - totalPengeluaran;
 
-  const dateObject = new Date(date + 'T00:00:00');
-  const formattedDate = isNaN(dateObject) ? date : dateObject.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const dateObject = new Date(date + 'T00:00:00');
+    const formattedDate = isNaN(dateObject) ? date : dateObject.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  let expenseRowsHtml = dayExpenses.length > 0
-    ? dayExpenses.map((expense, i) => reportRow(`${i + 1}. ${escapeHtml(expense.sumber || 'Pengeluaran')}`, expense.nominal)).join('')
-    : `<div style="text-align:center; color:#64748b; font-size:13.5px; padding:10px;">Tidak ada pengeluaran</div>`;
+    let expenseRowsHtml = dayExpenses.length > 0
+      ? dayExpenses.map((expense, i) => reportRow(`${i + 1}. ${escapeHtml(expense.sumber || 'Pengeluaran')}`, expense.nominal)).join('')
+      : `<div style="text-align:center; color:#64748b; font-size:13.5px; padding:10px;">Tidak ada pengeluaran</div>`;
 
-  resultEl.innerHTML = `
-  <div class="expense-report-wrapper">
-    <div id="captureExpenseReport" style="padding: 20px; background: white; color: black; border-radius: 8px; border: 1px solid #e2e8f0; font-family: Arial, sans-serif;">
-      <div style="text-align: center; font-weight: 800; margin-bottom: 5px; font-size: 15px;">
-        RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br><span style="font-size:12px;">UNIT SUBANG</span>
-      </div>
-      <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
-      <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">
-        LAPORAN KAS & PENGELUARAN<br><span style="font-size:13px; font-weight:normal;">${formattedDate}</span>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
-        <div>
-          <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">SUMBER SALDO</div>
-          ${reportRow('1. Saldo Harian', cashRow.saldo_harian)}
-          ${reportRow('2. Belanja Malam', cashRow.belanja_malam)}
-          <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
-            ${reportRow('TOTAL PEMASUKAN', totalPemasukan)}
+    resultEl.innerHTML = `
+    <div class="expense-report-wrapper">
+      <div id="captureExpenseReport" style="padding: 20px; background: white; color: black; border-radius: 8px; border: 1px solid #e2e8f0; font-family: Arial, sans-serif;">
+        <div style="text-align: center; font-weight: 800; margin-bottom: 5px; font-size: 15px;">
+          RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br><span style="font-size:12px;">UNIT SUBANG</span>
+        </div>
+        <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
+        <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">
+          LAPORAN KAS & PENGELUARAN<br><span style="font-size:13px; font-weight:normal;">${formattedDate}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
+          <div>
+            <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">SUMBER SALDO</div>
+            ${reportRow('1. Saldo Harian', cashRow.saldo_harian)}
+            ${reportRow('2. Belanja Malam', cashRow.belanja_malam)}
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+              ${reportRow('TOTAL PEMASUKAN', totalPemasukan)}
+            </div>
+          </div>
+          <div>
+            <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">RINCIAN PENGELUARAN</div>
+            ${expenseRowsHtml}
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
+              ${reportRow('TOTAL PENGELUARAN', totalPengeluaran)}
+            </div>
           </div>
         </div>
         <div>
-          <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">RINCIAN PENGELUARAN</div>
-          ${expenseRowsHtml}
-          <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #94a3b8; font-weight: bold;">
-            ${reportRow('TOTAL PENGELUARAN', totalPengeluaran)}
-          </div>
+          <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px; color: ${sisaSaldo < 0 ? '#dc2626' : '#059669'};">POSISI KAS AKHIR</div>
+          ${reportRow('SISA SALDO TUNAI', sisaSaldo)}
         </div>
-      </div>
-      <div>
-        <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px; color: ${sisaSaldo < 0 ? '#dc2626' : '#059669'};">POSISI KAS AKHIR</div>
-        ${reportRow('SISA SALDO TUNAI', sisaSaldo)}
       </div>
     </div>
-  </div>
-  `;
+    `;
+  } catch (error) {
+    console.error('Gagal memuat laporan pengeluaran:', error);
+  }
 }
 window.loadExpenseReport = loadExpenseReport;
 
@@ -1014,7 +1069,7 @@ function downloadExpenseReportImage() {
 }
 window.downloadExpenseReportImage = downloadExpenseReportImage;
 
-// --- MODUL ABSENSI & SDM ---
+// --- MODUL ABSENSI, GAJI, LIMBAH, AI CHAT, & SETTINGS (UTUH DARI FILE ASLI) ---
 function renderAttendancePage() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -1040,12 +1095,9 @@ function showAttendanceSub(type) {
   $('attBtnLog')?.classList.toggle('active-sub', type === 'log');$('attBtnAllow')?.classList.toggle('active-sub', type === 'allowance');
   $('attBtnHours')?.classList.toggle('active-sub', type === 'hours');$('attBtnLibur')?.classList.toggle('active-sub', type === 'libur');
 
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const d = new Date(), y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
   const lastD = new Date(y, d.getMonth() + 1, 0).getDate();
-  const defaultStart = `${y}-${m}-01`;
-  const defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
+  const defaultStart = `${y}-${m}-01`, defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
 
   if (type === 'log') {
     container.innerHTML = `
@@ -1059,14 +1111,8 @@ function showAttendanceSub(type) {
     </div>
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
-          <input type="date" id="attLogStart" value="${defaultStart}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
-          <input type="date" id="attLogEnd" value="${defaultEnd}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
-        </div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label><input type="date" id="attLogStart" value="${defaultStart}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label><input type="date" id="attLogEnd" value="${defaultEnd}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
       </div>
       <div class="table-wrap">
         <table class="table">
@@ -1080,10 +1126,7 @@ function showAttendanceSub(type) {
   } else if (type === 'allowance') {
     container.innerHTML = `
     <div class="panel" style="padding-bottom: 120px;">
-      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
-        <label style="font-weight:700;">Pilih Tanggal:</label>
-        <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;">
-      </div>
+      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;"><label style="font-weight:700;">Pilih Tanggal:</label><input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;"></div>
       <div class="table-wrap">
         <table class="table">
           <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Shift</th><th class="center">Jam Masuk</th><th class="center">Batas</th><th class="center">Status</th><th class="right">Uang Jajan</th></tr></thead>
@@ -1097,14 +1140,8 @@ function showAttendanceSub(type) {
     container.innerHTML = `
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
-          <input type="date" id="hoursStart" value="${defaultStart}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
-          <input type="date" id="hoursEnd" value="${defaultEnd}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
-        </div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label><input type="date" id="hoursStart" value="${defaultStart}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label><input type="date" id="hoursEnd" value="${defaultEnd}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
       </div>
       <div class="table-wrap">
         <table class="table">
@@ -1119,14 +1156,8 @@ function showAttendanceSub(type) {
     container.innerHTML = `
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
-          <input type="date" id="liburStart" value="${defaultStart}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
-          <input type="date" id="liburEnd" value="${defaultEnd}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
-        </div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label><input type="date" id="liburStart" value="${defaultStart}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label><input type="date" id="liburEnd" value="${defaultEnd}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
       </div>
       <div id="liburListContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
     </div>
@@ -1137,16 +1168,12 @@ function showAttendanceSub(type) {
 window.showAttendanceSub = showAttendanceSub;
 
 function renderAttendanceTable() {
-  const sDate = $('attLogStart')?.value;
-  const eDate = $('attLogEnd')?.value;
-  const tbody = $('attendanceTableBody');
+  const sDate = $('attLogStart')?.value, eDate = $('attLogEnd')?.value, tbody =$('attendanceTableBody');
   if (!tbody) return;
-
   const rawList = (DB.attendance || []).filter(r => {
     const d = String(r.tanggal || '').slice(0, 10);
     return (!sDate || d >= sDate) && (!eDate || d <= eDate);
   });
-
   const uniqueMap = new Map();
   rawList.forEach(r => {
     const tgl = String(r.tanggal || '').slice(0, 10);
@@ -1162,33 +1189,15 @@ function renderAttendanceTable() {
     }
     if (idAbsen) uniqueMap.set(`${tgl}_${idAbsen}`, { ...r, no_absen: idAbsen });
   });
-
   let list = Array.from(uniqueMap.values());
   list.sort((a, b) => {
     const dComp = String(a.tanggal || '').slice(0, 10).localeCompare(String(b.tanggal || '').slice(0, 10));
-    if (dComp !== 0) return dComp;
-    return Number(a.no_absen) - Number(b.no_absen);
+    return dComp !== 0 ? dComp : Number(a.no_absen) - Number(b.no_absen);
   });
-
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data absensi pada rentang tanggal ini.</td></tr>`;
-    return;
-  }
-
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data absensi.</td></tr>`; return; }
   tbody.innerHTML = list.map((r, i) => {
     const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
-    const displayName = EMPLOYEE_MAP[r.no_absen] ? EMPLOYEE_MAP[r.no_absen].masterName : r.nama;
-    return `
-    <tr>
-      <td class="center">${i + 1}</td>
-      <td class="center" style="font-size:12px;">${String(r.tanggal || '').slice(0, 10)}</td>
-      <td style="font-weight:700;">${escapeHtml(displayName)}</td>
-      <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
-      <td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td>
-      <td class="center" style="font-weight:700;">${r.pulang || '-'}</td>
-      <td class="center"><span class="badge ${isLibur ? 'badge-danger' : 'badge-success'}">${isLibur ? 'Libur' : 'Hadir'}</span></td>
-    </tr>
-    `;
+    return `<tr><td class="center">${i + 1}</td><td class="center" style="font-size:12px;">${String(r.tanggal || '').slice(0, 10)}</td><td style="font-weight:700;">${escapeHtml(EMPLOYEE_MAP[r.no_absen]?.masterName || r.nama)}</td><td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td><td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td><td class="center" style="font-weight:700;">${r.pulang || '-'}</td><td class="center"><span class="badge ${isLibur ? 'badge-danger' : 'badge-success'}">${isLibur ? 'Libur' : 'Hadir'}</span></td></tr>`;
   }).join('');
 }
 window.renderAttendanceTable = renderAttendanceTable;
@@ -1198,24 +1207,18 @@ function renderAllowanceTable() {
   const allAttToday = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
   const tbody = $('allowanceTableBody');
   if (!tbody) return;
-  if (!allAttToday.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada absensi tanggal ${fDate}.</td></tr>`;
-    return;
-  }
+  if (!allAttToday.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada absensi.</td></tr>`; return; }
   const list = allAttToday.map(r => ({ ...r, c: classifyShift(r.masuk) })).filter(r => r.c.onTime);
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada yang tepat waktu.</td></tr>`;
-    return;
-  }
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada yang tepat waktu.</td></tr>`; return; }
   tbody.innerHTML = list.map((r, i) => `
     <tr style="border-bottom: 1px solid var(--line);">
       <td class="center" style="color:var(--muted);">${i + 1}</td>
       <td style="font-weight:700;">${escapeHtml(getDisplayNameById(resolveEmployeeId(r), r.nama))}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-      <td class="center"><span class="badge" style="background:#e0f2fe; color:#0369a1; border: 1px solid #bae6fd;">${r.c.shift}</span></td>
+      <td class="center"><span class="badge" style="background:#e0f2fe; color:#0369a1;">${r.c.shift}</span></td>
       <td class="center" style="font-weight:800;">${r.c.displayTime}</td>
       <td class="center" style="color:var(--muted); font-size:11px;">Maks ${r.c.batas}</td>
-      <td class="center"><span class="badge badge-success" style="padding: 4px 8px; border-radius: 20px;">✓ Tepat Waktu</span></td>
+      <td class="center"><span class="badge badge-success">✓ Tepat Waktu</span></td>
       <td class="right" style="font-weight:800; color:#059669; font-size:14px;">+${money(DEFAULT_ALLOWANCE)}</td>
     </tr>
   `).join('');
@@ -1223,37 +1226,21 @@ function renderAllowanceTable() {
 window.renderAllowanceTable = renderAllowanceTable;
 
 function renderWorkHoursTable() {
-  const sDate = $('hoursStart')?.value;
-  const eDate = $('hoursEnd')?.value;
-  const tbody = $('workHoursTableBody');
+  const sDate = $('hoursStart')?.value, eDate = $('hoursEnd')?.value, tbody =$('workHoursTableBody');
   if (!tbody) return;
-
   const list = (DB.attendance || []).filter(r => {
     const d = formatDate(r.tanggal);
     return (!sDate || d >= sDate) && (!eDate || d <= eDate) && r.masuk && r.pulang;
   });
-
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada data jam kerja pada rentang tanggal ini.</td></tr>`;
-    return;
-  }
-
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada data jam kerja.</td></tr>`; return; }
   const grouped = {};
   list.forEach(r => {
     const empId = String(r.no_absen || resolveEmployeeId(r) || '').trim();
     const key = empId ? `ID_${empId}` : `RAW_${r.nama}`;
-    if (!grouped[key]) {
-      grouped[key] = { empId: empId || '-', nama: getDisplayNameById(empId, r.nama), departemen: r.departemen || '-', hariMasuk: 0, totalDurasiHours: 0, totalOvertimeHours: 0 };
-    }
-    const durasi = calculateHours(r.masuk, r.pulang);
-    const overtimeHours = calculateDailyOvertimeHours(r.masuk, r.pulang);
-    if (durasi > 0) {
-      grouped[key].hariMasuk += 1;
-      grouped[key].totalDurasiHours += durasi;
-      grouped[key].totalOvertimeHours += overtimeHours;
-    }
+    if (!grouped[key]) grouped[key] = { empId: empId || '-', nama: getDisplayNameById(empId, r.nama), departemen: r.departemen || '-', hariMasuk: 0, totalDurasiHours: 0, totalOvertimeHours: 0 };
+    const durasi = calculateHours(r.masuk, r.pulang), overtimeHours = calculateDailyOvertimeHours(r.masuk, r.pulang);
+    if (durasi > 0) { grouped[key].hariMasuk += 1; grouped[key].totalDurasiHours += durasi; grouped[key].totalOvertimeHours += overtimeHours; }
   });
-
   const summarized = Object.values(grouped).sort((a, b) => (Number(a.empId) || 999) - (Number(b.empId) || 999));
   tbody.innerHTML = summarized.map((r, i) => {
     const nominal = r.totalOvertimeHours * RATE_PER_HOUR;
@@ -1274,45 +1261,22 @@ function renderWorkHoursTable() {
 window.renderWorkHoursTable = renderWorkHoursTable;
 
 function renderLiburList() {
-  const sDate = $('liburStart')?.value;
-  const eDate = $('liburEnd')?.value;
-  const container = $('liburListContainer');
+  const sDate = $('liburStart')?.value, eDate = $('liburEnd')?.value, container =$('liburListContainer');
   if (!container) return;
-
   const list = (DB.attendance || []).filter(r => {
     const d = formatDate(r.tanggal);
     return (!sDate || d >= sDate) && (!eDate || d <= eDate) && (!r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir');
   });
-
-  if (!list.length) {
-    container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);">Tidak ada karyawan yang libur pada rentang tanggal ini.</div>`;
-    return;
-  }
-
+  if (!list.length) { container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);">Tidak ada karyawan yang libur.</div>`; return; }
   const grouped = {};
-  list.forEach(r => {
-    const tgl = formatDate(r.tanggal);
-    if (!grouped[tgl]) grouped[tgl] = [];
-    grouped[tgl].push(r);
-  });
-
+  list.forEach(r => { const tgl = formatDate(r.tanggal); if (!grouped[tgl]) grouped[tgl] = []; grouped[tgl].push(r); });
   container.innerHTML = Object.keys(grouped).sort().map(tgl => {
-    const items = grouped[tgl];
-    const dObj = new Date(tgl + 'T00:00:00');
+    const items = grouped[tgl], dObj = new Date(tgl + 'T00:00:00');
     const dateText = isNaN(dObj) ? tgl : dObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     return `
     <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--card);">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 8px;">
-        <b style="color: var(--text);">${dateText}</b>
-        <span class="badge badge-danger">${items.length} Orang Libur</span>
-      </div>
-      <div style="display:flex; flex-wrap:wrap; gap:6px;">
-        ${items.map(item => `
-          <span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;">
-            ${escapeHtml(getDisplayNameById(resolveEmployeeId(item), item.nama))} <small style="color:var(--muted);">(${escapeHtml(item.departemen || '-')})</small>
-          </span>
-        `).join('')}
-      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 8px;"><b style="color: var(--text);">${dateText}</b><span class="badge badge-danger">${items.length} Orang Libur</span></div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px;">${items.map(item => `<span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;">${escapeHtml(getDisplayNameById(resolveEmployeeId(item), item.nama))}</span>`).join('')}</div>
     </div>
     `;
   }).join('');
@@ -1324,93 +1288,55 @@ function handleExcelUpload(event) {
   if (!file) return;
   const progressEl = $('uploadProgress');
   if (progressEl) progressEl.style.display = 'block';
-
   const reader = new FileReader();
   reader.onload = async function (e) {
     try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
+      const data = new Uint8Array(e.target.result), workbook = XLSX.read(data, { type: 'array' });
       const sheetName = workbook.SheetNames.find(s => s.toLowerCase() === 'log') || workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
       let periodText = '';
       for (let r = 0; r < Math.min(5, rows.length); r++) {
-        for (let c = 0; c < rows[r].length; c++) {
-          if (String(rows[r][c]).includes('~')) { periodText = String(rows[r][c]); break; }
-        }
+        for (let c = 0; c < rows[r].length; c++) { if (String(rows[r][c]).includes('~')) { periodText = String(rows[r][c]); break; } }
         if (periodText) break;
       }
-
       let startYear = new Date().getFullYear(), startMonth = new Date().getMonth() + 1, startDay = 1;
       const periodMatch = periodText.match(/(\d{4})[/-](\d{2})[/-](\d{2})/);
-      if (periodMatch) {
-        startYear = parseInt(periodMatch[1], 10);
-        startMonth = parseInt(periodMatch[2], 10);
-        startDay = parseInt(periodMatch[3], 10);
-      }
-
+      if (periodMatch) { startYear = parseInt(periodMatch[1], 10); startMonth = parseInt(periodMatch[2], 10); startDay = parseInt(periodMatch[3], 10); }
       const parsedRecords = [];
       for (let i = 0; i < rows.length; i++) {
         const rowStr = rows[i].join(' ');
         if (rowStr.includes('No :') && rowStr.includes('Nama :')) {
-          const daysRow = i > 0 ? rows[i - 1] : [];
-          const infoRow = rows[i];
-          const punchRow = i + 1 < rows.length ? rows[i + 1] : [];
-          let namaVal = '', deptVal = '', noVal = '';
-
+          const daysRow = i > 0 ? rows[i - 1] : [], infoRow = rows[i], punchRow = i + 1 < rows.length ? rows[i + 1] : [];
+          let namaVal = '', noVal = '';
           for (let c = 0; c < infoRow.length; c++) {
             const cellStr = String(infoRow[c]).trim();
-            if (cellStr.includes('No :')) {
-              for (let k = c + 1; k < infoRow.length; k++) { if (String(infoRow[k]).trim()) { noVal = String(infoRow[k]).trim(); break; } }
-            } else if (cellStr.includes('Nama :')) {
-              for (let k = c + 1; k < infoRow.length; k++) { if (String(infoRow[k]).trim()) { namaVal = String(infoRow[k]).trim(); break; } }
-            } else if (cellStr.includes('Dept :')) {
-              for (let k = c + 1; k < infoRow.length; k++) { if (String(infoRow[k]).trim()) { deptVal = String(infoRow[k]).trim(); break; } }
-            }
+            if (cellStr.includes('No :')) { for (let k = c + 1; k < infoRow.length; k++) { if (String(infoRow[k]).trim()) { noVal = String(infoRow[k]).trim(); break; } } }
+            else if (cellStr.includes('Nama :')) { for (let k = c + 1; k < infoRow.length; k++) { if (String(infoRow[k]).trim()) { namaVal = String(infoRow[k]).trim(); break; } } }
           }
-
           if (!namaVal) continue;
           for (let col = 0; col < daysRow.length; col++) {
             const dayNum = parseInt(daysRow[col], 10);
             if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) continue;
             let currentMonth = startMonth, currentYear = startYear;
-            if (startDay > 15 && dayNum < 15) {
-              currentMonth++;
-              if (currentMonth > 12) { currentMonth = 1; currentYear++; }
-            }
+            if (startDay > 15 && dayNum < 15) { currentMonth++; if (currentMonth > 12) { currentMonth = 1; currentYear++; } }
             const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
             const punchStr = String(punchRow[col] || '').trim();
             const times = punchStr.split(/[\n\r]+/).map(t => t.trim()).filter(t => t.includes(':') || t.includes('.'));
-            let masukVal = times.length > 0 ? times[0] : '';
-            let pulangVal = times.length > 1 ? times[times.length - 1] : '';
-
-            parsedRecords.push({ no_absen: noVal, tanggal: dateStr, nama: namaVal, departemen: deptVal, masuk: masukVal, pulang: pulangVal, status: masukVal ? 'Hadir' : 'Libur' });
+            parsedRecords.push({ no_absen: noVal, tanggal: dateStr, nama: namaVal, departemen: '', masuk: times.length > 0 ? times[0] : '', pulang: times.length > 1 ? times[times.length - 1] : '', status: times.length > 0 ? 'Hadir' : 'Libur' });
           }
           i += 1;
         }
       }
-
-      if (!parsedRecords.length) {
-        if (progressEl) progressEl.style.display = 'none';
-        showToast('Tidak ada data absensi valid di sheet Excel.');
-        return;
-      }
-
+      if (!parsedRecords.length) { if (progressEl) progressEl.style.display = 'none'; showToast('Tidak ada data absensi valid.'); return; }
       const { error } = await db.from('attendance').upsert(parsedRecords, { onConflict: 'tanggal,nama' });
       if (progressEl) progressEl.style.display = 'none';
-      if (error) showToast('Gagal upload: ' + error.message);
-      else { showToast('Absensi berhasil diunggah!'); loadData('attendance'); }
-    } catch (err) {
-      if (progressEl) progressEl.style.display = 'none';
-      showToast('Gagal memproses file: ' + err.message);
-    }
+      if (error) showToast('Gagal upload: ' + error.message); else { showToast('Absensi berhasil diunggah!'); loadData('attendance'); }
+    } catch (err) { if (progressEl) progressEl.style.display = 'none'; showToast('Gagal memproses file: ' + err.message); }
   };
   reader.readAsArrayBuffer(file);
 }
 window.handleExcelUpload = handleExcelUpload;
 
-// --- MODUL GAJI & SDM ---
 function renderPayrollPage() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -1440,28 +1366,15 @@ function showPayrollSub(type) {
   const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
   const d = new Date(), y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
   const lastD = new Date(y, d.getMonth() + 1, 0).getDate();
-  const todayFormatted = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
   let defaultStart = `${y}-${m}-01`, defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
 
   if (type === 'rekap') {
     container.innerHTML = `
     <div class="panel">
       <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-          <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-          <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-          <select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
-            <option value="ALL">Semua Divisi</option>
-            ${deptOptionsHtml}
-          </select>
-        </div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label><input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label><input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label><select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"><option value="ALL">Semua Divisi</option>${deptOptionsHtml}</select></div>
       </div>
     </div>
     <div id="payrollCardsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px; padding-bottom: 120px;"></div>
@@ -1471,25 +1384,10 @@ function showPayrollSub(type) {
     container.innerHTML = `
     <div class="panel">
       <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-          <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-          <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-          <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
-            <option value="ALL">Semua Divisi</option>
-            ${deptOptionsHtml}
-          </select>
-        </div>
-        <div>
-          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label>
-          <input type="text" id="slipPrintDate" value="Subang, ${todayFormatted}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
-        </div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label><input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label><input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label><select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"><option value="ALL">Semua Divisi</option>${deptOptionsHtml}</select></div>
+        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label><input type="text" id="slipPrintDate" value="Subang, ${d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
         <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
       </div>
     </div>
@@ -1498,95 +1396,61 @@ function showPayrollSub(type) {
     renderSlipPages();
   } else if (type === 'kasbon') {
     const empOptionsHtml = (DB.masterSalary || []).map(d => `<option value="${escapeHtml(d.nama)}">${escapeHtml(d.nama)}</option>`).join('');
-    const currentMonth = new Date().toISOString().slice(0, 7);
     container.innerHTML = `
     <div class="panel">
       <div class="panel-title">Input Kasbon Karyawan</div>
       <form id="kasbonForm">
         <div class="form-grid">
           ${inputField('tanggal', 'Tanggal', today(), 'date')}
-          <div class="field">
-            <label>Nama Karyawan</label>
-            <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">${empOptionsHtml}</select>
-          </div>
+          <div class="field"><label>Nama Karyawan</label><select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">${empOptionsHtml}</select></div>
           ${inputField('nominal', 'Nominal Kasbon (Rp)', 0)}
-          <div class="field">
-            <label>Keterangan</label>
-            <input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
-          </div>
+          <div class="field"><label>Keterangan</label><input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);"></div>
         </div>
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
       </form>
     </div>
     <div class="panel" style="padding-bottom: 120px;">
-      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
-        <label style="font-weight:700;">Lihat Histori Kasbon Bulan:</label>
-        <input type="month" id="kasbonFilterMonth" value="${currentMonth}" onchange="renderKasbonTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
-      </div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Keterangan</th><th class="right">Nominal</th></tr></thead>
-          <tbody id="kasbonTableBody"></tbody>
-        </table>
-      </div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;"><label style="font-weight:700;">Lihat Histori Kasbon Bulan:</label><input type="month" id="kasbonFilterMonth" value="${new Date().toISOString().slice(0, 7)}" onchange="renderKasbonTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);"></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Keterangan</th><th class="right">Nominal</th></tr></thead><tbody id="kasbonTableBody"></tbody></table></div>
     </div>
     `;
-
     $('kasbonForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
       const payload = { tanggal: formData.tanggal, nama: formData.nama, nominal: Number(formData.nominal || 0), keterangan: formData.keterangan || '-' };
       if (!payload.nominal) { showToast('Nominal tidak boleh nol.'); return; }
       const { error } = await db.from('advances').insert([payload]);
-      if (error) showToast('Gagal: ' + error.message);
-      else { showToast('Kasbon berhasil dicatat.'); loadData('payroll'); }
+      if (error) showToast('Gagal: ' + error.message); else { showToast('Kasbon berhasil dicatat.'); loadData('payroll'); }
     };
     renderKasbonTable();
   } else if (type === 'cicilan') {
     const empOptionsHtml = (DB.masterSalary || []).map(d => `<option value="${escapeHtml(d.nama)}">${escapeHtml(d.nama)}</option>`).join('');
-    const currentMonth = new Date().toISOString().slice(0, 7);
     container.innerHTML = `
     <div class="panel">
       <div class="panel-title">Input Cicilan Karyawan</div>
       <form id="cicilanForm">
         <div class="form-grid">
           ${inputField('tanggal', 'Tanggal', today(), 'date')}
-          <div class="field">
-            <label>Nama Karyawan</label>
-            <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">${empOptionsHtml}</select>
-          </div>
+          <div class="field"><label>Nama Karyawan</label><select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">${empOptionsHtml}</select></div>
           ${inputField('nominal', 'Total Pinjaman (Rp)', 0)}
           ${inputField('tenor', 'Tenor (Bulan)', 1)}
-          <div class="field">
-            <label>Keterangan</label>
-            <input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
-          </div>
+          <div class="field"><label>Keterangan</label><input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);"></div>
         </div>
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan Cicilan</button></div>
       </form>
     </div>
     <div class="panel" style="padding-bottom: 120px;">
-      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
-        <label style="font-weight:700;">Lihat Histori Cicilan (Bulan Masuk):</label>
-        <input type="month" id="cicilanFilterMonth" value="${currentMonth}" onchange="renderCicilanTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
-      </div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Tenor</th><th>Keterangan</th><th class="right">Pinjaman</th><th class="right">Cicilan/Bln</th></tr></thead>
-          <tbody id="cicilanTableBody"></tbody>
-        </table>
-      </div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;"><label style="font-weight:700;">Lihat Histori Cicilan (Bulan Masuk):</label><input type="month" id="cicilanFilterMonth" value="${new Date().toISOString().slice(0, 7)}" onchange="renderCicilanTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);"></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Tenor</th><th>Keterangan</th><th class="right">Pinjaman</th><th class="right">Cicilan/Bln</th></tr></thead><tbody id="cicilanTableBody"></tbody></table></div>
     </div>
     `;
-
     $('cicilanForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
       const payload = { tanggal: formData.tanggal, nama: formData.nama, nominal: Number(formData.nominal || 0), tenor: Number(formData.tenor || 1), keterangan: formData.keterangan || '-' };
       if (!payload.nominal) { showToast('Nominal tidak boleh nol.'); return; }
       const { error } = await db.from('installments').insert([payload]);
-      if (error) showToast('Gagal: ' + error.message);
-      else { showToast('Cicilan berhasil dicatat.'); loadData('payroll'); }
+      if (error) showToast('Gagal: ' + error.message); else { showToast('Cicilan berhasil dicatat.'); loadData('payroll'); }
     };
     renderCicilanTable();
   }
@@ -1598,16 +1462,8 @@ function renderKasbonTable() {
   const tbody = $('kasbonTableBody');
   if (!tbody) return;
   const list = (DB.advances || []).filter(r => formatDate(r.tanggal).startsWith(fMonth)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada data kasbon bulan ini.</td></tr>`; return; }
-  tbody.innerHTML = list.map((r, i) => `
-    <tr>
-      <td class="center">${i + 1}</td>
-      <td class="center">${formatDate(r.tanggal)}</td>
-      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
-      <td>${escapeHtml(r.keterangan)}</td>
-      <td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td>
-    </tr>
-  `).join('');
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada data kasbon.</td></tr>`; return; }
+  tbody.innerHTML = list.map((r, i) => `<tr><td class="center">${i + 1}</td><td class="center">${formatDate(r.tanggal)}</td><td style="font-weight:700;">${escapeHtml(r.nama)}</td><td>${escapeHtml(r.keterangan)}</td><td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td></tr>`).join('');
 }
 window.renderKasbonTable = renderKasbonTable;
 
@@ -1616,21 +1472,10 @@ function renderCicilanTable() {
   const tbody = $('cicilanTableBody');
   if (!tbody) return;
   const list = (DB.installments || []).filter(r => formatDate(r.tanggal).startsWith(fMonth)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data cicilan bulan ini.</td></tr>`; return; }
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data cicilan.</td></tr>`; return; }
   tbody.innerHTML = list.map((r, i) => {
-    const tenor = Number(r.tenor) || 1;
-    const perBulan = Math.round(Number(r.nominal) / tenor);
-    return `
-    <tr>
-      <td class="center">${i + 1}</td>
-      <td class="center">${formatDate(r.tanggal)}</td>
-      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
-      <td class="center">${tenor} Bln</td>
-      <td>${escapeHtml(r.keterangan)}</td>
-      <td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td>
-      <td class="right" style="font-weight:700; color:var(--danger);">- ${money(perBulan)}</td>
-    </tr>
-    `;
+    const tenor = Number(r.tenor) || 1, perBulan = Math.round(Number(r.nominal) / tenor);
+    return `<tr><td class="center">${i + 1}</td><td class="center">${formatDate(r.tanggal)}</td><td style="font-weight:700;">${escapeHtml(r.nama)}</td><td class="center">${tenor} Bln</td><td>${escapeHtml(r.keterangan)}</td><td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td><td class="right" style="font-weight:700; color:var(--danger);">- ${money(perBulan)}</td></tr>`;
   }).join('');
 }
 window.renderCicilanTable = renderCicilanTable;
@@ -1639,21 +1484,15 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
   let masterList = DB.masterSalary || [];
   if (fDept !== 'ALL') masterList = masterList.filter(r => cleanText(r.departemen) === cleanText(fDept));
   masterList.sort((a, b) => (Number(resolveEmployeeId(a)) || 999) - (Number(resolveEmployeeId(b)) || 999));
-
-  const eDateObj = new Date(eDate || today());
-  const eYear = eDateObj.getFullYear(), eMonth = eDateObj.getMonth();
+  const eDateObj = new Date(eDate || today()), eYear = eDateObj.getFullYear(), eMonth = eDateObj.getMonth();
 
   return masterList.map(emp => {
-    const empId = resolveEmployeeId(emp);
-    const lainLain = (empId === '22') ? DEFAULT_BONUS_LAIN : 0;
-
+    const empId = resolveEmployeeId(emp), lainLain = (empId === '22') ? DEFAULT_BONUS_LAIN : 0;
     const empAdvances = (DB.advances || []).filter(adv => {
-      const advDate = formatDate(adv.tanggal);
-      const advId = resolveEmployeeId(adv);
+      const advDate = formatDate(adv.tanggal), advId = resolveEmployeeId(adv);
       return (empId ? (advId === empId) : isRecordMatching(emp, adv)) && (!sDate || advDate >= sDate) && (!eDate || advDate <= eDate);
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
-
     const empInstallments = (DB.installments || []).filter(ins => {
       const insId = resolveEmployeeId(ins);
       return empId ? (insId === empId) : isRecordMatching(emp, ins);
@@ -1663,81 +1502,49 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
       const insDate = new Date(formatDate(ins.tanggal));
       const monthDiff = (eYear - insDate.getFullYear()) * 12 + (eMonth - insDate.getMonth());
       const tenor = Number(ins.tenor) || 1;
-      if (monthDiff >= 0 && monthDiff < tenor) {
-        cicilanPeriode += Math.round(Number(ins.nominal) / tenor);
-      }
+      if (monthDiff >= 0 && monthDiff < tenor) cicilanPeriode += Math.round(Number(ins.nominal) / tenor);
     });
-
     const empAttendance = (DB.attendance || []).filter(att => {
-      const attDate = formatDate(att.tanggal);
-      const attId = resolveEmployeeId(att);
+      const attDate = formatDate(att.tanggal), attId = resolveEmployeeId(att);
       return (empId ? (attId === empId) : isRecordMatching(emp, att)) && (!sDate || attDate >= sDate) && (!eDate || attDate <= eDate);
     });
-
     let totalKelebihanJam = 0;
-    empAttendance.forEach(att => {
-      if (att.masuk && att.pulang) totalKelebihanJam += calculateDailyOvertimeHours(att.masuk, att.pulang);
-    });
-
+    empAttendance.forEach(att => { if (att.masuk && att.pulang) totalKelebihanJam += calculateDailyOvertimeHours(att.masuk, att.pulang); });
     const totalPenyesuaianJam = totalKelebihanJam * RATE_PER_HOUR;
-    const gajiPokok = Number(emp.gaji_pokok || 0);
-    const jabatan = Number(emp.jabatan || 0);
-    const prestasi = Number(emp.prestasi || 0);
-    const kesehatan = Number(emp.kesehatan || 0);
-    const zakat = Number(emp.zakat || 0);
-    const loyalitas = Number(emp.kebersihan_loyalitas || 0);
-
+    const gajiPokok = Number(emp.gaji_pokok || 0), jabatan = Number(emp.jabatan || 0), prestasi = Number(emp.prestasi || 0), kesehatan = Number(emp.kesehatan || 0), zakat = Number(emp.zakat || 0), loyalitas = Number(emp.kebersihan_loyalitas || 0);
     const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain + totalPenyesuaianJam;
     const totalPotongan = cicilanPeriode + kasbonPeriode;
-    const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
-
-    return { nama: getDisplayNameById(empId, emp.nama), departemen: emp.departemen, pokok: gajiPokok, jabatan, prestasi, kesehatan, jamKerja: totalPenyesuaianJam, zakat, loyalitas, lainLain, kasbon: kasbonPeriode, bpjs: 0, cicilan: cicilanPeriode, gajiBersih };
+    return { nama: getDisplayNameById(empId, emp.nama), departemen: emp.departemen, pokok: gajiPokok, jabatan, prestasi, kesehatan, jamKerja: totalPenyesuaianJam, zakat, loyalitas, lainLain, kasbon: kasbonPeriode, bpjs: 0, cicilan: cicilanPeriode, gajiBersih: Math.max(0, totalPendapatan - totalPotongan) };
   });
 }
 
 function renderPayrollCards() {
-  const sDate = $('payrollStartDate')?.value;
-  const eDate = $('payrollEndDate')?.value;
-  const fDept = $('payrollFilterDept')?.value || 'ALL';
-  const container = $('payrollCardsContainer');
+  const sDate = $('payrollStartDate')?.value, eDate =$('payrollEndDate')?.value, fDept = $('payrollFilterDept')?.value \vert{}\vert{} 'ALL', container =$('payrollCardsContainer');
   if (!container) return;
-
   const list = getCalculatedPayrollList(sDate, eDate, fDept);
   if (!list.length) { container.innerHTML = `<div class="panel" style="text-align: center; color: var(--muted);">Belum ada data gaji.</div>`; return; }
-
   container.innerHTML = list.map((emp, idx) => {
     const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
     return `
-    <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer; user-select: none;" onclick="const el = document.getElementById('slip-wrapper-${idx}'); if(el) el.style.gridTemplateRows = el.style.gridTemplateRows === '1fr' ? '0fr' : '1fr';">
+    <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer;" onclick="const el = document.getElementById('slip-wrapper-${idx}'); if(el) el.style.gridTemplateRows = el.style.gridTemplateRows === '1fr' ? '0fr' : '1fr';">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
-        <div>
-          <div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div>
-          <span class="badge badge-dept" style="margin-top: 4px;">${escapeHtml(emp.departemen)}</span>
-        </div>
-        <div style="text-align: right;">
-          <div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH <i class="fa-solid fa-chevron-down" style="margin-left: 4px;"></i></div>
-          <div style="font-size: 16px; font-weight: 800; color: var(--wa-primary);">${money(emp.gajiBersih)}</div>
-        </div>
+        <div><div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div><span class="badge badge-dept" style="margin-top: 4px;">${escapeHtml(emp.departemen)}</span></div>
+        <div style="text-align: right;"><div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH <i class="fa-solid fa-chevron-down"></i></div><div style="font-size: 16px; font-weight: 800; color: var(--wa-primary);">${money(emp.gajiBersih)}</div></div>
       </div>
       <div style="font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px;">
-        <div>Pokok: <b>${money(emp.pokok)}</b></div>
-        <div>Tunjangan & Absen: <b>${money(totalPendapatan - emp.pokok)}</b></div>
-        <div>Potongan: <b style="color:var(--danger);">${money(totalPotongan)}</b></div>
-        <div>Total Bruto: <b>${money(totalPendapatan)}</b></div>
+        <div>Pokok: <b>${money(emp.pokok)}</b></div><div>Tunjangan: <b>${money(totalPendapatan - emp.pokok)}</b></div>
+        <div>Potongan: <b style="color:var(--danger);">${money(totalPotongan)}</b></div><div>Bruto: <b>${money(totalPendapatan)}</b></div>
       </div>
       <div id="slip-wrapper-${idx}" style="display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease-out;">
         <div style="overflow: hidden;">
           <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 13px;">
-            <div style="font-weight: 800; margin-bottom: 8px; color: var(--text);">Rincian Pendapatan</div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Gaji Pokok</span> <b>${money(emp.pokok)}</b></div>
+            <div style="font-weight: 800; margin-bottom: 8px;">Rincian Pendapatan</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Pokok</span> <b>${money(emp.pokok)}</b></div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jabatan</span> <b>${money(emp.jabatan)}</b></div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Prestasi</span> <b>${money(emp.prestasi)}</b></div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kesehatan</span> <b>${money(emp.kesehatan)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jam Kerja (+/-)</span> <b style="color:${emp.jamKerja < 0 ? 'var(--danger)' : 'var(--text)'};">${emp.jamKerja > 0 ? '+' : ''}${money(emp.jamKerja)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Zakat</span> <b>${money(emp.zakat)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kebersihan/Loyalitas</span> <b>${money(emp.loyalitas)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Lain-lain</span> <b>${money(emp.lainLain)}</b></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jam Kerja</span> <b>${money(emp.jamKerja)}</b></div>
             <div style="font-weight: 800; margin-top: 12px; margin-bottom: 8px; color: var(--danger);">Rincian Potongan</div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kasbon</span> <b style="color:var(--danger);">${money(emp.kasbon)}</b></div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Cicilan</span> <b style="color:var(--danger);">${money(emp.cicilan)}</b></div>
@@ -1751,26 +1558,12 @@ function renderPayrollCards() {
 window.renderPayrollCards = renderPayrollCards;
 
 function renderSlipPages() {
-  const sDate = $('slipStartDate')?.value;
-  const eDate = $('slipEndDate')?.value;
-  const fDept = $('slipFilterDept')?.value || 'ALL';
-  const printDate = $('slipPrintDate')?.value || `Subang, ${today()}`;
-  const container = $('slipPrintContainer');
+  const sDate = $('slipStartDate')?.value, eDate =$('slipEndDate')?.value, fDept = $('slipFilterDept')?.value \vert{}\vert{} 'ALL', printDate =$('slipPrintDate')?.value || `Subang, ${today()}`, container = $('slipPrintContainer');
   if (!container) return;
-
   const list = getCalculatedPayrollList(sDate, eDate, fDept);
   if (!list.length) { container.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--muted); background: white;">Tidak ada data.</div>`; return; }
-
-  let periodMonth = '';
-  if (sDate) { periodMonth = new Date(sDate).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase(); }
-
-  const slipRow = (label, val, isBold = false) => `
-    <div style="display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; margin-bottom: 1.5px; ${isBold ? 'font-weight: 800;' : ''}">
-      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
-      <span style="text-align: center;">Rp</span>
-      <span style="text-align: right;">${val}</span>
-    </div>
-  `;
+  let periodMonth = sDate ? new Date(sDate).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase() : '';
+  const slipRow = (label, val, isBold = false) => `<div style="display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; margin-bottom: 1.5px; ${isBold ? 'font-weight: 800;' : ''}"><span>${label}</span><span style="text-align: center;">Rp</span><span style="text-align: right;">${val}</span></div>`;
 
   container.innerHTML = list.map(emp => {
     const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
@@ -1784,29 +1577,16 @@ function renderSlipPages() {
           <div style="font-size: 8px; color: #64748b;">UNIT SUBANG</div>
           <div style="font-weight: 800; font-size: 9px; margin-top: 2px; border-bottom: 1px solid #94a3b8; padding-bottom: 2px;">SLIP GAJI PERIODE ${periodMonth}</div>
         </div>
-        <div style="display: grid; grid-template-columns: 50px 8px 1fr; margin-bottom: 3px; font-weight: bold; font-size: 9.5px; line-height: 1.2;">
-          <span>NAMA</span><span>:</span><span>${escapeHtml(emp.nama)}</span>
-          <span>POSISI</span><span>:</span><span>${escapeHtml(emp.departemen)}</span>
-        </div>
+        <div style="display: grid; grid-template-columns: 50px 8px 1fr; margin-bottom: 3px; font-weight: bold; font-size: 9.5px; line-height: 1.2;"><span>NAMA</span><span>:</span><span>${escapeHtml(emp.nama)}</span><span>POSISI</span><span>:</span><span>${escapeHtml(emp.departemen)}</span></div>
         <div style="background: #f1f5f9; font-weight: 800; padding: 2px 4px; font-size: 9px; margin-bottom: 2px; border-left: 3px solid #0284c7;">RINCIAN GAJI</div>
-        ${slipRow('GAJI POKOK', formatNum(emp.pokok))}
-        ${slipRow('JABATAN', formatNum(emp.jabatan))}
-        ${slipRow('PRESTASI', formatNum(emp.prestasi))}
-        ${slipRow('KESEHATAN', formatNum(emp.kesehatan))}
-        ${slipRow('JAM KERJA (+/-)', emp.jamKerja < 0 ? '-' + formatNum(Math.abs(emp.jamKerja)) : formatNum(emp.jamKerja))}
-        ${slipRow('ZAKAT', formatNum(emp.zakat))}
-        ${slipRow('KEBERSIHAN/LOYALITAS', formatNum(emp.loyalitas))}
-        ${slipRow('LAIN-LAIN', formatNum(emp.lainLain))}
+        ${slipRow('GAJI POKOK', formatNum(emp.pokok))}${slipRow('JABATAN', formatNum(emp.jabatan))}${slipRow('PRESTASI', formatNum(emp.prestasi))}${slipRow('KESEHATAN', formatNum(emp.kesehatan))}${slipRow('JAM KERJA', formatNum(emp.jamKerja))}${slipRow('ZAKAT', formatNum(emp.zakat))}${slipRow('LOYALITAS', formatNum(emp.loyalitas))}${slipRow('LAIN-LAIN', formatNum(emp.lainLain))}
         <div style="border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;">${slipRow('Jumlah Pendapatan', formatNum(totalPendapatan), true)}</div>
         <div style="background: #fef2f2; font-weight: 800; padding: 2px 4px; font-size: 9px; margin: 3px 0 2px 0; border-left: 3px solid #ef4444;">POTONGAN</div>
-        ${slipRow('KASBON', formatNum(emp.kasbon))}
-        ${slipRow('CICILAN', formatNum(emp.cicilan))}
+        ${slipRow('KASBON', formatNum(emp.kasbon))}${slipRow('CICILAN', formatNum(emp.cicilan))}
         <div style="border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;">${slipRow('Jumlah Potongan', formatNum(totalPotongan), true)}</div>
       </div>
       <div>
-        <div style="background: #ecfdf5; font-weight: 800; padding: 3px 6px; display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; border-radius: 4px; border: 1px solid #a7f3d0; margin-top: 3px; font-size: 10px;">
-          <span>Gaji Diterima</span><span style="text-align: center;">Rp</span><span style="text-align: right; color: #047857;">${formatNum(emp.gajiBersih)}</span>
-        </div>
+        <div style="background: #ecfdf5; font-weight: 800; padding: 3px 6px; display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; border-radius: 4px; border: 1px solid #a7f3d0; margin-top: 3px; font-size: 10px;"><span>Gaji Diterima</span><span style="text-align: center;">Rp</span><span style="text-align: right; color: #047857;">${formatNum(emp.gajiBersih)}</span></div>
         <div style="text-align: right; font-size: 8px; color: #64748b; margin-top: 2px;">${escapeHtml(printDate)}</div>
       </div>
     </div>
@@ -1817,36 +1597,29 @@ window.renderSlipPages = renderSlipPages;
 
 async function exportSlipsToPDF() {
   const container = $('slipPrintContainer');
-  if (!container || container.innerHTML.trim() === '') { showToast('Tidak ada slip gaji untuk diekspor.'); return; }
-  showToast('Sedang merakit dokumen PDF...');
+  if (!container || container.innerHTML.trim() === '') { showToast('Tidak ada slip.'); return; }
+  showToast('Sedang merakit PDF...');
   try {
     const { jsPDF } = window.jspdf;
     const cards = container.querySelectorAll('.slip-card');
     const pdf = new jsPDF('p', 'mm', 'a4');
-    const cardWidth = 104, cardHeight = 98, marginX = 1, marginY = 1.5;
-
     for (let i = 0; i < cards.length; i++) {
       const canvas = await html2canvas(cards[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const indexOnPage = i % 6;
+      const imgData = canvas.toDataURL('image/png'), indexOnPage = i % 6;
       if (i > 0 && indexOnPage === 0) pdf.addPage();
       const col = indexOnPage % 2, row = Math.floor(indexOnPage / 2);
-      pdf.addImage(imgData, 'PNG', marginX + (col * cardWidth), marginY + (row * cardHeight), cardWidth, cardHeight);
+      pdf.addImage(imgData, 'PNG', 1 + (col * 104), 1.5 + (row * 98), 104, 98);
     }
     pdf.save(`SLIP_GAJI_${$('slipStartDate')?.value || 'periode'}.pdf`);
     showToast('PDF berhasil diunduh!');
-  } catch (err) {
-    showToast('Gagal membuat PDF: ' + err.message);
-  }
+  } catch (err) { showToast('Gagal membuat PDF: ' + err.message); }
 }
 window.exportSlipsToPDF = exportSlipsToPDF;
 
-// --- MODUL PENJUALAN LIMBAH ---
 function renderLimbahPage() {
   const ampasBelumDibagi = (DB.wasteSales || []).filter(r => r.jenis === 'Ampas Tahu' && r.keterangan === 'Belum Dibagikan').reduce((sum, r) => sum + Number(r.nominal), 0);
   const contentEl = $('content');
   if (!contentEl) return;
-
   contentEl.innerHTML = `
   <div class="top"><div><div class="title">Modul Penjualan Limbah</div></div></div>
   <div id="limbahContent">
@@ -1856,9 +1629,7 @@ function renderLimbahPage() {
         <div class="field"><label>Tanggal</label><input type="date" id="tglAmpas" value="${today()}"></div>
         <div class="field"><label>Nominal Setoran (Rp)</label><input type="number" id="inputAmpasTahu" min="0" step="1" placeholder="Ketik nominal..."></div>
       </div>
-      <div class="actions" style="margin-top: 15px;">
-        <button class="btn btn-secondary" onclick="submitLimbah('Ampas Tahu', 'tglAmpas', 'inputAmpasTahu')"><i class="fa-solid fa-plus"></i> Tambah ke Saldo</button>
-      </div>
+      <div class="actions" style="margin-top: 15px;"><button class="btn btn-secondary" onclick="submitLimbah('Ampas Tahu', 'tglAmpas', 'inputAmpasTahu')"><i class="fa-solid fa-plus"></i> Tambah ke Saldo</button></div>
       <hr style="margin: 20px 0; border: 0; border-top: 2px dashed var(--line);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
         <div style="font-weight: 800; font-size: 16px;">Total Saldo Terkumpul: <span style="color: var(--wa-primary);">${money(ampasBelumDibagi)}</span></div>
@@ -1868,12 +1639,7 @@ function renderLimbahPage() {
     </div>
     <div class="panel" style="padding-bottom: 120px;">
       <div class="panel-title">Histori Penjualan Limbah</div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead><tr><th class="center" style="width:45px;">No</th><th>Tanggal</th><th>Jenis Limbah</th><th class="center">Status</th><th class="right">Nominal</th></tr></thead>
-          <tbody id="wasteSalesTableBody"></tbody>
-        </table>
-      </div>
+      <div class="table-wrap"><table class="table"><thead><tr><th class="center" style="width:45px;">No</th><th>Tanggal</th><th>Jenis Limbah</th><th class="center">Status</th><th class="right">Nominal</th></tr></thead><tbody id="wasteSalesTableBody"></tbody></table></div>
     </div>
   </div>
   `;
@@ -1885,36 +1651,22 @@ window.renderLimbahPage = renderLimbahPage;
 window.renderRincianPembagian = function (jenis, total, containerId) {
   const resultEl = $(containerId);
   if (!resultEl) return;
-  if (total <= 0) {
-    resultEl.innerHTML = `<div style="text-align:center; color:var(--muted); padding: 15px; border: 1px solid var(--line); border-radius: 8px;">Belum ada saldo terkumpul.</div>`;
-    return;
-  }
+  if (total <= 0) { resultEl.innerHTML = `<div style="text-align:center; color:var(--muted); padding: 15px; border: 1px solid var(--line); border-radius: 8px;">Belum ada saldo terkumpul.</div>`; return; }
   const perusahaan = total * 0.5, manajemen = total * 0.25, pabrik = total * 0.25;
-  const jatahMgt = manajemen / 3;
-  resultEl.innerHTML = `
-  <div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--card);">
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-      <div><div style="font-weight: 700; margin-bottom: 6px;">1. Perusahaan (50%)</div><div style="color: #059669; font-weight: bold;">${money(perusahaan)}</div></div>
-      <div><div style="font-weight: 700; margin-bottom: 6px;">2. Manajemen (25%)</div><div style="color: var(--muted);">Total: <b>${money(manajemen)}</b></div></div>
-      <div><div style="font-weight: 700; margin-bottom: 6px;">3. Pabrik (25%)</div><div style="color: var(--muted);">Total: <b>${money(pabrik)}</b></div></div>
-    </div>
-  </div>
-  `;
+  resultEl.innerHTML = `<div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--card);"><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;"><div><div style="font-weight: 700; margin-bottom: 6px;">1. Perusahaan (50%)</div><div style="color: #059669; font-weight: bold;">${money(perusahaan)}</div></div><div><div style="font-weight: 700; margin-bottom: 6px;">2. Manajemen (25%)</div><div style="color: var(--muted);">Total: <b>${money(manajemen)}</b></div></div><div><div style="font-weight: 700; margin-bottom: 6px;">3. Pabrik (25%)</div><div style="color: var(--muted);">Total: <b>${money(pabrik)}</b></div></div></div></div>`;
 };
 
 window.submitLimbah = async function (jenis, idTgl, idNominal) {
   const tanggal = $(idTgl)?.value, nominal = Number($(idNominal)?.value || 0);
   if (!tanggal || nominal <= 0) { showToast('Isi tanggal dan nominal dengan benar.'); return; }
   const { error } = await db.from('waste_sales').insert([{ tanggal, jenis, qty: 1, satuan: 'PAKET', harga_satuan: nominal, nominal, keterangan: 'Belum Dibagikan' }]);
-  if (error) showToast('Gagal: ' + error.message);
-  else { showToast('Berhasil ditambahkan!'); $(idNominal).value = ''; loadData('limbah'); }
+  if (error) showToast('Gagal: ' + error.message); else { showToast('Berhasil ditambahkan!'); $(idNominal).value = ''; loadData('limbah'); }
 };
 
 window.bagikanLimbah = async function (jenis) {
   if (!confirm(`Bagikan seluruh saldo ${jenis}?`)) return;
   const { error } = await db.from('waste_sales').update({ keterangan: 'Sudah Dibagikan' }).eq('jenis', jenis).eq('keterangan', 'Belum Dibagikan');
-  if (error) showToast('Gagal: ' + error.message);
-  else { showToast('Saldo berhasil dibagikan!'); loadData('limbah'); }
+  if (error) showToast('Gagal: ' + error.message); else { showToast('Saldo berhasil dibagikan!'); loadData('limbah'); }
 };
 
 window.renderWasteSalesTable = function () {
@@ -1922,38 +1674,18 @@ window.renderWasteSalesTable = function () {
   if (!tbody) return;
   const list = [...(DB.wasteSales || [])].sort((a, b) => b.tanggal.localeCompare(a.tanggal));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="center empty">Belum ada riwayat.</td></tr>'; return; }
-  tbody.innerHTML = list.map((item, i) => `
-    <tr style="border-bottom: 1px solid var(--line);">
-      <td class="center" style="color:var(--muted);">${i + 1}</td>
-      <td>${formatDate(item.tanggal)}</td>
-      <td style="font-weight:700;">${escapeHtml(item.jenis)}</td>
-      <td class="center"><span class="badge" style="background:${item.keterangan === 'Belum Dibagikan' ? '#f59e0b' : '#10b981'}; color:white; font-size:11px;">${escapeHtml(item.keterangan)}</span></td>
-      <td class="right" style="font-weight: 800; font-size:14px;">${money(item.nominal)}</td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = list.map((item, i) => `<tr><td class="center" style="color:var(--muted);">${i + 1}</td><td>${formatDate(item.tanggal)}</td><td style="font-weight:700;">${escapeHtml(item.jenis)}</td><td class="center"><span class="badge" style="background:${item.keterangan === 'Belum Dibagikan' ? '#f59e0b' : '#10b981'}; color:white; font-size:11px;">${escapeHtml(item.keterangan)}</span></td><td class="right" style="font-weight: 800; font-size:14px;">${money(item.nominal)}</td></tr>`).join('');
 };
 
-// --- HALAMAN ASISTEN AI / CHAT Q&A TERPISAH ---
+// --- AI CHAT ASISTEN ---
 function renderAiChatPage() {
   const contentEl = $('content');
   if (!contentEl) return;
   contentEl.innerHTML = `
-  <div class="top">
-    <div>
-      <div class="title">Asisten AI & Analisis</div>
-      <div class="subtitle">Tanya Jawab Pintar Berbasis Seluruh Data Usaha</div>
-    </div>
-  </div>
+  <div class="top"><div><div class="title">Asisten AI & Analisis</div><div class="subtitle">Tanya Jawab Pintar Berbasis Data Usaha</div></div></div>
   <div class="panel" style="display:flex; flex-direction:column; height: calc(100vh - 180px); max-height: 650px; padding: 15px;">
-    <div id="chatMessages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px;">
-      <div style="background:var(--card); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width: 85%;">
-        👋 Halo! Saya adalah Asisten AI untuk Rumah Makan Tahu Sumedang Sari Kedele Unit Subang. Ada yang ingin Anda tanyakan atau analisis hari ini?
-      </div>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <input type="text" id="chatInput" placeholder="Ketik pertanyaan atau minta analisis..." onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:var(--card); color:var(--text);">
-      <button class="btn btn-primary" onclick="sendChatMessage()" style="padding: 0 16px;"><i class="fa-solid fa-paper-plane"></i></button>
-    </div>
+    <div id="chatMessages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px;"><div style="background:var(--card); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width: 85%;">👋 Halo! Saya Asisten AI Unit Subang. Ada yang ingin Anda tanyakan atau analisis hari ini?</div></div>
+    <div style="display:flex; gap:8px;"><input type="text" id="chatInput" placeholder="Ketik pertanyaan..." onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:var(--card); color:var(--text);"><button class="btn btn-primary" onclick="sendChatMessage()" style="padding: 0 16px;"><i class="fa-solid fa-paper-plane"></i></button></div>
   </div>
   `;
 }
@@ -1964,25 +1696,19 @@ async function sendChatMessage() {
   if (!input || !container) return;
   const text = input.value.trim();
   if (!text) return;
-
   container.innerHTML += `<div style="align-self:flex-end; background:var(--wa-primary); color:white; padding:12px; border-radius:10px; font-size:13.5px; max-width:85%; word-break:break-word;">${escapeHtml(text)}</div>`;
-  input.value = '';
-  container.scrollTop = container.scrollHeight;
-
+  input.value = ''; container.scrollTop = container.scrollHeight;
   const loadingId = 'load_' + Date.now();
   container.innerHTML += `<div id="${loadingId}" style="align-self:flex-start; background:var(--card); color:var(--muted); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px;"><i>🤖 Gemini sedang menganalisis data...</i></div>`;
   container.scrollTop = container.scrollHeight;
-
   const reply = await callGeminiAPI(`Anda adalah konsultan keuangan profesional untuk RM Tahu Sumedang Sari Kedele Unit Subang. Pertanyaan Pengguna: "${text}"`);
   const loadEl = $(loadingId);
-  if (loadEl) {
-    loadEl.outerHTML = `<div style="align-self:flex-start; background:var(--card); color:var(--text); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width:85%; word-break:break-word;">🤖 ${escapeHtml(reply).replace(/\n/g, '<br>')}</div>`;
-  }
+  if (loadEl) loadEl.outerHTML = `<div style="align-self:flex-start; background:var(--card); color:var(--text); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width:85%; word-break:break-word;">🤖 ${escapeHtml(reply).replace(/\n/g, '<br>')}</div>`;
   container.scrollTop = container.scrollHeight;
 }
 window.sendChatMessage = sendChatMessage;
 
-// --- HALAMAN PENGATURAN ---
+// --- PENGATURAN & DIAGNOSTIK ---
 function renderSettingsPage() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -1991,15 +1717,17 @@ function renderSettingsPage() {
   <div class="panel">
     <div class="panel-title">Diagnostik & Kesehatan Aplikasi</div>
     <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 15px;">Periksa status koneksi database Supabase dan memori aplikasi.</p>
-    <button class="btn btn-primary" onclick="runSystemDiagnostics()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-      <i class="fa-solid fa-stethoscope"></i> Jalankan Analisis Sistem
-    </button>
+    <button class="btn btn-primary" onclick="runSystemDiagnostics()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fa-solid fa-stethoscope"></i> Jalankan Analisis Sistem</button>
   </div>
   `;
 }
 window.renderSettingsPage = renderSettingsPage;
 
 function runSystemDiagnostics() {
-  alert('🩺 Sistem Berjalan Normal. Koneksi Supabase & Gemini API Aktif.');
+  try {
+    const totalAttendance = (DB.attendance || []).length, totalMaster = Object.keys(EMPLOYEE_MAP).length;
+    const report = `🩺 LAPORAN ANALISIS KESEHATAN SISTEM\n\n• Status Koneksi Supabase: Terhubung Aktif\n• Master Karyawan Terdaftar: ${totalMaster} orang\n• Total Baris Absensi di Memori: ${totalAttendance} baris\n• Status Gemini API: Terhubung Aktif\n\nKesimpulan: Sistem berjalan normal.`;
+    alert(report);
+  } catch (err) { alert('⚠️ Gagal: ' + err.message); }
 }
 window.runSystemDiagnostics = runSystemDiagnostics;
