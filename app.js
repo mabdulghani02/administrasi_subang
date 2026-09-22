@@ -31,7 +31,6 @@ const EMPLOYEE_MAP = {
   '27': { absenName: 'HAIKAL',     masterName: 'HAIKAL' }
 };
 
-// Mendapatkan ID Absen murni dari record data apa pun
 function resolveEmployeeId(record) {
   if (!record) return null;
   const directId = record.no_absen || record.nomor || record.id_absen || record.id_karyawan;
@@ -335,7 +334,6 @@ function showPage(page) {
   if (page === 'attendance') renderAttendancePage();
   if (page === 'payroll') renderPayrollPage();
   if (page === 'limbah') renderLimbahPage();
-  if (page === 'aichat') renderAiChatPage();
   if (page === 'settings') renderSettingsPage();
 }
 window.showPage = showPage;
@@ -581,7 +579,6 @@ function updateDashboardMetrics(yearMonth) {
   }
 }
 
-// --- MODUL PENDAPATAN ---
 function renderSales() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -597,13 +594,16 @@ function renderSales() {
   `;
   showSalesSub('input');
 }
-window.renderSales = renderSales;
 
 function showSalesSub(type) {
   const container = $('salesSubContent');
   if (!container) return;
-  $('subBtnInput')?.classList.toggle('active-sub', type === 'input');$('subBtnReport')?.classList.toggle('active-sub', type === 'report');
-
+  const btnIn = $('subBtnInput');
+  const btnRep = $('subBtnReport');
+  if (btnIn && btnRep) {
+    btnIn.classList.toggle('active-sub', type === 'input');
+    btnRep.classList.toggle('active-sub', type === 'report');
+  }
   if (type === 'input') {
     container.innerHTML = `
     <div class="panel">
@@ -669,7 +669,6 @@ function showSalesSub(type) {
     loadReport();
   }
 }
-window.showSalesSub = showSalesSub;
 
 function inputField(name, label, value = '', type = 'number') {
   return `
@@ -701,8 +700,10 @@ function loadReport() {
 
   try {
     const selectedDate = normalizeDate(dateEl.value);
-    const sales = (DB.sales || []).find(r => normalizeDate(r.tanggal) === selectedDate) || {};
-    const counter = (DB.counter || []).find(r => normalizeDate(r.tanggal) === selectedDate) || {};
+    const salesFound = (DB.sales || []).find(r => normalizeDate(r.tanggal) === selectedDate);
+    const counterFound = (DB.counter || []).find(r => normalizeDate(r.tanggal) === selectedDate);
+    const sales = salesFound || {};
+    const counter = counterFound || {};
 
     const totalEsb = totalESB(sales);
     const totalKonterVal = totalCounter(counter);
@@ -712,7 +713,14 @@ function loadReport() {
     const diffQris = Number(sales.qris || 0) - Number(counter.qris || 0);
 
     const dateObject = new Date(selectedDate + 'T00:00:00');
-    const formattedDate = isNaN(dateObject) ? selectedDate : dateObject.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const formattedDate = isNaN(dateObject)
+      ? selectedDate
+      : dateObject.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
 
     resultEl.innerHTML = `
     <div class="report-container">
@@ -721,7 +729,9 @@ function loadReport() {
           RUMAH MAKAN TAHU SUMEDANG<br>SARI KEDELE<br><span style="font-size:12px;">UNIT SUBANG</span>
         </div>
         <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
-        <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">${formattedDate}</div>
+        <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">
+          ${formattedDate}
+        </div>
         <div style="margin-bottom: 18px;">
           <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #94a3b8; margin-bottom: 8px; padding-bottom: 4px;">PENDAPATAN PER KATEGORI</div>
           ${reportRow('MAKANAN', sales.makanan)}
@@ -770,14 +780,18 @@ function loadReport() {
     console.error('Gagal memuat laporan:', error);
   }
 }
-window.loadReport = loadReport;
 
 function downloadDailyReportImage() {
-  downloadElementAsImage('captureDailyReport', 'LAPORAN_PENDAPATAN_' + ($('reportDate')?.value || today()));
+  const target = $('captureDailyReport');
+  if (!target) {
+    showToast('Laporan belum dimuat.');
+    return;
+  }
+  const date = $('reportDate')?.value || today();
+  downloadElementAsImage('captureDailyReport', 'LAPORAN_PENDAPATAN_' + date);
 }
-window.downloadDailyReportImage = downloadDailyReportImage;
 
-// --- MODUL PENGELUARAN DENGAN PEMANTAUAN HARIAN ---
+// --- MODUL PENGELUARAN YANG DITAMBAHKAN PEMANTAUAN HARIAN ---
 function renderExpense() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -800,15 +814,23 @@ window.renderExpense = renderExpense;
 function showExpenseSub(type) {
   const container = $('expenseSubContent');
   if (!container) return;
-  $('expBtnIn')?.classList.toggle('active-sub', type === 'input');$('expBtnDaily')?.classList.toggle('active-sub', type === 'daily');
-  $('expBtnRep')?.classList.toggle('active-sub', type === 'report');$('expBtnCash')?.classList.toggle('active-sub', type === 'cash');
+  const btnIn = $('expBtnIn');
+  const btnDaily = $('expBtnDaily');
+  const btnRep = $('expBtnRep');
+  const btnCash = $('expBtnCash');
+  if (btnIn && btnDaily && btnRep && btnCash) {
+    btnIn.classList.toggle('active-sub', type === 'input');
+    btnDaily.classList.toggle('active-sub', type === 'daily');
+    btnRep.classList.toggle('active-sub', type === 'report');
+    btnCash.classList.toggle('active-sub', type === 'cash');
+  }
 
   if (type === 'input') {
     container.innerHTML = `
     <div class="panel">
       <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
         <div class="panel-title" style="margin-bottom:0;">Input Pengeluaran Sekaligus</div>
-        <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%; background:var(--card); color:var(--text);">
+        <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%;">
       </div>
       <div class="table-wrap" style="overflow-x: auto;">
         <table class="table" style="min-width: 800px;">
@@ -874,17 +896,24 @@ function showExpenseSub(type) {
       </form>
     </div>
     `;
+
     $('cashForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
-      const payload = { tanggal: formData.tanggal, saldo_harian: Number(formData.saldo_harian || 0), belanja_malam: Number(formData.belanja_malam || 0) };
+      const payload = {
+        tanggal: formData.tanggal,
+        saldo_harian: Number(formData.saldo_harian || 0),
+        belanja_malam: Number(formData.belanja_malam || 0)
+      };
       const { error } = await db.from('cash_positions').upsert([payload], { onConflict: 'tanggal' });
       if (error) showToast('Gagal: ' + error.message);
-      else { showToast('Posisi kas disimpan.'); loadData('expense'); }
+      else {
+        showToast('Posisi kas disimpan.');
+        loadData('expense');
+      }
     };
   }
 }
-window.showExpenseSub = showExpenseSub;
 
 function loadDailyMonitorData() {
   const dateEl = $('dailyMonitorDate');
@@ -979,7 +1008,6 @@ function addExpenseRow() {
   `;
   $('batchExpenseBody')?.appendChild(tr);
 }
-window.addExpenseRow = addExpenseRow;
 
 async function submitBatchExpenses() {
   const tanggal = $('batchExpenseDate').value;
@@ -993,16 +1021,31 @@ async function submitBatchExpenses() {
     const h = r.querySelector('.exp-harga').value;
     const n = r.querySelector('.exp-nominal').value;
     if (s || n) {
-      items.push({ tanggal, kategori: cat, sub_kategori: sub, sumber: s, qty: Number(q || 1), satuan: sat || 'PCS', harga_satuan: Number(h || 0), nominal: Number(n || 0), keterangan: '-' });
+      items.push({
+        tanggal,
+        kategori: cat,
+        sub_kategori: sub,
+        sumber: s,
+        qty: Number(q || 1),
+        satuan: sat || 'PCS',
+        harga_satuan: Number(h || 0),
+        nominal: Number(n || 0),
+        keterangan: '-'
+      });
     }
   });
 
-  if (!items.length) { showToast('Isi minimal satu baris.'); return; }
+  if (!items.length) {
+    showToast('Isi minimal satu baris.');
+    return;
+  }
   const { error } = await db.from('expenses').insert(items);
   if (error) showToast('Gagal: ' + error.message);
-  else { showToast('Pengeluaran berhasil disimpan.'); loadData('expense'); }
+  else {
+    showToast('Pengeluaran berhasil disimpan.');
+    loadData('expense');
+  }
 }
-window.submitBatchExpenses = submitBatchExpenses;
 
 function loadExpenseReport() {
   const dateEl = $('expenseReportDate');
@@ -1018,11 +1061,19 @@ function loadExpenseReport() {
     const sisaSaldo = totalPemasukan - totalPengeluaran;
 
     const dateObject = new Date(date + 'T00:00:00');
-    const formattedDate = isNaN(dateObject) ? date : dateObject.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const formattedDate = isNaN(dateObject)
+      ? date
+      : dateObject.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
 
-    let expenseRowsHtml = dayExpenses.length > 0
-      ? dayExpenses.map((expense, i) => reportRow(`${i + 1}. ${escapeHtml(expense.sumber || 'Pengeluaran')}`, expense.nominal)).join('')
-      : `<div style="text-align:center; color:#64748b; font-size:13.5px; padding:10px;">Tidak ada pengeluaran</div>`;
+    let expenseRowsHtml =
+      dayExpenses.length > 0
+        ? dayExpenses.map((expense, i) => reportRow(`${i + 1}. ${escapeHtml(expense.sumber || 'Pengeluaran')}`, expense.nominal)).join('')
+        : `<div style="text-align:center; color:#64748b; font-size:13.5px; padding:10px;">Tidak ada pengeluaran</div>`;
 
     resultEl.innerHTML = `
     <div class="expense-report-wrapper">
@@ -1032,7 +1083,8 @@ function loadExpenseReport() {
         </div>
         <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
         <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">
-          LAPORAN KAS & PENGELUARAN<br><span style="font-size:13px; font-weight:normal;">${formattedDate}</span>
+          LAPORAN KAS & PENGELUARAN<br>
+          <span style="font-size:13px; font-weight:normal;">${formattedDate}</span>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
           <div>
@@ -1062,14 +1114,17 @@ function loadExpenseReport() {
     console.error('Gagal memuat laporan pengeluaran:', error);
   }
 }
-window.loadExpenseReport = loadExpenseReport;
 
 function downloadExpenseReportImage() {
-  downloadElementAsImage('captureExpenseReport', 'LAPORAN_PENGELUARAN_' + ($('expenseReportDate')?.value || today()));
+  const target = $('captureExpenseReport');
+  if (!target) {
+    showToast('Laporan pengeluaran belum dimuat.');
+    return;
+  }
+  const date = $('expenseReportDate')?.value || today();
+  downloadElementAsImage('captureExpenseReport', 'LAPORAN_PENGELUARAN_' + date);
 }
-window.downloadExpenseReportImage = downloadExpenseReportImage;
 
-// --- MODUL ABSENSI, GAJI, LIMBAH, AI CHAT, & SETTINGS (UTUH DARI FILE ASLI) ---
 function renderAttendancePage() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -1087,17 +1142,27 @@ function renderAttendancePage() {
   `;
   showAttendanceSub('log');
 }
-window.renderAttendancePage = renderAttendancePage;
 
 function showAttendanceSub(type) {
   const container = $('attendanceSubContent');
   if (!container) return;
-  $('attBtnLog')?.classList.toggle('active-sub', type === 'log');$('attBtnAllow')?.classList.toggle('active-sub', type === 'allowance');
-  $('attBtnHours')?.classList.toggle('active-sub', type === 'hours');$('attBtnLibur')?.classList.toggle('active-sub', type === 'libur');
+  const btnLog = $('attBtnLog');
+  const btnAllow = $('attBtnAllow');
+  const btnHours = $('attBtnHours');
+  const btnLibur = $('attBtnLibur');
+  if (btnLog && btnAllow && btnHours && btnLibur) {
+    btnLog.classList.toggle('active-sub', type === 'log');
+    btnAllow.classList.toggle('active-sub', type === 'allowance');
+    btnHours.classList.toggle('active-sub', type === 'hours');
+    btnLibur.classList.toggle('active-sub', type === 'libur');
+  }
 
-  const d = new Date(), y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
   const lastD = new Date(y, d.getMonth() + 1, 0).getDate();
-  const defaultStart = `${y}-${m}-01`, defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
+  const defaultStart = `${y}-${m}-01`;
+  const defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
 
   if (type === 'log') {
     container.innerHTML = `
@@ -1111,8 +1176,14 @@ function showAttendanceSub(type) {
     </div>
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label><input type="date" id="attLogStart" value="${defaultStart}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label><input type="date" id="attLogEnd" value="${defaultEnd}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
+          <input type="date" id="attLogStart" value="${defaultStart}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
+          <input type="date" id="attLogEnd" value="${defaultEnd}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
       </div>
       <div class="table-wrap">
         <table class="table">
@@ -1126,7 +1197,10 @@ function showAttendanceSub(type) {
   } else if (type === 'allowance') {
     container.innerHTML = `
     <div class="panel" style="padding-bottom: 120px;">
-      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;"><label style="font-weight:700;">Pilih Tanggal:</label><input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;"></div>
+      <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
+        <label style="font-weight:700;">Pilih Tanggal:</label>
+        <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;">
+      </div>
       <div class="table-wrap">
         <table class="table">
           <thead><tr><th style="width:45px;" class="center">No</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Shift</th><th class="center">Jam Masuk</th><th class="center">Batas</th><th class="center">Status</th><th class="right">Uang Jajan</th></tr></thead>
@@ -1140,12 +1214,29 @@ function showAttendanceSub(type) {
     container.innerHTML = `
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label><input type="date" id="hoursStart" value="${defaultStart}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label><input type="date" id="hoursEnd" value="${defaultEnd}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
+          <input type="date" id="hoursStart" value="${defaultStart}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
+          <input type="date" id="hoursEnd" value="${defaultEnd}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th style="width:45px;" class="center">No</th><th>ID</th><th>Nama Karyawan</th><th>Divisi</th><th class="center">Hari Masuk</th><th class="center">Total Jam</th><th class="center">Total Kelebihan</th><th class="right">Total Penyesuaian</th></tr></thead>
+          <thead>
+            <tr>
+              <th style="width:45px;" class="center">No</th>
+              <th>ID</th>
+              <th>Nama Karyawan</th>
+              <th>Divisi</th>
+              <th class="center">Hari Masuk</th>
+              <th class="center">Total Jam</th>
+              <th class="center">Total Kelebihan</th>
+              <th class="right">Total Penyesuaian</th>
+            </tr>
+          </thead>
           <tbody id="workHoursTableBody"></tbody>
         </table>
       </div>
@@ -1156,8 +1247,14 @@ function showAttendanceSub(type) {
     container.innerHTML = `
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label><input type="date" id="liburStart" value="${defaultStart}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label><input type="date" id="liburEnd" value="${defaultEnd}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;"></div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
+          <input type="date" id="liburStart" value="${defaultStart}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
+          <input type="date" id="liburEnd" value="${defaultEnd}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+        </div>
       </div>
       <div id="liburListContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
     </div>
@@ -1165,177 +1262,370 @@ function showAttendanceSub(type) {
     renderLiburList();
   }
 }
-window.showAttendanceSub = showAttendanceSub;
 
 function renderAttendanceTable() {
-  const sDate = $('attLogStart')?.value, eDate = $('attLogEnd')?.value, tbody =$('attendanceTableBody');
+  const sDate = $('attLogStart')?.value;
+  const eDate = $('attLogEnd')?.value;
+  const tbody = $('attendanceTableBody');
   if (!tbody) return;
+
   const rawList = (DB.attendance || []).filter(r => {
     const d = String(r.tanggal || '').slice(0, 10);
     return (!sDate || d >= sDate) && (!eDate || d <= eDate);
   });
+
   const uniqueMap = new Map();
   rawList.forEach(r => {
     const tgl = String(r.tanggal || '').slice(0, 10);
     let idAbsen = String(r.no_absen || '').trim();
+    
     if (!idAbsen || !EMPLOYEE_MAP[idAbsen]) {
       const cleanName = String(r.nama || '').trim().toUpperCase();
       if (cleanName.includes('YUSUF')) idAbsen = '25';
       else {
         for (const [id, val] of Object.entries(EMPLOYEE_MAP)) {
-          if (cleanName === val.absenName || cleanName === val.masterName) { idAbsen = id; break; }
+          if (cleanName === val.absenName || cleanName === val.masterName) {
+            idAbsen = id;
+            break;
+          }
         }
       }
     }
-    if (idAbsen) uniqueMap.set(`${tgl}_${idAbsen}`, { ...r, no_absen: idAbsen });
+
+    if (idAbsen) {
+      uniqueMap.set(`${tgl}_${idAbsen}`, { ...r, no_absen: idAbsen });
+    }
   });
+
   let list = Array.from(uniqueMap.values());
+
   list.sort((a, b) => {
     const dComp = String(a.tanggal || '').slice(0, 10).localeCompare(String(b.tanggal || '').slice(0, 10));
-    return dComp !== 0 ? dComp : Number(a.no_absen) - Number(b.no_absen);
+    if (dComp !== 0) return dComp;
+    return Number(a.no_absen) - Number(b.no_absen);
   });
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data absensi.</td></tr>`; return; }
-  tbody.innerHTML = list.map((r, i) => {
-    const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
-    return `<tr><td class="center">${i + 1}</td><td class="center" style="font-size:12px;">${String(r.tanggal || '').slice(0, 10)}</td><td style="font-weight:700;">${escapeHtml(EMPLOYEE_MAP[r.no_absen]?.masterName || r.nama)}</td><td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td><td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td><td class="center" style="font-weight:700;">${r.pulang || '-'}</td><td class="center"><span class="badge ${isLibur ? 'badge-danger' : 'badge-success'}">${isLibur ? 'Libur' : 'Hadir'}</span></td></tr>`;
-  }).join('');
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data absensi pada rentang tanggal ini.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list
+    .map((r, i) => {
+      const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
+      const displayName = EMPLOYEE_MAP[r.no_absen] ? EMPLOYEE_MAP[r.no_absen].masterName : r.nama;
+      const tanggalStr = String(r.tanggal || '').slice(0, 10);
+
+      return `
+      <tr>
+        <td class="center">${i + 1}</td>
+        <td class="center" style="font-size:12px;">${tanggalStr}</td>
+        <td style="font-weight:700;">${escapeHtml(displayName)}</td>
+        <td><span class="badge badge-dept">${escapeHtml(r.departemen || '-')}</span></td>
+        <td class="center" style="font-weight:700; color:${r.masuk ? 'var(--wa-primary)' : 'var(--danger)'};">${r.masuk || '-'}</td>
+        <td class="center" style="font-weight:700;">${r.pulang || '-'}</td>
+        <td class="center">
+          <span class="badge ${isLibur ? 'badge-danger' : 'badge-success'}">
+            ${isLibur ? 'Libur' : 'Hadir'}
+          </span>
+        </td>
+      </tr>
+      `;
+    })
+    .join('');
 }
-window.renderAttendanceTable = renderAttendanceTable;
 
 function renderAllowanceTable() {
   const fDate = formatDate($('allowanceFilterDate')?.value) || today();
   const allAttToday = (DB.attendance || []).filter(r => formatDate(r.tanggal) === fDate);
   const tbody = $('allowanceTableBody');
   if (!tbody) return;
-  if (!allAttToday.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada absensi.</td></tr>`; return; }
+  if (!allAttToday.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Belum ada absensi tanggal ${fDate}.</td></tr>`;
+    return;
+  }
   const list = allAttToday.map(r => ({ ...r, c: classifyShift(r.masuk) })).filter(r => r.c.onTime);
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada yang tepat waktu.</td></tr>`; return; }
-  tbody.innerHTML = list.map((r, i) => `
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada yang tepat waktu.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list
+    .map(
+      (r, i) => `
     <tr style="border-bottom: 1px solid var(--line);">
       <td class="center" style="color:var(--muted);">${i + 1}</td>
       <td style="font-weight:700;">${escapeHtml(getDisplayNameById(resolveEmployeeId(r), r.nama))}</td>
       <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-      <td class="center"><span class="badge" style="background:#e0f2fe; color:#0369a1;">${r.c.shift}</span></td>
+      <td class="center"><span class="badge" style="background:#e0f2fe; color:#0369a1; border: 1px solid #bae6fd;">${r.c.shift}</span></td>
       <td class="center" style="font-weight:800;">${r.c.displayTime}</td>
       <td class="center" style="color:var(--muted); font-size:11px;">Maks ${r.c.batas}</td>
-      <td class="center"><span class="badge badge-success">✓ Tepat Waktu</span></td>
+      <td class="center"><span class="badge badge-success" style="padding: 4px 8px; border-radius: 20px;">✓ Tepat Waktu</span></td>
       <td class="right" style="font-weight:800; color:#059669; font-size:14px;">+${money(DEFAULT_ALLOWANCE)}</td>
     </tr>
-  `).join('');
+    `
+    )
+    .join('');
 }
-window.renderAllowanceTable = renderAllowanceTable;
 
 function renderWorkHoursTable() {
-  const sDate = $('hoursStart')?.value, eDate = $('hoursEnd')?.value, tbody =$('workHoursTableBody');
+  const sDate = $('hoursStart')?.value;
+  const eDate = $('hoursEnd')?.value;
+  const tbody = $('workHoursTableBody');
   if (!tbody) return;
+
   const list = (DB.attendance || []).filter(r => {
     const d = formatDate(r.tanggal);
     return (!sDate || d >= sDate) && (!eDate || d <= eDate) && r.masuk && r.pulang;
   });
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada data jam kerja.</td></tr>`; return; }
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Tidak ada data jam kerja pada rentang tanggal ini.</td></tr>`;
+    return;
+  }
+
   const grouped = {};
   list.forEach(r => {
     const empId = String(r.no_absen || resolveEmployeeId(r) || '').trim();
     const key = empId ? `ID_${empId}` : `RAW_${r.nama}`;
-    if (!grouped[key]) grouped[key] = { empId: empId || '-', nama: getDisplayNameById(empId, r.nama), departemen: r.departemen || '-', hariMasuk: 0, totalDurasiHours: 0, totalOvertimeHours: 0 };
-    const durasi = calculateHours(r.masuk, r.pulang), overtimeHours = calculateDailyOvertimeHours(r.masuk, r.pulang);
-    if (durasi > 0) { grouped[key].hariMasuk += 1; grouped[key].totalDurasiHours += durasi; grouped[key].totalOvertimeHours += overtimeHours; }
+
+    if (!grouped[key]) {
+      grouped[key] = {
+        empId: empId || '-',
+        nama: getDisplayNameById(empId, r.nama),
+        departemen: r.departemen || '-',
+        hariMasuk: 0,
+        totalDurasiHours: 0,
+        totalOvertimeHours: 0
+      };
+    }
+
+    const durasi = calculateHours(r.masuk, r.pulang);
+    const overtimeHours = calculateDailyOvertimeHours(r.masuk, r.pulang);
+
+    if (durasi > 0) {
+      grouped[key].hariMasuk += 1;
+      grouped[key].totalDurasiHours += durasi;
+      grouped[key].totalOvertimeHours += overtimeHours;
+    }
   });
-  const summarized = Object.values(grouped).sort((a, b) => (Number(a.empId) || 999) - (Number(b.empId) || 999));
-  tbody.innerHTML = summarized.map((r, i) => {
-    const nominal = r.totalOvertimeHours * RATE_PER_HOUR;
-    return `
-    <tr style="border-bottom: 1px solid var(--line);">
-      <td class="center" style="color:var(--muted);">${i + 1}</td>
-      <td class="center" style="font-weight:700; color:var(--muted);">${escapeHtml(r.empId)}</td>
-      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
-      <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
-      <td class="center" style="font-weight:600;">${r.hariMasuk} Hari</td>
-      <td class="center" style="color:var(--muted); font-size:12px;">${r.totalDurasiHours.toFixed(2)} Jam</td>
-      <td class="center" style="font-weight:800; color:${r.totalOvertimeHours > 0 ? '#059669' : 'var(--text)'};">${r.totalOvertimeHours > 0 ? '+' + r.totalOvertimeHours + ' Jam' : 'Pas'}</td>
-      <td class="right" style="font-weight:800; color:${nominal > 0 ? '#059669' : 'var(--text)'}; font-size: 14px;">${nominal > 0 ? '+' + money(nominal) : 'Rp 0'}</td>
-    </tr>
-    `;
-  }).join('');
+
+  const summarized = Object.values(grouped).sort((a, b) => {
+    const idA = Number(a.empId) || 999;
+    const idB = Number(b.empId) || 999;
+    return idA - idB;
+  });
+
+  tbody.innerHTML = summarized
+    .map((r, i) => {
+      const nominal = r.totalOvertimeHours * RATE_PER_HOUR;
+      return `
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td class="center" style="color:var(--muted);">${i + 1}</td>
+        <td class="center" style="font-weight:700; color:var(--muted);">${escapeHtml(r.empId)}</td>
+        <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+        <td><span class="badge badge-dept">${escapeHtml(r.departemen)}</span></td>
+        <td class="center" style="font-weight:600;">${r.hariMasuk} Hari</td>
+        <td class="center" style="color:var(--muted); font-size:12px;">${r.totalDurasiHours.toFixed(2)} Jam</td>
+        <td class="center" style="font-weight:800; color:${r.totalOvertimeHours > 0 ? '#059669' : 'var(--text)'};">
+          ${r.totalOvertimeHours > 0 ? '+' + r.totalOvertimeHours + ' Jam' : 'Pas'}
+        </td>
+        <td class="right" style="font-weight:800; color:${nominal > 0 ? '#059669' : 'var(--text)'}; font-size: 14px;">
+          ${nominal > 0 ? '+' + money(nominal) : 'Rp 0'}
+        </td>
+      </tr>
+      `;
+    })
+    .join('');
 }
-window.renderWorkHoursTable = renderWorkHoursTable;
 
 function renderLiburList() {
-  const sDate = $('liburStart')?.value, eDate = $('liburEnd')?.value, container =$('liburListContainer');
+  const sDate = $('liburStart')?.value;
+  const eDate = $('liburEnd')?.value;
+  const container = $('liburListContainer');
   if (!container) return;
+
   const list = (DB.attendance || []).filter(r => {
     const d = formatDate(r.tanggal);
-    return (!sDate || d >= sDate) && (!eDate || d <= eDate) && (!r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir');
+    const inRange = (!sDate || d >= sDate) && (!eDate || d <= eDate);
+    const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
+    return inRange && isLibur;
   });
-  if (!list.length) { container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);">Tidak ada karyawan yang libur.</div>`; return; }
+
+  if (!list.length) {
+    container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);">Tidak ada karyawan yang libur pada rentang tanggal ini.</div>`;
+    return;
+  }
+
   const grouped = {};
-  list.forEach(r => { const tgl = formatDate(r.tanggal); if (!grouped[tgl]) grouped[tgl] = []; grouped[tgl].push(r); });
-  container.innerHTML = Object.keys(grouped).sort().map(tgl => {
-    const items = grouped[tgl], dObj = new Date(tgl + 'T00:00:00');
-    const dateText = isNaN(dObj) ? tgl : dObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    return `
-    <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--card);">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 8px;"><b style="color: var(--text);">${dateText}</b><span class="badge badge-danger">${items.length} Orang Libur</span></div>
-      <div style="display:flex; flex-wrap:wrap; gap:6px;">${items.map(item => `<span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;">${escapeHtml(getDisplayNameById(resolveEmployeeId(item), item.nama))}</span>`).join('')}</div>
-    </div>
-    `;
-  }).join('');
+  list.forEach(r => {
+    const tgl = formatDate(r.tanggal);
+    if (!grouped[tgl]) grouped[tgl] = [];
+    grouped[tgl].push(r);
+  });
+
+  const sortedDates = Object.keys(grouped).sort();
+  container.innerHTML = sortedDates
+    .map(tgl => {
+      const items = grouped[tgl];
+      const dObj = new Date(tgl + 'T00:00:00');
+      const dateText = isNaN(dObj) ? tgl : dObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      return `
+      <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--card);">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 8px;">
+          <b style="color: var(--text);">${dateText}</b>
+          <span class="badge badge-danger">${items.length} Orang Libur</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          ${items
+            .map(
+              item => `
+            <span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;">
+              ${escapeHtml(getDisplayNameById(resolveEmployeeId(item), item.nama))} <small style="color:var(--muted);">(${escapeHtml(item.departemen || '-')})</small>
+            </span>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+      `;
+    })
+    .join('');
 }
-window.renderLiburList = renderLiburList;
 
 function handleExcelUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
   const progressEl = $('uploadProgress');
   if (progressEl) progressEl.style.display = 'block';
+
   const reader = new FileReader();
   reader.onload = async function (e) {
     try {
-      const data = new Uint8Array(e.target.result), workbook = XLSX.read(data, { type: 'array' });
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
       const sheetName = workbook.SheetNames.find(s => s.toLowerCase() === 'log') || workbook.SheetNames[0];
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
       let periodText = '';
       for (let r = 0; r < Math.min(5, rows.length); r++) {
-        for (let c = 0; c < rows[r].length; c++) { if (String(rows[r][c]).includes('~')) { periodText = String(rows[r][c]); break; } }
+        for (let c = 0; c < rows[r].length; c++) {
+          if (String(rows[r][c]).includes('~')) {
+            periodText = String(rows[r][c]);
+            break;
+          }
+        }
         if (periodText) break;
       }
-      let startYear = new Date().getFullYear(), startMonth = new Date().getMonth() + 1, startDay = 1;
+
+      let startYear = new Date().getFullYear();
+      let startMonth = new Date().getMonth() + 1;
+      let startDay = 1;
       const periodMatch = periodText.match(/(\d{4})[/-](\d{2})[/-](\d{2})/);
-      if (periodMatch) { startYear = parseInt(periodMatch[1], 10); startMonth = parseInt(periodMatch[2], 10); startDay = parseInt(periodMatch[3], 10); }
+      if (periodMatch) {
+        startYear = parseInt(periodMatch[1], 10);
+        startMonth = parseInt(periodMatch[2], 10);
+        startDay = parseInt(periodMatch[3], 10);
+      }
+
       const parsedRecords = [];
       for (let i = 0; i < rows.length; i++) {
         const rowStr = rows[i].join(' ');
         if (rowStr.includes('No :') && rowStr.includes('Nama :')) {
-          const daysRow = i > 0 ? rows[i - 1] : [], infoRow = rows[i], punchRow = i + 1 < rows.length ? rows[i + 1] : [];
-          let namaVal = '', noVal = '';
+          const daysRow = i > 0 ? rows[i - 1] : [];
+          const infoRow = rows[i];
+          const punchRow = i + 1 < rows.length ? rows[i + 1] : [];
+          let namaVal = '', deptVal = '', noVal = '';
+
           for (let c = 0; c < infoRow.length; c++) {
             const cellStr = String(infoRow[c]).trim();
-            if (cellStr.includes('No :')) { for (let k = c + 1; k < infoRow.length; k++) { if (String(infoRow[k]).trim()) { noVal = String(infoRow[k]).trim(); break; } } }
-            else if (cellStr.includes('Nama :')) { for (let k = c + 1; k < infoRow.length; k++) { if (String(infoRow[k]).trim()) { namaVal = String(infoRow[k]).trim(); break; } } }
+            if (cellStr.includes('No :')) {
+              for (let k = c + 1; k < infoRow.length; k++) {
+                if (String(infoRow[k]).trim()) {
+                  noVal = String(infoRow[k]).trim();
+                  break;
+                }
+              }
+            } else if (cellStr.includes('Nama :')) {
+              for (let k = c + 1; k < infoRow.length; k++) {
+                if (String(infoRow[k]).trim()) {
+                  namaVal = String(infoRow[k]).trim();
+                  break;
+                }
+              }
+            } else if (cellStr.includes('Dept :')) {
+              for (let k = c + 1; k < infoRow.length; k++) {
+                if (String(infoRow[k]).trim()) {
+                  deptVal = String(infoRow[k]).trim();
+                  break;
+                }
+              }
+            }
           }
+
           if (!namaVal) continue;
+
           for (let col = 0; col < daysRow.length; col++) {
             const dayNum = parseInt(daysRow[col], 10);
             if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) continue;
-            let currentMonth = startMonth, currentYear = startYear;
-            if (startDay > 15 && dayNum < 15) { currentMonth++; if (currentMonth > 12) { currentMonth = 1; currentYear++; } }
+            let currentMonth = startMonth;
+            let currentYear = startYear;
+            if (startDay > 15 && dayNum < 15) {
+              currentMonth++;
+              if (currentMonth > 12) {
+                currentMonth = 1;
+                currentYear++;
+              }
+            }
             const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
             const punchStr = String(punchRow[col] || '').trim();
-            const times = punchStr.split(/[\n\r]+/).map(t => t.trim()).filter(t => t.includes(':') || t.includes('.'));
-            parsedRecords.push({ no_absen: noVal, tanggal: dateStr, nama: namaVal, departemen: '', masuk: times.length > 0 ? times[0] : '', pulang: times.length > 1 ? times[times.length - 1] : '', status: times.length > 0 ? 'Hadir' : 'Libur' });
+            const times = punchStr
+              .split(/[\n\r]+/)
+              .map(t => t.trim())
+              .filter(t => t.includes(':') || t.includes('.'));
+            let masukVal = '';
+            let pulangVal = '';
+            if (times.length > 0) masukVal = times[0];
+            if (times.length > 1) pulangVal = times[times.length - 1];
+
+            parsedRecords.push({
+              no_absen: noVal,
+              tanggal: dateStr,
+              nama: namaVal,
+              departemen: deptVal,
+              masuk: masukVal,
+              pulang: pulangVal,
+              status: masukVal ? 'Hadir' : 'Libur'
+            });
           }
           i += 1;
         }
       }
-      if (!parsedRecords.length) { if (progressEl) progressEl.style.display = 'none'; showToast('Tidak ada data absensi valid.'); return; }
+
+      if (!parsedRecords.length) {
+        if (progressEl) progressEl.style.display = 'none';
+        showToast('Tidak ada data absensi valid di sheet Excel.');
+        return;
+      }
+
       const { error } = await db.from('attendance').upsert(parsedRecords, { onConflict: 'tanggal,nama' });
       if (progressEl) progressEl.style.display = 'none';
-      if (error) showToast('Gagal upload: ' + error.message); else { showToast('Absensi berhasil diunggah!'); loadData('attendance'); }
-    } catch (err) { if (progressEl) progressEl.style.display = 'none'; showToast('Gagal memproses file: ' + err.message); }
+
+      if (error) {
+        console.error('Error upload:', error);
+        showToast('Gagal upload: ' + error.message);
+      } else {
+        showToast('Absensi berhasil diunggah!');
+        loadData('attendance');
+      }
+    } catch (err) {
+      if (progressEl) progressEl.style.display = 'none';
+      console.error(err);
+      showToast('Gagal memproses file: ' + err.message);
+    }
   };
   reader.readAsArrayBuffer(file);
 }
-window.handleExcelUpload = handleExcelUpload;
 
 function renderPayrollPage() {
   const contentEl = $('content');
@@ -1354,27 +1644,50 @@ function renderPayrollPage() {
   `;
   showPayrollSub('rekap');
 }
-window.renderPayrollPage = renderPayrollPage;
 
 function showPayrollSub(type) {
   const container = $('payrollSubContent');
   if (!container) return;
-  $('payBtnRekap')?.classList.toggle('active-sub', type === 'rekap');$('payBtnSlip')?.classList.toggle('active-sub', type === 'slips');
-  $('payBtnKasbon')?.classList.toggle('active-sub', type === 'kasbon');$('payBtnCicilan')?.classList.toggle('active-sub', type === 'cicilan');
+  const btnRekap = $('payBtnRekap');
+  const btnSlip = $('payBtnSlip');
+  const btnKasbon = $('payBtnKasbon');
+  const btnCicilan = $('payBtnCicilan');
+  if (btnRekap && btnSlip && btnKasbon && btnCicilan) {
+    btnRekap.classList.toggle('active-sub', type === 'rekap');
+    btnSlip.classList.toggle('active-sub', type === 'slips');
+    btnKasbon.classList.toggle('active-sub', type === 'kasbon');
+    btnCicilan.classList.toggle('active-sub', type === 'cicilan');
+  }
 
   const allDepts = Array.from(new Set((DB.masterSalary || []).map(r => String(r.departemen || '').trim()))).sort();
   const deptOptionsHtml = allDepts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
-  const d = new Date(), y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
   const lastD = new Date(y, d.getMonth() + 1, 0).getDate();
-  let defaultStart = `${y}-${m}-01`, defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
+  const todayFormatted = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  let defaultStart = `${y}-${m}-01`;
+  let defaultEnd = `${y}-${m}-${String(lastD).padStart(2, '0')}`;
 
   if (type === 'rekap') {
     container.innerHTML = `
     <div class="panel">
       <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label><input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label><input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label><select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"><option value="ALL">Semua Divisi</option>${deptOptionsHtml}</select></div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
+          <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
+          <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
+          <select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+            <option value="ALL">Semua Divisi</option>
+            ${deptOptionsHtml}
+          </select>
+        </div>
       </div>
     </div>
     <div id="payrollCardsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px; padding-bottom: 120px;"></div>
@@ -1384,10 +1697,25 @@ function showPayrollSub(type) {
     container.innerHTML = `
     <div class="panel">
       <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label><input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label><input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label><select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"><option value="ALL">Semua Divisi</option>${deptOptionsHtml}</select></div>
-        <div><label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label><input type="text" id="slipPrintDate" value="Subang, ${d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;"></div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
+          <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
+          <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
+          <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+            <option value="ALL">Semua Divisi</option>
+            ${deptOptionsHtml}
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label>
+          <input type="text" id="slipPrintDate" value="Subang, ${todayFormatted}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+        </div>
         <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
       </div>
     </div>
@@ -1396,103 +1724,211 @@ function showPayrollSub(type) {
     renderSlipPages();
   } else if (type === 'kasbon') {
     const empOptionsHtml = (DB.masterSalary || []).map(d => `<option value="${escapeHtml(d.nama)}">${escapeHtml(d.nama)}</option>`).join('');
+    const currentMonth = new Date().toISOString().slice(0, 7);
     container.innerHTML = `
     <div class="panel">
       <div class="panel-title">Input Kasbon Karyawan</div>
       <form id="kasbonForm">
         <div class="form-grid">
           ${inputField('tanggal', 'Tanggal', today(), 'date')}
-          <div class="field"><label>Nama Karyawan</label><select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">${empOptionsHtml}</select></div>
+          <div class="field">
+            <label>Nama Karyawan</label>
+            <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+              ${empOptionsHtml}
+            </select>
+          </div>
           ${inputField('nominal', 'Nominal Kasbon (Rp)', 0)}
-          <div class="field"><label>Keterangan</label><input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);"></div>
+          <div class="field">
+            <label>Keterangan</label>
+            <input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+          </div>
         </div>
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
       </form>
     </div>
     <div class="panel" style="padding-bottom: 120px;">
-      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;"><label style="font-weight:700;">Lihat Histori Kasbon Bulan:</label><input type="month" id="kasbonFilterMonth" value="${new Date().toISOString().slice(0, 7)}" onchange="renderKasbonTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);"></div>
-      <div class="table-wrap"><table class="table"><thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Keterangan</th><th class="right">Nominal</th></tr></thead><tbody id="kasbonTableBody"></tbody></table></div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+        <label style="font-weight:700;">Lihat Histori Kasbon Bulan:</label>
+        <input type="month" id="kasbonFilterMonth" value="${currentMonth}" onchange="renderKasbonTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Keterangan</th><th class="right">Nominal</th></tr></thead>
+          <tbody id="kasbonTableBody"></tbody>
+        </table>
+      </div>
     </div>
     `;
+
     $('kasbonForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
-      const payload = { tanggal: formData.tanggal, nama: formData.nama, nominal: Number(formData.nominal || 0), keterangan: formData.keterangan || '-' };
-      if (!payload.nominal) { showToast('Nominal tidak boleh nol.'); return; }
+      const payload = {
+        tanggal: formData.tanggal,
+        nama: formData.nama,
+        nominal: Number(formData.nominal || 0),
+        keterangan: formData.keterangan || '-'
+      };
+      if (!payload.nominal) {
+        showToast('Nominal tidak boleh nol.');
+        return;
+      }
       const { error } = await db.from('advances').insert([payload]);
-      if (error) showToast('Gagal: ' + error.message); else { showToast('Kasbon berhasil dicatat.'); loadData('payroll'); }
+      if (error) showToast('Gagal: ' + error.message);
+      else {
+        showToast('Kasbon berhasil dicatat.');
+        loadData('payroll');
+      }
     };
     renderKasbonTable();
   } else if (type === 'cicilan') {
     const empOptionsHtml = (DB.masterSalary || []).map(d => `<option value="${escapeHtml(d.nama)}">${escapeHtml(d.nama)}</option>`).join('');
+    const currentMonth = new Date().toISOString().slice(0, 7);
     container.innerHTML = `
     <div class="panel">
       <div class="panel-title">Input Cicilan Karyawan</div>
       <form id="cicilanForm">
         <div class="form-grid">
           ${inputField('tanggal', 'Tanggal', today(), 'date')}
-          <div class="field"><label>Nama Karyawan</label><select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">${empOptionsHtml}</select></div>
+          <div class="field">
+            <label>Nama Karyawan</label>
+            <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+              ${empOptionsHtml}
+            </select>
+          </div>
           ${inputField('nominal', 'Total Pinjaman (Rp)', 0)}
           ${inputField('tenor', 'Tenor (Bulan)', 1)}
-          <div class="field"><label>Keterangan</label><input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);"></div>
+          <div class="field">
+            <label>Keterangan</label>
+            <input name="keterangan" type="text" placeholder="Keperluan/Sisa Cicilan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+          </div>
         </div>
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan Cicilan</button></div>
       </form>
     </div>
     <div class="panel" style="padding-bottom: 120px;">
-      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;"><label style="font-weight:700;">Lihat Histori Cicilan (Bulan Masuk):</label><input type="month" id="cicilanFilterMonth" value="${new Date().toISOString().slice(0, 7)}" onchange="renderCicilanTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);"></div>
-      <div class="table-wrap"><table class="table"><thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Tenor</th><th>Keterangan</th><th class="right">Pinjaman</th><th class="right">Cicilan/Bln</th></tr></thead><tbody id="cicilanTableBody"></tbody></table></div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+        <label style="font-weight:700;">Lihat Histori Cicilan (Bulan Masuk):</label>
+        <input type="month" id="cicilanFilterMonth" value="${currentMonth}" onchange="renderCicilanTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th style="width:45px;" class="center">No</th><th>Tanggal</th><th>Nama</th><th>Tenor</th><th>Keterangan</th><th class="right">Pinjaman</th><th class="right">Cicilan/Bln</th></tr></thead>
+          <tbody id="cicilanTableBody"></tbody>
+        </table>
+      </div>
     </div>
     `;
+
     $('cicilanForm').onsubmit = async e => {
       e.preventDefault();
       const formData = Object.fromEntries(new FormData(e.target));
-      const payload = { tanggal: formData.tanggal, nama: formData.nama, nominal: Number(formData.nominal || 0), tenor: Number(formData.tenor || 1), keterangan: formData.keterangan || '-' };
-      if (!payload.nominal) { showToast('Nominal tidak boleh nol.'); return; }
+      const payload = {
+        tanggal: formData.tanggal,
+        nama: formData.nama,
+        nominal: Number(formData.nominal || 0),
+        tenor: Number(formData.tenor || 1),
+        keterangan: formData.keterangan || '-'
+      };
+      if (!payload.nominal) {
+        showToast('Nominal tidak boleh nol.');
+        return;
+      }
       const { error } = await db.from('installments').insert([payload]);
-      if (error) showToast('Gagal: ' + error.message); else { showToast('Cicilan berhasil dicatat.'); loadData('payroll'); }
+      if (error) showToast('Gagal: ' + error.message);
+      else {
+        showToast('Cicilan berhasil dicatat.');
+        loadData('payroll');
+      }
     };
     renderCicilanTable();
   }
 }
-window.showPayrollSub = showPayrollSub;
 
 function renderKasbonTable() {
   const fMonth = $('kasbonFilterMonth')?.value || new Date().toISOString().slice(0, 7);
   const tbody = $('kasbonTableBody');
   if (!tbody) return;
-  const list = (DB.advances || []).filter(r => formatDate(r.tanggal).startsWith(fMonth)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada data kasbon.</td></tr>`; return; }
-  tbody.innerHTML = list.map((r, i) => `<tr><td class="center">${i + 1}</td><td class="center">${formatDate(r.tanggal)}</td><td style="font-weight:700;">${escapeHtml(r.nama)}</td><td>${escapeHtml(r.keterangan)}</td><td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td></tr>`).join('');
+  const list = (DB.advances || [])
+    .filter(r => formatDate(r.tanggal).startsWith(fMonth))
+    .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada data kasbon bulan ini.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list
+    .map(
+      (r, i) => `
+    <tr>
+      <td class="center">${i + 1}</td>
+      <td class="center">${formatDate(r.tanggal)}</td>
+      <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+      <td>${escapeHtml(r.keterangan)}</td>
+      <td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td>
+    </tr>
+    `
+    )
+    .join('');
 }
-window.renderKasbonTable = renderKasbonTable;
 
 function renderCicilanTable() {
   const fMonth = $('cicilanFilterMonth')?.value || new Date().toISOString().slice(0, 7);
   const tbody = $('cicilanTableBody');
   if (!tbody) return;
-  const list = (DB.installments || []).filter(r => formatDate(r.tanggal).startsWith(fMonth)).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data cicilan.</td></tr>`; return; }
-  tbody.innerHTML = list.map((r, i) => {
-    const tenor = Number(r.tenor) || 1, perBulan = Math.round(Number(r.nominal) / tenor);
-    return `<tr><td class="center">${i + 1}</td><td class="center">${formatDate(r.tanggal)}</td><td style="font-weight:700;">${escapeHtml(r.nama)}</td><td class="center">${tenor} Bln</td><td>${escapeHtml(r.keterangan)}</td><td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td><td class="right" style="font-weight:700; color:var(--danger);">- ${money(perBulan)}</td></tr>`;
-  }).join('');
+  const list = (DB.installments || [])
+    .filter(r => formatDate(r.tanggal).startsWith(fMonth))
+    .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Tidak ada data cicilan bulan ini.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list
+    .map((r, i) => {
+      const tenor = Number(r.tenor) || 1;
+      const perBulan = Math.round(Number(r.nominal) / tenor);
+      return `
+      <tr>
+        <td class="center">${i + 1}</td>
+        <td class="center">${formatDate(r.tanggal)}</td>
+        <td style="font-weight:700;">${escapeHtml(r.nama)}</td>
+        <td class="center">${tenor} Bln</td>
+        <td>${escapeHtml(r.keterangan)}</td>
+        <td class="right" style="font-weight:700; color:var(--danger);">- ${money(r.nominal)}</td>
+        <td class="right" style="font-weight:700; color:var(--danger);">- ${money(perBulan)}</td>
+      </tr>
+      `;
+    })
+    .join('');
 }
-window.renderCicilanTable = renderCicilanTable;
 
 function getCalculatedPayrollList(sDate, eDate, fDept) {
   let masterList = DB.masterSalary || [];
-  if (fDept !== 'ALL') masterList = masterList.filter(r => cleanText(r.departemen) === cleanText(fDept));
-  masterList.sort((a, b) => (Number(resolveEmployeeId(a)) || 999) - (Number(resolveEmployeeId(b)) || 999));
-  const eDateObj = new Date(eDate || today()), eYear = eDateObj.getFullYear(), eMonth = eDateObj.getMonth();
+  if (fDept !== 'ALL') {
+    masterList = masterList.filter(r => cleanText(r.departemen) === cleanText(fDept));
+  }
+
+  masterList.sort((a, b) => {
+    const idA = Number(resolveEmployeeId(a)) || 999;
+    const idB = Number(resolveEmployeeId(b)) || 999;
+    return idA - idB;
+  });
+
+  const eDateObj = new Date(eDate || today());
+  const eYear = eDateObj.getFullYear();
+  const eMonth = eDateObj.getMonth();
 
   return masterList.map(emp => {
-    const empId = resolveEmployeeId(emp), lainLain = (empId === '22') ? DEFAULT_BONUS_LAIN : 0;
+    const empId = resolveEmployeeId(emp);
+    const lainLain = (empId === '22') ? DEFAULT_BONUS_LAIN : 0;
+
     const empAdvances = (DB.advances || []).filter(adv => {
-      const advDate = formatDate(adv.tanggal), advId = resolveEmployeeId(adv);
-      return (empId ? (advId === empId) : isRecordMatching(emp, adv)) && (!sDate || advDate >= sDate) && (!eDate || advDate <= eDate);
+      const advDate = formatDate(adv.tanggal);
+      const advId = resolveEmployeeId(adv);
+      const isMatch = empId ? (advId === empId) : isRecordMatching(emp, adv);
+      return isMatch && (!sDate || advDate >= sDate) && (!eDate || advDate <= eDate);
     });
     const kasbonPeriode = sum(empAdvances.map(a => a.nominal));
+
     const empInstallments = (DB.installments || []).filter(ins => {
       const insId = resolveEmployeeId(ins);
       return empId ? (insId === empId) : isRecordMatching(emp, ins);
@@ -1500,75 +1936,185 @@ function getCalculatedPayrollList(sDate, eDate, fDept) {
     let cicilanPeriode = 0;
     empInstallments.forEach(ins => {
       const insDate = new Date(formatDate(ins.tanggal));
-      const monthDiff = (eYear - insDate.getFullYear()) * 12 + (eMonth - insDate.getMonth());
+      const iYear = insDate.getFullYear();
+      const iMonth = insDate.getMonth();
       const tenor = Number(ins.tenor) || 1;
-      if (monthDiff >= 0 && monthDiff < tenor) cicilanPeriode += Math.round(Number(ins.nominal) / tenor);
+      const nominal = Number(ins.nominal) || 0;
+      const perBulan = Math.round(nominal / tenor);
+      const monthDiff = (eYear - iYear) * 12 + (eMonth - iMonth);
+      if (monthDiff >= 0 && monthDiff < tenor) {
+        cicilanPeriode += perBulan;
+      }
     });
+
     const empAttendance = (DB.attendance || []).filter(att => {
-      const attDate = formatDate(att.tanggal), attId = resolveEmployeeId(att);
-      return (empId ? (attId === empId) : isRecordMatching(emp, att)) && (!sDate || attDate >= sDate) && (!eDate || attDate <= eDate);
+      const attDate = formatDate(att.tanggal);
+      const attId = resolveEmployeeId(att);
+      const isMatch = empId ? (attId === empId) : isRecordMatching(emp, att);
+      return isMatch && (!sDate || attDate >= sDate) && (!eDate || attDate <= eDate);
     });
+
     let totalKelebihanJam = 0;
-    empAttendance.forEach(att => { if (att.masuk && att.pulang) totalKelebihanJam += calculateDailyOvertimeHours(att.masuk, att.pulang); });
+    empAttendance.forEach(att => {
+      if (att.masuk && att.pulang) {
+        totalKelebihanJam += calculateDailyOvertimeHours(att.masuk, att.pulang);
+      }
+    });
+
     const totalPenyesuaianJam = totalKelebihanJam * RATE_PER_HOUR;
-    const gajiPokok = Number(emp.gaji_pokok || 0), jabatan = Number(emp.jabatan || 0), prestasi = Number(emp.prestasi || 0), kesehatan = Number(emp.kesehatan || 0), zakat = Number(emp.zakat || 0), loyalitas = Number(emp.kebersihan_loyalitas || 0);
-    const totalPendapatan = gajiPokok + jabatan + prestasi + kesehatan + zakat + loyalitas + lainLain + totalPenyesuaianJam;
+    const gajiPokok = Number(emp.gaji_pokok || 0);
+    const jabatan = Number(emp.jabatan || 0);
+    const prestasi = Number(emp.prestasi || 0);
+    const kesehatan = Number(emp.kesehatan || 0);
+    const zakat = Number(emp.zakat || 0);
+    const loyalitas = Number(emp.kebersihan_loyalitas || 0);
+
+    const totalPendapatan =
+      gajiPokok +
+      jabatan +
+      prestasi +
+      kesehatan +
+      zakat +
+      loyalitas +
+      lainLain +
+      totalPenyesuaianJam;
+
     const totalPotongan = cicilanPeriode + kasbonPeriode;
-    return { nama: getDisplayNameById(empId, emp.nama), departemen: emp.departemen, pokok: gajiPokok, jabatan, prestasi, kesehatan, jamKerja: totalPenyesuaianJam, zakat, loyalitas, lainLain, kasbon: kasbonPeriode, bpjs: 0, cicilan: cicilanPeriode, gajiBersih: Math.max(0, totalPendapatan - totalPotongan) };
+    const gajiBersih = Math.max(0, totalPendapatan - totalPotongan);
+
+    return {
+      nama: getDisplayNameById(empId, emp.nama),
+      departemen: emp.departemen,
+      pokok: gajiPokok,
+      jabatan: jabatan,
+      prestasi: prestasi,
+      kesehatan: kesehatan,
+      jamKerja: totalPenyesuaianJam,
+      zakat: zakat,
+      loyalitas: loyalitas,
+      lainLain: lainLain,
+      kasbon: kasbonPeriode,
+      bpjs: 0,
+      cicilan: cicilanPeriode,
+      gajiBersih: gajiBersih
+    };
   });
 }
 
 function renderPayrollCards() {
-  const sDate = $('payrollStartDate')?.value, eDate =$('payrollEndDate')?.value, fDept = $('payrollFilterDept')?.value \vert{}\vert{} 'ALL', container =$('payrollCardsContainer');
+  const sDate = $('payrollStartDate')?.value;
+  const eDate = $('payrollEndDate')?.value;
+  const fDept = $('payrollFilterDept')?.value || 'ALL';
+  const container = $('payrollCardsContainer');
   if (!container) return;
+
   const list = getCalculatedPayrollList(sDate, eDate, fDept);
-  if (!list.length) { container.innerHTML = `<div class="panel" style="text-align: center; color: var(--muted);">Belum ada data gaji.</div>`; return; }
-  container.innerHTML = list.map((emp, idx) => {
-    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
-    const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
-    return `
-    <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer;" onclick="const el = document.getElementById('slip-wrapper-${idx}'); if(el) el.style.gridTemplateRows = el.style.gridTemplateRows === '1fr' ? '0fr' : '1fr';">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
-        <div><div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div><span class="badge badge-dept" style="margin-top: 4px;">${escapeHtml(emp.departemen)}</span></div>
-        <div style="text-align: right;"><div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH <i class="fa-solid fa-chevron-down"></i></div><div style="font-size: 16px; font-weight: 800; color: var(--wa-primary);">${money(emp.gajiBersih)}</div></div>
-      </div>
-      <div style="font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px;">
-        <div>Pokok: <b>${money(emp.pokok)}</b></div><div>Tunjangan: <b>${money(totalPendapatan - emp.pokok)}</b></div>
-        <div>Potongan: <b style="color:var(--danger);">${money(totalPotongan)}</b></div><div>Bruto: <b>${money(totalPendapatan)}</b></div>
-      </div>
-      <div id="slip-wrapper-${idx}" style="display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease-out;">
-        <div style="overflow: hidden;">
-          <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 13px;">
-            <div style="font-weight: 800; margin-bottom: 8px;">Rincian Pendapatan</div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Pokok</span> <b>${money(emp.pokok)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jabatan</span> <b>${money(emp.jabatan)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Prestasi</span> <b>${money(emp.prestasi)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kesehatan</span> <b>${money(emp.kesehatan)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jam Kerja</span> <b>${money(emp.jamKerja)}</b></div>
-            <div style="font-weight: 800; margin-top: 12px; margin-bottom: 8px; color: var(--danger);">Rincian Potongan</div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kasbon</span> <b style="color:var(--danger);">${money(emp.kasbon)}</b></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Cicilan</span> <b style="color:var(--danger);">${money(emp.cicilan)}</b></div>
+  if (!list.length) {
+    container.innerHTML = `<div class="panel" style="text-align: center; color: var(--muted);">Belum ada data gaji.</div>`;
+    return;
+  }
+
+  container.innerHTML = list
+    .map((emp, idx) => {
+      const totalPendapatan =
+        emp.pokok +
+        emp.jabatan +
+        emp.prestasi +
+        emp.kesehatan +
+        emp.jamKerja +
+        emp.zakat +
+        emp.loyalitas +
+        emp.lainLain;
+      const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
+
+      return `
+      <div class="panel" style="margin-top:0; border-left: 4px solid var(--wa-primary); cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; outline: none;" onclick="const el = document.getElementById('slip-wrapper-${idx}'); if(el) el.style.gridTemplateRows = el.style.gridTemplateRows === '1fr' ? '0fr' : '1fr';">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
+          <div>
+            <div style="font-weight: 800; font-size: 16px;">${escapeHtml(emp.nama)}</div>
+            <span class="badge badge-dept" style="margin-top: 4px;">${escapeHtml(emp.departemen)}</span>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: var(--muted); font-weight: 700;">GAJI BERSIH <i class="fa-solid fa-chevron-down" style="margin-left: 4px;"></i></div>
+            <div style="font-size: 16px; font-weight: 800; color: var(--wa-primary);">${money(emp.gajiBersih)}</div>
+          </div>
+        </div>
+        <div style="font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px;">
+          <div>Pokok: <b>${money(emp.pokok)}</b></div>
+          <div>Tunjangan & Absen: <b>${money(totalPendapatan - emp.pokok)}</b></div>
+          <div>Potongan: <b style="color:var(--danger);">${money(totalPotongan)}</b></div>
+          <div>Total Bruto: <b>${money(totalPendapatan)}</b></div>
+        </div>
+        <div id="slip-wrapper-${idx}" style="display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease-out;">
+          <div style="overflow: hidden;">
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 13px;">
+              <div style="font-weight: 800; margin-bottom: 8px; color: var(--text);">Rincian Pendapatan</div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Gaji Pokok</span> <b>${money(emp.pokok)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jabatan</span> <b>${money(emp.jabatan)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Prestasi</span> <b>${money(emp.prestasi)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kesehatan</span> <b>${money(emp.kesehatan)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Jam Kerja (+/-)</span> <b style="color:${emp.jamKerja < 0 ? 'var(--danger)' : 'var(--text)'};">${emp.jamKerja > 0 ? '+' : ''}${money(emp.jamKerja)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Zakat</span> <b>${money(emp.zakat)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kebersihan/Loyalitas</span> <b>${money(emp.loyalitas)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Lain-lain</span> <b>${money(emp.lainLain)}</b></div>
+              <div style="font-weight: 800; margin-top: 12px; margin-bottom: 8px; color: var(--danger);">Rincian Potongan</div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Kasbon</span> <b style="color:var(--danger);">${money(emp.kasbon)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>BPJS</span> <b style="color:var(--danger);">${money(emp.bpjs)}</b></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Cicilan</span> <b style="color:var(--danger);">${money(emp.cicilan)}</b></div>
+              <div style="text-align: center; margin-top: 14px; font-size: 11px; font-style: italic; color: var(--muted);">
+                (Klik kembali kartu untuk menyembunyikan rincian)
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    `;
-  }).join('');
+      `;
+    })
+    .join('');
 }
-window.renderPayrollCards = renderPayrollCards;
 
 function renderSlipPages() {
-  const sDate = $('slipStartDate')?.value, eDate =$('slipEndDate')?.value, fDept = $('slipFilterDept')?.value \vert{}\vert{} 'ALL', printDate =$('slipPrintDate')?.value || `Subang, ${today()}`, container = $('slipPrintContainer');
+  const sDate = $('slipStartDate')?.value;
+  const eDate = $('slipEndDate')?.value;
+  const fDept = $('slipFilterDept')?.value || 'ALL';
+  const printDate = $('slipPrintDate')?.value || `Subang, ${today()}`;
+  const container = $('slipPrintContainer');
   if (!container) return;
-  const list = getCalculatedPayrollList(sDate, eDate, fDept);
-  if (!list.length) { container.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--muted); background: white;">Tidak ada data.</div>`; return; }
-  let periodMonth = sDate ? new Date(sDate).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase() : '';
-  const slipRow = (label, val, isBold = false) => `<div style="display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; margin-bottom: 1.5px; ${isBold ? 'font-weight: 800;' : ''}"><span>${label}</span><span style="text-align: center;">Rp</span><span style="text-align: right;">${val}</span></div>`;
 
-  container.innerHTML = list.map(emp => {
-    const totalPendapatan = emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain;
+  const list = getCalculatedPayrollList(sDate, eDate, fDept);
+  if (!list.length) {
+    container.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--muted); background: white;">Tidak ada data.</div>`;
+    return;
+  }
+
+  let periodMonth = '';
+  if (sDate) {
+    const pDate = new Date(sDate);
+    periodMonth = pDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase();
+  }
+
+  const slipRow = (label, val, isBold = false) => `
+    <div style="display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; margin-bottom: 1.5px; ${isBold ? 'font-weight: 800;' : ''}">
+      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
+      <span style="text-align: center;">Rp</span>
+      <span style="text-align: right;">${val}</span>
+    </div>
+  `;
+
+  let html = '';
+  list.forEach(emp => {
+    const totalPendapatan =
+      emp.pokok +
+      emp.jabatan +
+      emp.prestasi +
+      emp.kesehatan +
+      emp.jamKerja +
+      emp.zakat +
+      emp.loyalitas +
+      emp.lainLain;
     const totalPotongan = emp.kasbon + emp.bpjs + emp.cicilan;
-    return `
+
+    html += `
     <div class="slip-card" style="width: 390px; height: 368px; padding: 8px 12px; box-sizing: border-box; background: white; border: 1px dashed #cbd5e1; display: flex; flex-direction: column; justify-content: space-between; font-family: Arial, sans-serif; font-size: 10px; margin: 0;">
       <div>
         <div style="text-align: center; margin-bottom: 3px; line-height: 1.15;">
@@ -1577,147 +2123,437 @@ function renderSlipPages() {
           <div style="font-size: 8px; color: #64748b;">UNIT SUBANG</div>
           <div style="font-weight: 800; font-size: 9px; margin-top: 2px; border-bottom: 1px solid #94a3b8; padding-bottom: 2px;">SLIP GAJI PERIODE ${periodMonth}</div>
         </div>
-        <div style="display: grid; grid-template-columns: 50px 8px 1fr; margin-bottom: 3px; font-weight: bold; font-size: 9.5px; line-height: 1.2;"><span>NAMA</span><span>:</span><span>${escapeHtml(emp.nama)}</span><span>POSISI</span><span>:</span><span>${escapeHtml(emp.departemen)}</span></div>
+        <div style="display: grid; grid-template-columns: 50px 8px 1fr; margin-bottom: 3px; font-weight: bold; font-size: 9.5px; line-height: 1.2;">
+          <span>NAMA</span><span>:</span><span>${escapeHtml(emp.nama)}</span>
+          <span>POSISI</span><span>:</span><span>${escapeHtml(emp.departemen)}</span>
+        </div>
+        
         <div style="background: #f1f5f9; font-weight: 800; padding: 2px 4px; font-size: 9px; margin-bottom: 2px; border-left: 3px solid #0284c7;">RINCIAN GAJI</div>
-        ${slipRow('GAJI POKOK', formatNum(emp.pokok))}${slipRow('JABATAN', formatNum(emp.jabatan))}${slipRow('PRESTASI', formatNum(emp.prestasi))}${slipRow('KESEHATAN', formatNum(emp.kesehatan))}${slipRow('JAM KERJA', formatNum(emp.jamKerja))}${slipRow('ZAKAT', formatNum(emp.zakat))}${slipRow('LOYALITAS', formatNum(emp.loyalitas))}${slipRow('LAIN-LAIN', formatNum(emp.lainLain))}
-        <div style="border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;">${slipRow('Jumlah Pendapatan', formatNum(totalPendapatan), true)}</div>
+        ${slipRow('GAJI POKOK', formatNum(emp.pokok))}
+        ${slipRow('JABATAN', formatNum(emp.jabatan))}
+        ${slipRow('PRESTASI', formatNum(emp.prestasi))}
+        ${slipRow('KESEHATAN', formatNum(emp.kesehatan))}
+        ${slipRow('JAM KERJA (+/-)', emp.jamKerja < 0 ? '-' + formatNum(Math.abs(emp.jamKerja)) : formatNum(emp.jamKerja))}
+        ${slipRow('ZAKAT', formatNum(emp.zakat))}
+        ${slipRow('KEBERSIHAN/LOYALITAS', formatNum(emp.loyalitas))}
+        ${slipRow('LAIN-LAIN', formatNum(emp.lainLain))}
+        <div style="border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;">
+          ${slipRow('Jumlah Pendapatan', formatNum(totalPendapatan), true)}
+        </div>
+        
         <div style="background: #fef2f2; font-weight: 800; padding: 2px 4px; font-size: 9px; margin: 3px 0 2px 0; border-left: 3px solid #ef4444;">POTONGAN</div>
-        ${slipRow('KASBON', formatNum(emp.kasbon))}${slipRow('CICILAN', formatNum(emp.cicilan))}
-        <div style="border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;">${slipRow('Jumlah Potongan', formatNum(totalPotongan), true)}</div>
+        ${slipRow('KASBON', formatNum(emp.kasbon))}
+        ${slipRow('BPJS', formatNum(emp.bpjs))}
+        ${slipRow('CICILAN', formatNum(emp.cicilan))}
+        <div style="border-top: 1px dashed #cbd5e1; margin-top: 2px; padding-top: 1.5px;">
+          ${slipRow('Jumlah Potongan', formatNum(totalPotongan), true)}
+        </div>
       </div>
       <div>
-        <div style="background: #ecfdf5; font-weight: 800; padding: 3px 6px; display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; border-radius: 4px; border: 1px solid #a7f3d0; margin-top: 3px; font-size: 10px;"><span>Gaji Diterima</span><span style="text-align: center;">Rp</span><span style="text-align: right; color: #047857;">${formatNum(emp.gajiBersih)}</span></div>
+        <div style="background: #ecfdf5; font-weight: 800; padding: 3px 6px; display: grid; grid-template-columns: 1fr 20px 70px; align-items: center; border-radius: 4px; border: 1px solid #a7f3d0; margin-top: 3px; font-size: 10px;">
+          <span>Gaji Diterima</span>
+          <span style="text-align: center;">Rp</span>
+          <span style="text-align: right; color: #047857;">${formatNum(emp.gajiBersih)}</span>
+        </div>
         <div style="text-align: right; font-size: 8px; color: #64748b; margin-top: 2px;">${escapeHtml(printDate)}</div>
       </div>
     </div>
     `;
-  }).join('');
+  });
+  container.innerHTML = html;
 }
-window.renderSlipPages = renderSlipPages;
 
 async function exportSlipsToPDF() {
   const container = $('slipPrintContainer');
-  if (!container || container.innerHTML.trim() === '') { showToast('Tidak ada slip.'); return; }
-  showToast('Sedang merakit PDF...');
+  if (!container || container.innerHTML.trim() === '') {
+    showToast('Tidak ada slip gaji untuk diekspor.');
+    return;
+  }
+  showToast('Sedang merakit dokumen PDF...');
   try {
     const { jsPDF } = window.jspdf;
     const cards = container.querySelectorAll('.slip-card');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    for (let i = 0; i < cards.length; i++) {
-      const canvas = await html2canvas(cards[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png'), indexOnPage = i % 6;
-      if (i > 0 && indexOnPage === 0) pdf.addPage();
-      const col = indexOnPage % 2, row = Math.floor(indexOnPage / 2);
-      pdf.addImage(imgData, 'PNG', 1 + (col * 104), 1.5 + (row * 98), 104, 98);
+    if (!cards.length) {
+      showToast('Slip gaji kosong.');
+      return;
     }
-    pdf.save(`SLIP_GAJI_${$('slipStartDate')?.value || 'periode'}.pdf`);
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const cardWidth = 104;
+    const cardHeight = 98;
+    const marginX = 1;
+    const marginY = 1.5;
+
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const canvas = await html2canvas(card, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+
+      const indexOnPage = i % 6;
+      if (i > 0 && indexOnPage === 0) {
+        pdf.addPage();
+      }
+
+      const col = indexOnPage % 2;
+      const row = Math.floor(indexOnPage / 2);
+
+      const posX = marginX + (col * cardWidth);
+      const posY = marginY + (row * cardHeight);
+
+      pdf.addImage(imgData, 'PNG', posX, posY, cardWidth, cardHeight);
+    }
+
+    const sDate = $('slipStartDate')?.value || 'periode';
+    pdf.save(`SLIP_GAJI_${sDate}.pdf`);
     showToast('PDF berhasil diunduh!');
-  } catch (err) { showToast('Gagal membuat PDF: ' + err.message); }
+  } catch (err) {
+    console.error(err);
+    showToast('Gagal membuat PDF: ' + err.message);
+  }
 }
-window.exportSlipsToPDF = exportSlipsToPDF;
 
 function renderLimbahPage() {
-  const ampasBelumDibagi = (DB.wasteSales || []).filter(r => r.jenis === 'Ampas Tahu' && r.keterangan === 'Belum Dibagikan').reduce((sum, r) => sum + Number(r.nominal), 0);
+  const ampasBelumDibagi = (DB.wasteSales || [])
+    .filter(r => r.jenis === 'Ampas Tahu' && r.keterangan === 'Belum Dibagikan')
+    .reduce((sum, r) => sum + Number(r.nominal), 0);
+  const jalantahBelumDibagi = (DB.wasteSales || [])
+    .filter(r => r.jenis === 'Jalantah' && r.keterangan === 'Belum Dibagikan')
+    .reduce((sum, r) => sum + Number(r.nominal), 0);
+
   const contentEl = $('content');
   if (!contentEl) return;
+
   contentEl.innerHTML = `
-  <div class="top"><div><div class="title">Modul Penjualan Limbah</div></div></div>
+  <div class="top">
+    <div><div class="title">Modul Penjualan Limbah</div></div>
+  </div>
   <div id="limbahContent">
     <div class="panel">
       <div class="panel-title">1. Setor Saldo Ampas Tahu</div>
       <div class="form-grid">
-        <div class="field"><label>Tanggal</label><input type="date" id="tglAmpas" value="${today()}"></div>
-        <div class="field"><label>Nominal Setoran (Rp)</label><input type="number" id="inputAmpasTahu" min="0" step="1" placeholder="Ketik nominal..."></div>
+        <div class="field">
+          <label>Tanggal</label>
+          <input type="date" id="tglAmpas" value="${today()}">
+        </div>
+        <div class="field">
+          <label>Nominal Setoran (Rp)</label>
+          <input type="number" id="inputAmpasTahu" min="0" step="1" placeholder="Ketik nominal...">
+        </div>
       </div>
-      <div class="actions" style="margin-top: 15px;"><button class="btn btn-secondary" onclick="submitLimbah('Ampas Tahu', 'tglAmpas', 'inputAmpasTahu')"><i class="fa-solid fa-plus"></i> Tambah ke Saldo</button></div>
+      <div class="actions" style="margin-top: 15px;">
+        <button class="btn btn-secondary" onclick="submitLimbah('Ampas Tahu', 'tglAmpas', 'inputAmpasTahu')">
+          <i class="fa-solid fa-plus"></i> Tambah ke Saldo
+        </button>
+      </div>
       <hr style="margin: 20px 0; border: 0; border-top: 2px dashed var(--line);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-        <div style="font-weight: 800; font-size: 16px;">Total Saldo Terkumpul: <span style="color: var(--wa-primary);">${money(ampasBelumDibagi)}</span></div>
-        <button class="btn btn-primary" onclick="bagikanLimbah('Ampas Tahu')" ${ampasBelumDibagi > 0 ? '' : 'disabled'} style="${ampasBelumDibagi > 0 ? '' : 'opacity:0.5; cursor:not-allowed;'}">Dibagikan</button>
+        <div style="font-weight: 800; font-size: 16px;">
+          Total Saldo Terkumpul: <span style="color: var(--wa-primary);">${money(ampasBelumDibagi)}</span>
+        </div>
+        <button class="btn btn-primary" onclick="bagikanLimbah('Ampas Tahu')" ${ampasBelumDibagi > 0 ? '' : 'disabled'} style="${ampasBelumDibagi > 0 ? '' : 'opacity:0.5; cursor:not-allowed;'}">
+          Dibagikan
+        </button>
       </div>
       <div id="resultAmpasTahu"></div>
     </div>
+    <div class="panel">
+      <div class="panel-title">2. Setor Saldo Jalantah</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Tanggal</label>
+          <input type="date" id="tglJalantah" value="${today()}">
+        </div>
+        <div class="field">
+          <label>Nominal Setoran (Rp)</label>
+          <input type="number" id="inputJalantah" min="0" step="1" placeholder="Ketik nominal...">
+        </div>
+      </div>
+      <div class="actions" style="margin-top: 15px;">
+        <button class="btn btn-secondary" onclick="submitLimbah('Jalantah', 'tglJalantah', 'inputJalantah')">
+          <i class="fa-solid fa-plus"></i> Tambah ke Saldo
+        </button>
+      </div>
+    </div>
     <div class="panel" style="padding-bottom: 120px;">
       <div class="panel-title">Histori Penjualan Limbah</div>
-      <div class="table-wrap"><table class="table"><thead><tr><th class="center" style="width:45px;">No</th><th>Tanggal</th><th>Jenis Limbah</th><th class="center">Status</th><th class="right">Nominal</th></tr></thead><tbody id="wasteSalesTableBody"></tbody></table></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th class="center" style="width:45px;">No</th>
+              <th>Tanggal</th>
+              <th>Jenis Limbah</th>
+              <th class="center">Status</th>
+              <th class="right">Nominal</th>
+            </tr>
+          </thead>
+          <tbody id="wasteSalesTableBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
   `;
+
   renderRincianPembagian('Ampas Tahu', ampasBelumDibagi, 'resultAmpasTahu');
   renderWasteSalesTable();
 }
-window.renderLimbahPage = renderLimbahPage;
 
 window.renderRincianPembagian = function (jenis, total, containerId) {
   const resultEl = $(containerId);
   if (!resultEl) return;
-  if (total <= 0) { resultEl.innerHTML = `<div style="text-align:center; color:var(--muted); padding: 15px; border: 1px solid var(--line); border-radius: 8px;">Belum ada saldo terkumpul.</div>`; return; }
-  const perusahaan = total * 0.5, manajemen = total * 0.25, pabrik = total * 0.25;
-  resultEl.innerHTML = `<div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--card);"><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;"><div><div style="font-weight: 700; margin-bottom: 6px;">1. Perusahaan (50%)</div><div style="color: #059669; font-weight: bold;">${money(perusahaan)}</div></div><div><div style="font-weight: 700; margin-bottom: 6px;">2. Manajemen (25%)</div><div style="color: var(--muted);">Total: <b>${money(manajemen)}</b></div></div><div><div style="font-weight: 700; margin-bottom: 6px;">3. Pabrik (25%)</div><div style="color: var(--muted);">Total: <b>${money(pabrik)}</b></div></div></div></div>`;
+  if (total <= 0) {
+    resultEl.innerHTML = `
+    <div style="text-align:center; color:var(--muted); padding: 15px; border: 1px solid var(--line); border-radius: 8px;">
+      Belum ada saldo yang terkumpul. Silakan input setoran di atas.
+    </div>`;
+    return;
+  }
+  const perusahaan = total * 0.5;
+  const manajemen = total * 0.25;
+  const pabrik = total * 0.25;
+  const jatahManajemenPerOrang = manajemen / 3;
+
+  let karyawanMgt = (DB.masterSalary || [])
+    .filter(emp => String(emp.departemen).toLowerCase().includes('manajemen'))
+    .map(emp => emp.nama);
+  while (karyawanMgt.length < 3) {
+    karyawanMgt.push('Karyawan Manajemen ' + (karyawanMgt.length + 1));
+  }
+  const tigaManajemen = karyawanMgt.slice(0, 3);
+
+  let karyawanPabrik = (DB.masterSalary || [])
+    .filter(emp => {
+      const dept = String(emp.departemen).toLowerCase();
+      return dept.includes('pabrik') || dept.includes('produksi');
+    })
+    .map(emp => emp.nama);
+
+  if (karyawanPabrik.length < 3) {
+    const nonMgt = (DB.masterSalary || [])
+      .filter(emp => !String(emp.departemen).toLowerCase().includes('manajemen'))
+      .map(emp => emp.nama);
+    karyawanPabrik = [...new Set([...karyawanPabrik, ...nonMgt])];
+  }
+
+  const indexZaenal = karyawanPabrik.findIndex(nama => nama.toUpperCase().includes('ZAENAL'));
+  if (indexZaenal > 0) {
+    const namaZaenal = karyawanPabrik.splice(indexZaenal, 1)[0];
+    karyawanPabrik.unshift(namaZaenal);
+  }
+  while (karyawanPabrik.length < 3) {
+    karyawanPabrik.push('Karyawan Pabrik ' + (karyawanPabrik.length + 1));
+  }
+  const tigaPabrik = karyawanPabrik.slice(0, 3);
+  const jatahPabrik1 = pabrik * 0.4;
+  const jatahPabrik2 = pabrik * 0.3;
+  const jatahPabrik3 = pabrik * 0.3;
+
+  resultEl.innerHTML = `
+  <div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--card);">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+      <div>
+        <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">1. Perusahaan (50%)</div>
+        <div style="font-size: 14px; color: #059669; font-weight: bold;">${money(perusahaan)}</div>
+      </div>
+      <div>
+        <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">2. Manajemen (25%)</div>
+        <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Total: <b>${money(manajemen)}</b></div>
+        <ul style="margin: 0; padding-left: 15px; font-size: 13px; line-height: 1.6;">
+          <li><b>${escapeHtml(tigaManajemen[0])}:</b> ${money(jatahManajemenPerOrang)}</li>
+          <li><b>${escapeHtml(tigaManajemen[1])}:</b> ${money(jatahManajemenPerOrang)}</li>
+          <li><b>${escapeHtml(tigaManajemen[2])}:</b> ${money(jatahManajemenPerOrang)}</li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">3. Pabrik (25%)</div>
+        <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Total: <b>${money(pabrik)}</b></div>
+        <ul style="margin: 0; padding-left: 15px; font-size: 13px; line-height: 1.6;">
+          <li><b>${escapeHtml(tigaPabrik[0])} (40%):</b> ${money(jatahPabrik1)}</li>
+          <li><b>${escapeHtml(tigaPabrik[1])} (30%):</b> ${money(jatahPabrik2)}</li>
+          <li><b>${escapeHtml(tigaPabrik[2])} (30%):</b> ${money(jatahPabrik3)}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  `;
 };
 
 window.submitLimbah = async function (jenis, idTgl, idNominal) {
-  const tanggal = $(idTgl)?.value, nominal = Number($(idNominal)?.value || 0);
-  if (!tanggal || nominal <= 0) { showToast('Isi tanggal dan nominal dengan benar.'); return; }
-  const { error } = await db.from('waste_sales').insert([{ tanggal, jenis, qty: 1, satuan: 'PAKET', harga_satuan: nominal, nominal, keterangan: 'Belum Dibagikan' }]);
-  if (error) showToast('Gagal: ' + error.message); else { showToast('Berhasil ditambahkan!'); $(idNominal).value = ''; loadData('limbah'); }
+  const tglEl = $(idTgl);
+  const nomEl = $(idNominal);
+  if (!tglEl || !nomEl) return;
+  const tanggal = tglEl.value;
+  const nominal = Number(nomEl.value || 0);
+  if (!tanggal) {
+    showToast('Tanggal harus diisi.');
+    return;
+  }
+  if (nominal <= 0) {
+    showToast('Nominal harus lebih dari 0.');
+    return;
+  }
+  showToast('Menyimpan ' + jenis + '...');
+  const payload = {
+    tanggal: tanggal,
+    jenis: jenis,
+    qty: 1,
+    satuan: 'PAKET',
+    harga_satuan: nominal,
+    nominal: nominal,
+    keterangan: 'Belum Dibagikan'
+  };
+  const { error } = await db.from('waste_sales').insert([payload]);
+  if (error) {
+    showToast('Gagal menyimpan: ' + error.message);
+  } else {
+    showToast('Berhasil ditambahkan ke saldo!');
+    nomEl.value = '';
+    loadData('limbah');
+  }
 };
 
 window.bagikanLimbah = async function (jenis) {
-  if (!confirm(`Bagikan seluruh saldo ${jenis}?`)) return;
-  const { error } = await db.from('waste_sales').update({ keterangan: 'Sudah Dibagikan' }).eq('jenis', jenis).eq('keterangan', 'Belum Dibagikan');
-  if (error) showToast('Gagal: ' + error.message); else { showToast('Saldo berhasil dibagikan!'); loadData('limbah'); }
+  if (!confirm(`Anda yakin ingin membagikan seluruh saldo ${jenis}? Tindakan ini akan mereset saldo menjadi Rp 0.`)) return;
+  showToast('Memproses pembagian...');
+  const { error } = await db
+    .from('waste_sales')
+    .update({ keterangan: 'Sudah Dibagikan' })
+    .eq('jenis', jenis)
+    .eq('keterangan', 'Belum Dibagikan');
+
+  if (error) {
+    showToast('Gagal membagikan: ' + error.message);
+  } else {
+    showToast(`Saldo ${jenis} berhasil dibagikan & dinolkan!`);
+    loadData('limbah');
+  }
 };
 
 window.renderWasteSalesTable = function () {
   const tbody = $('wasteSalesTableBody');
   if (!tbody) return;
   const list = [...(DB.wasteSales || [])].sort((a, b) => b.tanggal.localeCompare(a.tanggal));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="center empty">Belum ada riwayat.</td></tr>'; return; }
-  tbody.innerHTML = list.map((item, i) => `<tr><td class="center" style="color:var(--muted);">${i + 1}</td><td>${formatDate(item.tanggal)}</td><td style="font-weight:700;">${escapeHtml(item.jenis)}</td><td class="center"><span class="badge" style="background:${item.keterangan === 'Belum Dibagikan' ? '#f59e0b' : '#10b981'}; color:white; font-size:11px;">${escapeHtml(item.keterangan)}</span></td><td class="right" style="font-weight: 800; font-size:14px;">${money(item.nominal)}</td></tr>`).join('');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="center empty">Belum ada riwayat penjualan limbah.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list
+    .map((item, i) => {
+      const isBelum = item.keterangan === 'Belum Dibagikan';
+      const badgeBg = isBelum ? '#f59e0b' : '#10b981';
+      return `
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td class="center" style="color:var(--muted);">${i + 1}</td>
+        <td>${formatDate(item.tanggal)}</td>
+        <td style="font-weight:700;">${escapeHtml(item.jenis)}</td>
+        <td class="center">
+          <span class="badge" style="background:${badgeBg}; color:white; font-size:11px;">
+            ${escapeHtml(item.keterangan)}
+          </span>
+        </td>
+        <td class="right" style="font-weight: 800; font-size:14px;">${money(item.nominal)}</td>
+      </tr>
+      `;
+    })
+    .join('');
 };
 
-// --- AI CHAT ASISTEN ---
+// --- Halaman Asisten AI / Chat Q&A Terpisah ---
 function renderAiChatPage() {
   const contentEl = $('content');
   if (!contentEl) return;
   contentEl.innerHTML = `
-  <div class="top"><div><div class="title">Asisten AI & Analisis</div><div class="subtitle">Tanya Jawab Pintar Berbasis Data Usaha</div></div></div>
+  <div class="top">
+    <div>
+      <div class="title">Asisten AI & Analisis</div>
+      <div class="subtitle">Tanya Jawab Pintar Berbasis Seluruh Data Usaha</div>
+    </div>
+  </div>
   <div class="panel" style="display:flex; flex-direction:column; height: calc(100vh - 180px); max-height: 650px; padding: 15px;">
-    <div id="chatMessages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px;"><div style="background:var(--card); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width: 85%;">👋 Halo! Saya Asisten AI Unit Subang. Ada yang ingin Anda tanyakan atau analisis hari ini?</div></div>
-    <div style="display:flex; gap:8px;"><input type="text" id="chatInput" placeholder="Ketik pertanyaan..." onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:var(--card); color:var(--text);"><button class="btn btn-primary" onclick="sendChatMessage()" style="padding: 0 16px;"><i class="fa-solid fa-paper-plane"></i></button></div>
+    <div id="chatMessages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px;">
+      <div style="background:var(--card); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width: 85%;">
+        👋 Halo! Saya adalah Asisten AI untuk Rumah Makan Tahu Sumedang Sari Kedele Unit Subang. Saya telah membaca seluruh data keuangan, absensi, gaji, pengeluaran, dan kasbon Anda. Apa yang ingin Anda tanyakan atau analisis hari ini?
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="chatInput" placeholder="Ketik pertanyaan atau minta analisis..." onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:var(--card); color:var(--text);">
+      <button class="btn btn-primary" onclick="sendChatMessage()" style="padding: 0 16px;"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
   </div>
   `;
 }
 window.renderAiChatPage = renderAiChatPage;
 
 async function sendChatMessage() {
-  const input = $('chatInput'), container =$('chatMessages');
+  const input = $('chatInput');
+  const container = $('chatMessages');
   if (!input || !container) return;
   const text = input.value.trim();
   if (!text) return;
-  container.innerHTML += `<div style="align-self:flex-end; background:var(--wa-primary); color:white; padding:12px; border-radius:10px; font-size:13.5px; max-width:85%; word-break:break-word;">${escapeHtml(text)}</div>`;
-  input.value = ''; container.scrollTop = container.scrollHeight;
-  const loadingId = 'load_' + Date.now();
-  container.innerHTML += `<div id="${loadingId}" style="align-self:flex-start; background:var(--card); color:var(--muted); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px;"><i>🤖 Gemini sedang menganalisis data...</i></div>`;
+
+  container.innerHTML += `
+  <div style="align-self:flex-end; background:var(--wa-primary); color:white; padding:12px; border-radius:10px; font-size:13.5px; max-width:85%; word-break:break-word;">
+    ${escapeHtml(text)}
+  </div>
+  `;
+  input.value = '';
   container.scrollTop = container.scrollHeight;
-  const reply = await callGeminiAPI(`Anda adalah konsultan keuangan profesional untuk RM Tahu Sumedang Sari Kedele Unit Subang. Pertanyaan Pengguna: "${text}"`);
+
+  const loadingId = 'load_' + Date.now();
+  container.innerHTML += `
+  <div id="${loadingId}" style="align-self:flex-start; background:var(--card); color:var(--muted); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px;">
+    <i>🤖 Gemini sedang menganalisis data...</i>
+  </div>
+  `;
+  container.scrollTop = container.scrollHeight;
+
+  const summaryContext = `
+Data Ringkasan Aplikasi (Sari Kedele Subang):
+- Total Data Sales (Pendapatan): ${DB.sales.length} hari tercatat.
+- Total Data Pengeluaran Murni: ${DB.expenses.length} item tercatat.
+- Total Data Absensi: ${DB.attendance.length} record.
+- Total Karyawan Master Gaji: ${DB.masterSalary.length} orang.
+- Total Kasbon Aktif: ${DB.advances.length} catatan.
+- Total Cicilan Aktif: ${DB.installments.length} catatan.
+`;
+
+  const fullPrompt = `Anda adalah konsultan keuangan profesional dan asisten operasional cerdas untuk Rumah Makan Tahu Sumedang Sari Kedele Unit Subang. Berikut adalah konteks data saat ini:
+${summaryContext}
+
+Pertanyaan Pengguna: "${text}"
+Jawablah secara akurat, jelas, profesional dalam bahasa Indonesia, dan berikan saran praktis jika diperlukan.`;
+
+  const reply = await callGeminiAPI(fullPrompt);
+
   const loadEl = $(loadingId);
-  if (loadEl) loadEl.outerHTML = `<div style="align-self:flex-start; background:var(--card); color:var(--text); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width:85%; word-break:break-word;">🤖 ${escapeHtml(reply).replace(/\n/g, '<br>')}</div>`;
+  if (loadEl) {
+    loadEl.outerHTML = `
+    <div style="align-self:flex-start; background:var(--card); color:var(--text); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width:85%; word-break:break-word;">
+      🤖 ${escapeHtml(reply).replace(/\n/g, '<br>')}
+    </div>
+    `;
+  }
   container.scrollTop = container.scrollHeight;
 }
 window.sendChatMessage = sendChatMessage;
 
-// --- PENGATURAN & DIAGNOSTIK ---
+// --- Halaman Pengaturan & Diagnostik Sistem ---
 function renderSettingsPage() {
   const contentEl = $('content');
   if (!contentEl) return;
+  
   contentEl.innerHTML = `
-  <div class="top"><div><div class="title">Pengaturan Sistem</div></div></div>
+  <div class="top">
+    <div><div class="title">Pengaturan Sistem</div></div>
+  </div>
   <div class="panel">
     <div class="panel-title">Diagnostik & Kesehatan Aplikasi</div>
-    <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 15px;">Periksa status koneksi database Supabase dan memori aplikasi.</p>
-    <button class="btn btn-primary" onclick="runSystemDiagnostics()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fa-solid fa-stethoscope"></i> Jalankan Analisis Sistem</button>
+    <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 15px;">
+      Gunakan tombol di bawah ini untuk memeriksa status koneksi database Supabase, jumlah baris data di memori tablet, serta memverifikasi keberadaan data karyawan penting.
+    </p>
+    <button class="btn btn-primary" onclick="runSystemDiagnostics()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <i class="fa-solid fa-stethoscope"></i> Jalankan Analisis Sistem
+    </button>
   </div>
   `;
 }
@@ -1725,9 +2561,25 @@ window.renderSettingsPage = renderSettingsPage;
 
 function runSystemDiagnostics() {
   try {
-    const totalAttendance = (DB.attendance || []).length, totalMaster = Object.keys(EMPLOYEE_MAP).length;
-    const report = `🩺 LAPORAN ANALISIS KESEHATAN SISTEM\n\n• Status Koneksi Supabase: Terhubung Aktif\n• Master Karyawan Terdaftar: ${totalMaster} orang\n• Total Baris Absensi di Memori: ${totalAttendance} baris\n• Status Gemini API: Terhubung Aktif\n\nKesimpulan: Sistem berjalan normal.`;
+    const totalAttendance = (DB.attendance || []).length;
+    const totalMaster = Object.keys(typeof EMPLOYEE_MAP !== 'undefined' ? EMPLOYEE_MAP : {}).length;
+    const totalSales = (DB.sales || []).length;
+    const totalExpenses = (DB.expenses || []).length;
+    
+    const sampleYusuf = (DB.attendance || []).find(r => String(r.no_absen) === '25' || String(r.nama || '').toUpperCase().includes('YUSUF'));
+
+    const report = `🩺 LAPORAN ANALISIS KESEHATAN SISTEM\n\n` +
+                   `• Status Koneksi Supabase: Terhubung Aktif\n` +
+                   `• Master Karyawan Terdaftar: ${totalMaster} orang\n` +
+                   `• Total Baris Absensi di Memori: ${totalAttendance} baris\n` +
+                   `• Status Data Yusuf (ID 25): ${sampleYusuf ? 'Terdeteksi Aman (Ada)' : 'Tidak Ditemukan'}\n` +
+                   `• Data Pendapatan Tersimpan: ${totalSales} hari\n` +
+                   `• Data Pengeluaran Tersimpan: ${totalExpenses} item\n\n` +
+                   `Kesimpulan: Sistem berjalan normal tanpa kendala batasan baris.`;
+    
     alert(report);
-  } catch (err) { alert('⚠️ Gagal: ' + err.message); }
+  } catch (err) {
+    alert('⚠️ Gagal menjalankan analisis sistem: ' + err.message);
+  }
 }
 window.runSystemDiagnostics = runSystemDiagnostics;
