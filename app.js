@@ -89,7 +89,6 @@ function toggleTheme() {
   localStorage.setItem('subang_theme', newTheme);
   updateThemeIcon(newTheme);
 }
-window.toggleTheme = toggleTheme;
 
 function updateThemeIcon(theme) {
   const icon = $('themeIcon');
@@ -104,26 +103,18 @@ function toggleSidebar() {
   if (sb) sb.classList.toggle('open');
   if (ov) ov.classList.toggle('active');
 }
-window.toggleSidebar = toggleSidebar;
 
 const $ = id => document.getElementById(id);
 
 function cleanText(str) {
-  return String(str || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
+  return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function isRecordMatching(empMaster, attRecord) {
   if (!empMaster || !attRecord) return false;
-
   const mId = resolveEmployeeId(empMaster);
   const aId = resolveEmployeeId(attRecord);
-
-  if (mId && aId) {
-    return mId === aId;
-  }
-
+  if (mId && aId) return mId === aId;
   const mNama = cleanText(empMaster.nama);
   const aNama = cleanText(attRecord.nama);
   return aNama === mNama || aNama.includes(mNama) || mNama.includes(aNama);
@@ -171,12 +162,7 @@ function parseTimeMinutes(timeVal) {
   if (!match) return null;
   const h = parseInt(match[1], 10);
   const m = parseInt(match[2], 10);
-  return {
-    h,
-    m,
-    totalMins: h * 60 + m,
-    formatted: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  };
+  return { h, m, totalMins: h * 60 + m, formatted: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
 }
 
 function classifyShift(timeStr) {
@@ -237,9 +223,7 @@ function showToast(message) {
   if (!toast) return;
   toast.textContent = message;
   toast.style.display = 'block';
-  setTimeout(() => {
-    toast.style.display = 'none';
-  }, 2500);
+  setTimeout(() => { toast.style.display = 'none'; }, 2500);
 }
 
 function downloadElementAsImage(elementId, filename) {
@@ -278,14 +262,12 @@ async function loadData(targetPage = null) {
       let allData = [];
       let start = 0;
       const step = 999;
-      
       while (true) {
         const { data, error } = await db.from(tableName).select('*').range(start, start + step);
         if (error) throw error;
         if (!data || data.length === 0) break;
-        
         allData.push(...data);
-        if (data.length <= step) break; 
+        if (data.length <= step) break;
         start += step + 1;
       }
       return allData;
@@ -334,9 +316,9 @@ function showPage(page) {
   if (page === 'attendance') renderAttendancePage();
   if (page === 'payroll') renderPayrollPage();
   if (page === 'limbah') renderLimbahPage();
+  if (page === 'aichat') renderAiChatPage();
   if (page === 'settings') renderSettingsPage();
 }
-window.showPage = showPage;
 
 window.calcExpRow = function (el) {
   const tr = el.closest('tr');
@@ -345,18 +327,23 @@ window.calcExpRow = function (el) {
   tr.querySelector('.exp-nominal').value = q * h;
 };
 
-// --- GEMINI API HELPER ---
+// --- GEMINI API HELPER (Menggunakan gemini-2.0-flash & API Key yang ditanam) ---
 async function callGeminiAPI(promptText) {
   if (!GEMINI_API_KEY) {
     return "⚠️ Kunci API Gemini belum terpasang.";
   }
+  
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+  
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }]
+      })
     });
+    
     const result = await response.json();
     if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
       return result.candidates[0].content.parts[0].text;
@@ -391,14 +378,19 @@ function renderDashboard() {
       <div class="card-value" id="cardOmset">Rp 0</div>
     </div>
     <div class="card card-danger">
-      <div class="card-label">Pengeluaran Bulan Ini</div>
+      <div class="card-label">Variabel Cost (Pengeluaran Murni)</div>
       <div class="card-value" id="cardExpense">Rp 0</div>
     </div>
   </div>
 
-  <div class="panel" style="border-left: 4px solid #f59e0b;">
-    <div class="panel-title"><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b; margin-right:6px;"></i> Pusat Analisis & Insight Keuangan</div>
-    <div id="dashboardInsightsContent" style="font-size: 13.5px; display: flex; flex-direction: column; gap: 12px;"></div>
+  <div class="panel" style="border-left: 4px solid var(--wa-primary);">
+    <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span><i class="fa-solid fa-robot" style="color:var(--wa-primary); margin-right:6px;"></i> Analisis Ringkas Gemini AI</span>
+      <button class="btn btn-secondary" onclick="refreshGeminiDashboardAnalysis()" style="font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-rotate"></i> Analisis Ulang</button>
+    </div>
+    <div id="dashboardInsightsContent" style="font-size: 13.5px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="color: var(--muted); text-align:center; padding: 10px;">Menghitung data dan memuat analisis AI...</div>
+    </div>
   </div>
 
   <div class="panel">
@@ -431,6 +423,7 @@ function renderDashboard() {
 }
 
 let monthlyChartInstance = null;
+let cachedDashboardMetrics = {};
 
 function updateDashboardMetrics(yearMonth) {
   if (!yearMonth) return;
@@ -440,10 +433,14 @@ function updateDashboardMetrics(yearMonth) {
   const monthSales = (DB.sales || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
   const monthAttendance = (DB.attendance || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
 
-  if ($('cardOmset')) $('cardOmset').textContent = money(sum(monthCounters.map(r => totalCounter(r))));
-  const totalExpMonth = sum(monthExpenses.map(r => r.nominal));
-  if ($('cardExpense')) $('cardExpense').textContent = money(totalExpMonth);
+  const totalOmsetVal = sum(monthCounters.map(r => totalCounter(r)));
+  if ($('cardOmset')) $('cardOmset').textContent = money(totalOmsetVal);
+  
+  // Variable Cost murni (Pengeluaran operasional umum)
+  const variableCost = sum(monthExpenses.map(r => r.nominal));
+  if ($('cardExpense')) $('cardExpense').textContent = money(variableCost);
 
+  // Fixed Cost (Gaji Master + Uang Jajan Dinamis Tepat Waktu)
   let totalMasterSalaries = 0;
   (DB.masterSalary || []).forEach(emp => {
     totalMasterSalaries += Number(emp.gaji_pokok || 0) + Number(emp.jabatan || 0) + Number(emp.prestasi || 0) + Number(emp.kesehatan || 0) + Number(emp.zakat || 0) + Number(emp.kebersihan_loyalitas || 0);
@@ -458,12 +455,13 @@ function updateDashboardMetrics(yearMonth) {
   });
 
   const fixedCost = totalMasterSalaries + totalUangJajan;
-  const variableCost = totalExpMonth;
   const totalCostAll = fixedCost + variableCost;
+  const netProfitOrLoss = totalOmsetVal - totalCostAll;
 
   const pctFixed = totalCostAll > 0 ? ((fixedCost / totalCostAll) * 100).toFixed(1) : 0;
   const pctVariable = totalCostAll > 0 ? ((variableCost / totalCostAll) * 100).toFixed(1) : 0;
 
+  // Deteksi Selisih Kas (Potensi Kebocoran)
   let totalSelisihKas = 0;
   let hariSelisihKas = 0;
   monthSales.forEach(s => {
@@ -478,41 +476,48 @@ function updateDashboardMetrics(yearMonth) {
     }
   });
 
-  const empAbsenceCount = {};
-  monthAttendance.forEach(att => {
-    const isLibur = !att.masuk || att.status === 'Libur' || att.status === 'Tidak Hadir';
-    if (isLibur) {
-      const name = att.nama || 'Karyawan';
-      empAbsenceCount[name] = (empAbsenceCount[name] || 0) + 1;
-    }
-  });
-  const sortedAbsences = Object.entries(empAbsenceCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  cachedDashboardMetrics = {
+    yearMonth,
+    totalOmsetVal,
+    fixedCost,
+    variableCost,
+    netProfitOrLoss,
+    pctFixed,
+    pctVariable,
+    totalSelisihKas,
+    hariSelisihKas
+  };
 
   const insightsEl = $('dashboardInsightsContent');
   if (insightsEl) {
     insightsEl.innerHTML = `
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--line);">
       <div>
-        <div style="font-size:11px; color:var(--muted); font-weight:700;">FIXED COST (GAJI + JAJAN)</div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">FIXED COST (GAJI+JAJAN)</div>
         <div style="font-size:14px; font-weight:800; color:var(--text);">${money(fixedCost)} <span style="font-size:11px; font-weight:normal; color:var(--muted);">(${pctFixed}%)</span></div>
       </div>
       <div>
-        <div style="font-size:11px; color:var(--muted); font-weight:700;">VARIABLE COST (PENGELUARAN)</div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">VARIABLE COST (MURNI)</div>
         <div style="font-size:14px; font-weight:800; color:var(--danger);">${money(variableCost)} <span style="font-size:11px; font-weight:normal; color:var(--muted);">(${pctVariable}%)</span></div>
       </div>
     </div>
     <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px;">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px dashed var(--line); padding-bottom: 6px;">
+        <span>📊 Laba/Rugi Bersih (Omset - (Fixed+Var)):</span>
+        <b style="color: ${netProfitOrLoss >= 0 ? 'var(--success)' : 'var(--danger)'};">${money(netProfitOrLoss)} (${netProfitOrLoss >= 0 ? 'Surplus/Lebih' : 'Defisit/Minus'})</b>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between;">
         <span>⚠️ Total Selisih Kas (ESB vs Konter):</span>
         <b style="color: ${totalSelisihKas > 0 ? 'var(--danger)' : 'var(--success)'};">${money(totalSelisihKas)} (${hariSelisihKas} hari)</b>
       </div>
-      <div style="display: flex; align-items: flex-start; justify-content: space-between; padding-top: 2px;">
-        <span>📉 Karyawan Absen / Mangkir Terbanyak:</span>
-        <span style="text-align: right; font-weight: 600; color:var(--danger);">${sortedAbsences.length > 0 ? sortedAbsences.map(e => `${e[0]} (${e[1]}x)`).join(', ') : 'Aman (Tidak ada data mencolok)'}</span>
-      </div>
+    </div>
+    <div id="aiNarrationBox" style="margin-top:8px; padding:10px; background:var(--card); border-radius:8px; border:1px solid var(--line); font-style:italic; color:var(--text);">
+      🤖 <i>Memuat analisis naratif dari Gemini AI...</i>
     </div>
     `;
   }
+
+  refreshGeminiDashboardAnalysis();
 
   let sumMakanan = 0, sumMinuman = 0, sumTahu = 0, sumGorengan = 0, sumLain = 0;
   monthSales.forEach(s => {
@@ -572,13 +577,116 @@ function updateDashboardMetrics(yearMonth) {
       type: 'line',
       data: {
         labels: labels,
-        datasets: [{ label: 'Omset Harian (Rp)', data: dataOmset, borderColor: '#007aff', backgroundColor: 'rgba(0, 122, 255, 0.15)', fill: true, tension: 0.3 }]
+        datasets: [
+          {
+            label: 'Omset Harian (Rp)',
+            data: dataOmset,
+            borderColor: '#007aff',
+            backgroundColor: 'rgba(0, 122, 255, 0.15)',
+            fill: true,
+            tension: 0.3
+          }
+        ]
       },
       options: { responsive: true, maintainAspectRatio: false }
     });
   }
 }
 
+async function refreshGeminiDashboardAnalysis() {
+  const box = $('aiNarrationBox');
+  if (!box) return;
+  const m = cachedDashboardMetrics;
+  const prompt = `Bertindaklah sebagai konsultan keuangan restoran. Berikan ringkasan eksekutif dan analisis naratif singkat (maksimal 3 kalimat) dalam bahasa Indonesia yang profesional untuk bulan ${m.yearMonth} berdasarkan data berikut:
+- Total Omset: ${money(m.totalOmsetVal)}
+- Fixed Cost (Gaji + Uang Jajan): ${money(m.fixedCost)} (${m.pctFixed}%)
+- Variable Cost (Pengeluaran Murni): ${money(m.variableCost)} (${m.pctVariable}%)
+- Laba/Rugi Bersih (Omset - (Fixed + Variable)): ${money(m.netProfitOrLoss)}
+- Selisih Kas (Potensi Kebocoran): ${money(m.totalSelisihKas)} selama ${m.hariSelisihKas} hari.
+Berikan penilaian apakah keuangannya sehat serta peringatan jika ada selisih kas atau defisit.`;
+
+  const res = await callGeminiAPI(prompt);
+  box.innerHTML = `🤖 <b>Analisis Gemini:</b> "${escapeHtml(res)}"`;
+}
+
+// --- HALAMAN ASISTEN AI / CHAT Q&A TERPISAH ---
+function renderAiChatPage() {
+  const contentEl = $('content');
+  if (!contentEl) return;
+  contentEl.innerHTML = `
+  <div class="top">
+    <div>
+      <div class="title">Asisten AI & Analisis</div>
+      <div class="subtitle">Tanya Jawab Pintar Berbasis Seluruh Data Usaha</div>
+    </div>
+  </div>
+  <div class="panel" style="display:flex; flex-direction:column; height: calc(100vh - 180px); max-height: 650px; padding: 15px;">
+    <div id="chatMessages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px;">
+      <div style="background:var(--card); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width: 85%;">
+        👋 Halo! Saya adalah Asisten AI untuk Rumah Makan Tahu Sumedang Sari Kedele Unit Subang. Saya telah membaca seluruh data keuangan, absensi, gaji, pengeluaran, dan kasbon Anda. Apa yang ingin Anda tanyakan atau analisis hari ini?
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="chatInput" placeholder="Ketik pertanyaan atau minta analisis..." onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:var(--card); color:var(--text);">
+      <button class="btn btn-primary" onclick="sendChatMessage()" style="padding: 0 16px;"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+  </div>
+  `;
+}
+
+async function sendChatMessage() {
+  const input = $('chatInput');
+  const container = $('chatMessages');
+  if (!input || !container) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  container.innerHTML += `
+  <div style="align-self:flex-end; background:var(--wa-primary); color:white; padding:12px; border-radius:10px; font-size:13.5px; max-width:85%; word-break:break-word;">
+    ${escapeHtml(text)}
+  </div>
+  `;
+  input.value = '';
+  container.scrollTop = container.scrollHeight;
+
+  const loadingId = 'load_' + Date.now();
+  container.innerHTML += `
+  <div id="${loadingId}" style="align-self:flex-start; background:var(--card); color:var(--muted); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px;">
+    <i>🤖 Gemini sedang menganalisis data...</i>
+  </div>
+  `;
+  container.scrollTop = container.scrollHeight;
+
+  const summaryContext = `
+Data Ringkasan Aplikasi (Sari Kedele Subang):
+- Total Data Sales (Pendapatan): ${DB.sales.length} hari tercatat.
+- Total Data Pengeluaran Murni: ${DB.expenses.length} item tercatat.
+- Total Data Absensi: ${DB.attendance.length} record.
+- Total Karyawan Master Gaji: ${DB.masterSalary.length} orang.
+- Total Kasbon Aktif: ${DB.advances.length} catatan.
+- Total Cicilan Aktif: ${DB.installments.length} catatan.
+`;
+
+  const fullPrompt = `Anda adalah konsultan keuangan profesional dan asisten operasional cerdas untuk Rumah Makan Tahu Sumedang Sari Kedele Unit Subang. Berikut adalah konteks data saat ini:
+${summaryContext}
+
+Pertanyaan Pengguna: "${text}"
+Jawablah secara akurat, jelas, profesional dalam bahasa Indonesia, dan berikan saran praktis jika diperlukan.`;
+
+  const reply = await callGeminiAPI(fullPrompt);
+
+  const loadEl = $(loadingId);
+  if (loadEl) {
+    loadEl.outerHTML = `
+    <div style="align-self:flex-start; background:var(--card); color:var(--text); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width:85%; word-break:break-word;">
+      🤖 ${escapeHtml(reply).replace(/\n/g, '<br>')}
+    </div>
+    `;
+  }
+  container.scrollTop = container.scrollHeight;
+}
+
+// --- Modul Lainnya (Pendapatan, Pengeluaran, Absensi, Gaji, Limbah, Pengaturan) ---
 function renderSales() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -791,7 +899,6 @@ function downloadDailyReportImage() {
   downloadElementAsImage('captureDailyReport', 'LAPORAN_PENDAPATAN_' + date);
 }
 
-// --- MODUL PENGELUARAN YANG DITAMBAHKAN PEMANTAUAN HARIAN ---
 function renderExpense() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -800,7 +907,6 @@ function renderExpense() {
     <div><div class="title">Modul Pengeluaran</div></div>
     <div style="display:flex; gap:6px; flex-wrap:wrap;">
       <button id="expBtnIn" class="sub-nav-btn active-sub" onclick="showExpenseSub('input')">Input</button>
-      <button id="expBtnDaily" class="sub-nav-btn" onclick="showExpenseSub('daily')">Pemantauan Harian</button>
       <button id="expBtnRep" class="sub-nav-btn" onclick="showExpenseSub('report')">Laporan</button>
       <button id="expBtnCash" class="sub-nav-btn" onclick="showExpenseSub('cash')">Posisi Kas</button>
     </div>
@@ -809,18 +915,15 @@ function renderExpense() {
   `;
   showExpenseSub('input');
 }
-window.renderExpense = renderExpense;
 
 function showExpenseSub(type) {
   const container = $('expenseSubContent');
   if (!container) return;
   const btnIn = $('expBtnIn');
-  const btnDaily = $('expBtnDaily');
   const btnRep = $('expBtnRep');
   const btnCash = $('expBtnCash');
-  if (btnIn && btnDaily && btnRep && btnCash) {
+  if (btnIn && btnRep && btnCash) {
     btnIn.classList.toggle('active-sub', type === 'input');
-    btnDaily.classList.toggle('active-sub', type === 'daily');
     btnRep.classList.toggle('active-sub', type === 'report');
     btnCash.classList.toggle('active-sub', type === 'cash');
   }
@@ -856,18 +959,6 @@ function showExpenseSub(type) {
     </div>
     `;
     for (let i = 0; i < 3; i++) addExpenseRow();
-  } else if (type === 'daily') {
-    container.innerHTML = `
-    <div class="panel">
-      <div class="panel-title">Pemantauan Detail Pengeluaran Harian</div>
-      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
-        <label style="font-weight:700;">Pilih Tanggal Pantau:</label>
-        <input type="date" id="dailyMonitorDate" value="${today()}" onchange="loadDailyMonitorData()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--card); color:var(--text);">
-      </div>
-      <div id="dailyMonitorResult"></div>
-    </div>
-    `;
-    loadDailyMonitorData();
   } else if (type === 'report') {
     container.innerHTML = `
     <div class="panel">
@@ -914,77 +1005,6 @@ function showExpenseSub(type) {
     };
   }
 }
-
-function loadDailyMonitorData() {
-  const dateEl = $('dailyMonitorDate');
-  const resEl = $('dailyMonitorResult');
-  if (!dateEl || !resEl) return;
-
-  const date = normalizeDate(dateEl.value);
-  const cashRow = (DB.cash || []).find(r => formatDate(r.tanggal) === date) || {};
-  const dayExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal) === date);
-
-  const saldoHarian = Number(cashRow.saldo_harian || 0);
-  const belanjaMalam = Number(cashRow.belanja_malam || 0);
-  const totalPemasukan = saldoHarian + belanjaMalam;
-  const totalPengeluaran = sum(dayExpenses.map(r => r.nominal));
-  const sisaKas = totalPemasukan - totalPengeluaran;
-
-  let itemsHtml = '';
-  if (dayExpenses.length > 0) {
-    itemsHtml = dayExpenses.map((ex, i) => `
-      <tr>
-        <td class="center">${i + 1}</td>
-        <td><span class="badge badge-dept">${escapeHtml(ex.kategori || '-')}</span></td>
-        <td style="font-weight:700;">${escapeHtml(ex.sumber || '-')}</td>
-        <td class="center">${ex.qty || 1} ${escapeHtml(ex.satuan || 'PCS')}</td>
-        <td class="right">${money(ex.harga_satuan || 0)}</td>
-        <td class="right" style="font-weight:800; color:var(--danger);">${money(ex.nominal)}</td>
-      </tr>
-    `).join('');
-  } else {
-    itemsHtml = `<tr><td colspan="6" class="center" style="color:var(--muted); padding:20px;">Belum ada rincian item pengeluaran pada tanggal ini.</td></tr>`;
-  }
-
-  resEl.innerHTML = `
-  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:20px;">
-    <div style="background:var(--input-bg); padding:14px; border-radius:12px; border:1px solid var(--line);">
-      <div style="font-size:12px; color:var(--muted); font-weight:700;">SUMBER SALDO HARIAN</div>
-      <div style="font-size:16px; font-weight:800; margin-top:4px;">${money(saldoHarian)}</div>
-    </div>
-    <div style="background:var(--input-bg); padding:14px; border-radius:12px; border:1px solid var(--line);">
-      <div style="font-size:12px; color:var(--muted); font-weight:700;">SUMBER BELANJA MALAM</div>
-      <div style="font-size:16px; font-weight:800; margin-top:4px;">${money(belanjaMalam)}</div>
-    </div>
-    <div style="background:var(--input-bg); padding:14px; border-radius:12px; border:1px solid var(--line);">
-      <div style="font-size:12px; color:var(--muted); font-weight:700;">TOTAL PENGELUARAN</div>
-      <div style="font-size:16px; font-weight:800; color:var(--danger); margin-top:4px;">${money(totalPengeluaran)}</div>
-    </div>
-    <div style="background:var(--input-bg); padding:14px; border-radius:12px; border:1px solid var(--line); border-left:4px solid ${sisaKas < 0 ? 'var(--danger)' : 'var(--success)'};">
-      <div style="font-size:12px; color:var(--muted); font-weight:700;">SISA SALDO KAS AKHIR</div>
-      <div style="font-size:16px; font-weight:800; color:${sisaKas < 0 ? 'var(--danger)' : 'var(--success)'}; margin-top:4px;">${money(sisaKas)}</div>
-    </div>
-  </div>
-
-  <div class="panel-title" style="font-size:15px; margin-bottom:10px;">Rincian Nama Barang / Item Pengeluaran</div>
-  <div class="table-wrap">
-    <table class="table">
-      <thead>
-        <tr>
-          <th class="center" style="width:40px;">No</th>
-          <th>Kategori</th>
-          <th>Nama Barang</th>
-          <th class="center">Qty</th>
-          <th class="right">Harga Satuan</th>
-          <th class="right">Total Nominal</th>
-        </tr>
-      </thead>
-      <tbody>${itemsHtml}</tbody>
-    </table>
-  </div>
-  `;
-}
-window.loadDailyMonitorData = loadDailyMonitorData;
 
 function addExpenseRow() {
   const tr = document.createElement('tr');
@@ -2482,7 +2502,6 @@ function renderAiChatPage() {
   </div>
   `;
 }
-window.renderAiChatPage = renderAiChatPage;
 
 async function sendChatMessage() {
   const input = $('chatInput');
@@ -2535,7 +2554,6 @@ Jawablah secara akurat, jelas, profesional dalam bahasa Indonesia, dan berikan s
   }
   container.scrollTop = container.scrollHeight;
 }
-window.sendChatMessage = sendChatMessage;
 
 // --- Halaman Pengaturan & Diagnostik Sistem ---
 function renderSettingsPage() {
@@ -2557,7 +2575,6 @@ function renderSettingsPage() {
   </div>
   `;
 }
-window.renderSettingsPage = renderSettingsPage;
 
 function runSystemDiagnostics() {
   try {
@@ -2582,4 +2599,3 @@ function runSystemDiagnostics() {
     alert('⚠️ Gagal menjalankan analisis sistem: ' + err.message);
   }
 }
-window.runSystemDiagnostics = runSystemDiagnostics;
