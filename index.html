@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <base target="_top">
-  <title>Administrasi Subang - Sari Kedele</title>
+  <title>AS - Administrasi Subang</title>
 
-  <!-- Penambahan Kode Manifes dan Ikon -->
   <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=Admin+Subang&background=121212&color=20c997&size=192">
+  <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=AS&background=1e1e1e&color=8ab4f8&size=192">
 
-  <link rel="stylesheet" href="style.css?v=1.8">
+  <!-- Versi 3.0 memaksa peramban membuang memori lama -->
+  <link rel="stylesheet" href="style.css?v=3.0">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -18,19 +18,22 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  
-  <!-- Tambahan Library ExcelJS untuk Export Laporan Bulanan -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 </head>
 
 <body>
 
 <div class="mobile-header">
-  <div class="mobile-header-title">ADMINISTRASI SUBANG</div>
-  <div style="display: flex; gap: 8px; align-items: center;">
-    <button class="theme-toggle-btn" onclick="toggleTheme()"><i id="themeIcon" class="fa-solid fa-moon"></i></button>
-    <!-- Tombol menu diubah menjadi ikon hamburger saja tanpa teks "Menu" -->
-    <button class="hamburger-btn" onclick="toggleSidebar()" style="padding: 8px 10px; border-radius: 8px;"><i class="fa-solid fa-bars"></i></button>
+  <div class="mobile-header-title">
+    <i class="fa-solid fa-sparkles" style="color: #8ab4f8; margin-right: 5px;"></i> AS
+  </div>
+  <div style="display: flex; gap: 12px; align-items: center;">
+    <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Dark Mode">
+      <i id="themeIcon" class="fa-solid fa-moon"></i>
+    </button>
+    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Buka Menu">
+      <i class="fa-solid fa-bars-staggered"></i>
+    </button>
   </div>
 </div>
 
@@ -39,58 +42,61 @@
 <div class="app">
   <aside class="sidebar" id="appSidebar">
     <div class="brand">
-      <div>
-        ADMINISTRASI SUBANG
-        <small>Sari Kedele - Subang</small>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <i class="fa-solid fa-sparkles" style="color: #8ab4f8; font-size: 24px;"></i>
+        <div>
+          AS - SARI KEDELE
+          <small>Administrasi Pintar</small>
+        </div>
       </div>
-      <button style="background:transparent; border:0; color:inherit; font-size:22px; cursor:pointer;" onclick="toggleSidebar()"><i class="fa-solid fa-xmark"></i></button>
+      <button style="background:transparent; border:0; color:inherit; font-size:22px; cursor:pointer;" onclick="toggleSidebar()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
     </div>
 
     <div class="nav">
-      <button data-page="dashboard" onclick="showPage('dashboard')"><i class="fa-solid fa-house"></i> Dashboard</button>
-      <button data-page="sales" onclick="showPage('sales')"><i class="fa-solid fa-wallet"></i> Pendapatan</button>
-      <button data-page="expense" onclick="showPage('expense')"><i class="fa-solid fa-receipt"></i> Pengeluaran</button>
-      <button data-page="attendance" onclick="showPage('attendance')"><i class="fa-solid fa-user-clock"></i> Absensi</button>
-      <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-file-invoice-dollar"></i> Daftar Gaji</button>
+      <button data-page="dashboard" onclick="showPage('dashboard')"><i class="fa-solid fa-layer-group"></i> Dashboard</button>
+      <button data-page="sales" onclick="showPage('sales')"><i class="fa-solid fa-arrow-trend-up"></i> Pendapatan</button>
+      <button data-page="expense" onclick="showPage('expense')"><i class="fa-solid fa-arrow-trend-down"></i> Pengeluaran Utama</button>
+      <button data-page="expense_tracker" onclick="showPage('expense_tracker')"><i class="fa-solid fa-money-bill-transfer"></i> Pantau Pengeluaran</button>
+      <button data-page="attendance" onclick="showPage('attendance')"><i class="fa-solid fa-fingerprint"></i> Absensi</button>
+      <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-wallet"></i> Daftar Gaji</button>
       <button data-page="limbah" onclick="showPage('limbah')"><i class="fa-solid fa-recycle"></i> Penjualan Limbah</button>
-      <button data-page="aichat" onclick="showPage('aichat')"><i class="fa-solid fa-robot"></i> Asisten AI</button>
-      <button data-page="settings" onclick="showPage('settings')"><i class="fa-solid fa-gear"></i> Pengaturan</button>
+      <button data-page="settings" onclick="showPage('settings')"><i class="fa-solid fa-sliders"></i> Pengaturan Sistem</button>
     </div>
   </aside>
 
   <main class="main">
-    <div id="content"></div>
+    <div id="content" class="page-transition"></div>
   </main>
 </div>
 
-<!-- BOTTOM NAVIGATION BAR (Dirapikan & ditambah menu AI Chat) -->
-<nav class="bottom-nav" style="display: flex; justify-content: space-around; align-items: center; padding: 4px 2px;">
-  <button class="b-nav-btn" data-page="dashboard" onclick="showPage('dashboard')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
-    <i class="fa-solid fa-house" style="font-size: 15px;"></i><span>Home</span>
+<nav class="bottom-nav">
+  <button class="b-nav-btn" data-page="dashboard" onclick="showPage('dashboard')" aria-label="Dashboard">
+    <i class="fa-solid fa-layer-group"></i>
   </button>
-  <button class="b-nav-btn" data-page="sales" onclick="showPage('sales')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
-    <i class="fa-solid fa-wallet" style="font-size: 15px;"></i><span>Pendapatan</span>
+  <button class="b-nav-btn" data-page="sales" onclick="showPage('sales')" aria-label="Pendapatan">
+    <i class="fa-solid fa-arrow-trend-up"></i>
   </button>
-  <button class="b-nav-btn" data-page="expense" onclick="showPage('expense')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
-    <i class="fa-solid fa-receipt" style="font-size: 15px;"></i><span>Pengeluaran</span>
+  <button class="b-nav-btn" data-page="expense" onclick="showPage('expense')" aria-label="Pengeluaran">
+    <i class="fa-solid fa-arrow-trend-down"></i>
   </button>
-  <button class="b-nav-btn" data-page="attendance" onclick="showPage('attendance')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
-    <i class="fa-solid fa-user-clock" style="font-size: 15px;"></i><span>Absensi</span>
+  <button class="b-nav-btn" data-page="attendance" onclick="showPage('attendance')" aria-label="Absensi">
+    <i class="fa-solid fa-fingerprint"></i>
   </button>
-  <button class="b-nav-btn" data-page="payroll" onclick="showPage('payroll')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
-    <i class="fa-solid fa-file-invoice-dollar" style="font-size: 15px;"></i><span>Gaji</span>
-  </button>
-  <button class="b-nav-btn" data-page="aichat" onclick="showPage('aichat')" style="flex: 1; padding: 6px 2px; font-size: 11px;">
-    <i class="fa-solid fa-robot" style="font-size: 15px;"></i><span>AI Chat</span>
+  <button class="b-nav-btn" data-page="payroll" onclick="showPage('payroll')" aria-label="Gaji">
+    <i class="fa-solid fa-wallet"></i>
   </button>
 </nav>
 
+<button class="fab-ai" onclick="showPage('aichat')" aria-label="Buka Asisten AI">
+  <i class="fa-solid fa-wand-magic-sparkles"></i>
+</button>
+
 <div id="toast" class="toast"></div>
 
-<!-- PEMANGGILAN SCRIPT UTAMA -->
-<script src="app.js?v=1.8"></script>
+<script src="app.js?v=3.0"></script>
   
-<!-- Skrip Pendaftaran Pekerja Layanan -->
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js');
