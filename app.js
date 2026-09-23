@@ -2,15 +2,13 @@ const SUPABASE_URL = 'https://grlaiyobzuhoxpofqhrb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_JfhWW06jtowD1Af22vfUxA__d_MBbDE';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Kunci API Gemini yang ditanamkan langsung
-const GEMINI_API_KEY = 'AQ.Ab8RN6LapTf9ZKKydJWlUYuaj7lPKNYqMbRg-MYGOn5ZssfLLQ';
+const GROQ_API_KEY = '';
 
-// Master Relasi Resmi: Mengunci kecocokan murni berbasis ID Mesin Absen
 const EMPLOYEE_MAP = {
   '1':  { absenName: 'REIHAN',     masterName: 'REIHAN MUHAMMAD ALIEF' },
   '2':  { absenName: 'AQSHAL',     masterName: 'MUHAMMAD AQSHAL LESMANA' },
   '4':  { absenName: 'EDISOPANDI', masterName: 'EDI SOPANDI' },
-  '5':  { absenName: 'ABDUL GHANI',masterName: 'MUHAMMAD ADBUL GHANI' },
+  '5':  { absenName: 'ABDUL GHANI',masterName: 'MUHAMMAD ABDUL GHANI' },
   '9':  { absenName: 'JULIAN',     masterName: 'JULIAN TRI SAPUTRA' },
   '10': { absenName: 'DAFA',       masterName: 'DAFFA CAHYA NUGRAHA' },
   '11': { absenName: 'OCHA',       masterName: 'OCHA HERDIATNA' },
@@ -71,14 +69,13 @@ let DB = {
 const STANDARD_WORK_HOURS = 11;
 const MAX_OVERTIME_PER_DAY = 5;
 const RATE_PER_HOUR = 5000;
-let DEFAULT_ALLOWANCE = 15000;
-let DEFAULT_BONUS_LAIN = 40000;
+let DEFAULT_ALLOWANCE = Number(localStorage.getItem('subang_allowance')) || 15000;
+let DEFAULT_BONUS_LAIN = Number(localStorage.getItem('subang_bonus')) || 40000;
 
 window.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('subang_theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeIcon(savedTheme);
-  showPage('dashboard');
   loadData('dashboard');
 });
 
@@ -256,6 +253,41 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+window.editInline = async function(table, id, field, currentValue) {
+  if (!id || id === 'undefined') {
+    showToast('Data ini belum memiliki ID tetap.');
+    return;
+  }
+  
+  const isNumber = typeof currentValue === 'number' || !isNaN(currentValue);
+  const promptText = `Ubah data untuk [${field}]:\n(Nilai saat ini: ${currentValue})`;
+  const newValue = prompt(promptText, currentValue);
+  
+  if (newValue === null || String(newValue).trim() === '' || newValue === String(currentValue)) {
+    return; 
+  }
+
+  let finalValue = newValue;
+  if (isNumber) {
+    finalValue = Number(newValue.replace(/[^0-9.-]+/g,""));
+    if (isNaN(finalValue)) {
+      showToast('Penulisan batal: Nilai harus berupa angka.');
+      return;
+    }
+  }
+
+  showToast('Menyimpan perubahan ke basis data...');
+  const { error } = await db.from(table).update({ [field]: finalValue }).eq('id', id);
+  
+  if (error) {
+    showToast('Gagal update: ' + error.message);
+  } else {
+    showToast('Data berhasil dikoreksi!');
+    const currentPage = document.querySelector('.b-nav-btn.active')?.dataset.page || 'dashboard';
+    await loadData(currentPage);
+  }
+};
+
 async function loadData(targetPage = null) {
   try {
     const fetchTableAll = async (tableName) => {
@@ -303,6 +335,7 @@ async function loadData(targetPage = null) {
   }
 }
 
+let pageTransitionTimeout;
 function showPage(page) {
   document.querySelectorAll('.nav button, .b-nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.page === page);
@@ -310,14 +343,25 @@ function showPage(page) {
   $('appSidebar')?.classList.remove('open');
   $('sidebarOverlay')?.classList.remove('active');
 
-  if (page === 'dashboard') renderDashboard();
-  if (page === 'sales') renderSales();
-  if (page === 'expense') renderExpense();
-  if (page === 'attendance') renderAttendancePage();
-  if (page === 'payroll') renderPayrollPage();
-  if (page === 'limbah') renderLimbahPage();
-  if (page === 'aichat') renderAiChatPage();
-  if (page === 'settings') renderSettingsPage();
+  const contentEl = $('content');
+  if (contentEl) {
+    contentEl.classList.remove('active');
+    clearTimeout(pageTransitionTimeout);
+    
+    pageTransitionTimeout = setTimeout(() => {
+      if (page === 'dashboard') renderDashboard();
+      if (page === 'sales') renderSales();
+      if (page === 'expense') renderExpense();
+      if (page === 'expense_tracker') renderExpenseTracker();
+      if (page === 'attendance') renderAttendancePage();
+      if (page === 'payroll') renderPayrollPage();
+      if (page === 'limbah') renderLimbahPage();
+      if (page === 'aichat') renderAiChatPage();
+      if (page === 'settings') renderSettingsPage();
+      
+      setTimeout(() => contentEl.classList.add('active'), 20);
+    }, 60);
+  }
 }
 
 window.calcExpRow = function (el) {
@@ -327,34 +371,41 @@ window.calcExpRow = function (el) {
   tr.querySelector('.exp-nominal').value = q * h;
 };
 
-// --- GEMINI API HELPER (Menggunakan gemini-2.0-flash & API Key yang ditanam) ---
 async function callGeminiAPI(promptText) {
-  if (!GEMINI_API_KEY) {
-    return "⚠️ Kunci API Gemini belum terpasang.";
+  if (!GROQ_API_KEY) {
+    return "⚠️ Kunci API Groq belum terpasang.";
   }
   
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const url = 'https://api.groq.com/openai/v1/chat/completions';
   
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }]
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'user', content: promptText }
+        ]
       })
     });
     
     const result = await response.json();
-    if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-      return result.candidates[0].content.parts[0].text;
+    if (result.choices && result.choices[0]?.message?.content) {
+      return result.choices[0].message.content;
     } else if (result.error) {
-      return `⚠️ Error Gemini: ${result.error.message}`;
+      return `⚠️ Error Groq: ${result.error.message}`;
     }
-    return "⚠️ Gagal mendapatkan respons dari Gemini.";
+    return "⚠️ Gagal mendapatkan respons dari AI.";
   } catch (err) {
     return `⚠️ Gagal terhubung ke jaringan: ${err.message}`;
   }
 }
+
+
 
 function renderDashboard() {
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -369,7 +420,7 @@ function renderDashboard() {
     </div>
     <div style="display: flex; flex-direction: column; gap: 6px;">
       <label style="font-size: 13px; font-weight: 700; color: var(--muted);">Pilih Bulan Rekapitulasi:</label>
-      <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background: var(--card); color: var(--text);">
+      <input type="month" id="dashboardMonth" value="${currentMonth}" onchange="updateDashboardMetrics(this.value)" style="padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background: var(--input-bg); color: var(--text);">
     </div>
   </div>
   <div class="cards">
@@ -385,7 +436,7 @@ function renderDashboard() {
 
   <div class="panel" style="border-left: 4px solid var(--wa-primary);">
     <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
-      <span><i class="fa-solid fa-robot" style="color:var(--wa-primary); margin-right:6px;"></i> Analisis Ringkas Gemini AI</span>
+      <span><i class="fa-solid fa-sparkles" style="color:var(--wa-primary); margin-right:6px;"></i> Analisis Ringkas Gemini AI</span>
       <button class="btn btn-secondary" onclick="refreshGeminiDashboardAnalysis()" style="font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-rotate"></i> Analisis Ulang</button>
     </div>
     <div id="dashboardInsightsContent" style="font-size: 13.5px; display: flex; flex-direction: column; gap: 12px;">
@@ -436,11 +487,9 @@ function updateDashboardMetrics(yearMonth) {
   const totalOmsetVal = sum(monthCounters.map(r => totalCounter(r)));
   if ($('cardOmset')) $('cardOmset').textContent = money(totalOmsetVal);
   
-  // Variable Cost murni (Pengeluaran operasional umum)
   const variableCost = sum(monthExpenses.map(r => r.nominal));
   if ($('cardExpense')) $('cardExpense').textContent = money(variableCost);
 
-  // Fixed Cost (Gaji Master + Uang Jajan Dinamis Tepat Waktu)
   let totalMasterSalaries = 0;
   (DB.masterSalary || []).forEach(emp => {
     totalMasterSalaries += Number(emp.gaji_pokok || 0) + Number(emp.jabatan || 0) + Number(emp.prestasi || 0) + Number(emp.kesehatan || 0) + Number(emp.zakat || 0) + Number(emp.kebersihan_loyalitas || 0);
@@ -461,7 +510,6 @@ function updateDashboardMetrics(yearMonth) {
   const pctFixed = totalCostAll > 0 ? ((fixedCost / totalCostAll) * 100).toFixed(1) : 0;
   const pctVariable = totalCostAll > 0 ? ((variableCost / totalCostAll) * 100).toFixed(1) : 0;
 
-  // Deteksi Selisih Kas (Potensi Kebocoran)
   let totalSelisihKas = 0;
   let hariSelisihKas = 0;
   monthSales.forEach(s => {
@@ -491,28 +539,28 @@ function updateDashboardMetrics(yearMonth) {
   const insightsEl = $('dashboardInsightsContent');
   if (insightsEl) {
     insightsEl.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--line);">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--input-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--line);">
       <div>
-        <div style="font-size:11px; color:var(--muted); font-weight:700;">FIXED COST (GAJI+JAJAN)</div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">FIXED COST</div>
         <div style="font-size:14px; font-weight:800; color:var(--text);">${money(fixedCost)} <span style="font-size:11px; font-weight:normal; color:var(--muted);">(${pctFixed}%)</span></div>
       </div>
       <div>
-        <div style="font-size:11px; color:var(--muted); font-weight:700;">VARIABLE COST (MURNI)</div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">VARIABLE COST</div>
         <div style="font-size:14px; font-weight:800; color:var(--danger);">${money(variableCost)} <span style="font-size:11px; font-weight:normal; color:var(--muted);">(${pctVariable}%)</span></div>
       </div>
     </div>
     <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px;">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px dashed var(--line); padding-bottom: 6px;">
-        <span>📊 Laba/Rugi Bersih (Omset - (Fixed+Var)):</span>
-        <b style="color: ${netProfitOrLoss >= 0 ? 'var(--success)' : 'var(--danger)'};">${money(netProfitOrLoss)} (${netProfitOrLoss >= 0 ? 'Surplus/Lebih' : 'Defisit/Minus'})</b>
+        <span>Laba/Rugi:</span>
+        <b style="color: ${netProfitOrLoss >= 0 ? 'var(--success)' : 'var(--danger)'};">${money(netProfitOrLoss)}</b>
       </div>
       <div style="display: flex; align-items: center; justify-content: space-between;">
-        <span>⚠️ Total Selisih Kas (ESB vs Konter):</span>
+        <span>Total Selisih ESB:</span>
         <b style="color: ${totalSelisihKas > 0 ? 'var(--danger)' : 'var(--success)'};">${money(totalSelisihKas)} (${hariSelisihKas} hari)</b>
       </div>
     </div>
-    <div id="aiNarrationBox" style="margin-top:8px; padding:10px; background:var(--card); border-radius:8px; border:1px solid var(--line); font-style:italic; color:var(--text);">
-      🤖 <i>Memuat analisis naratif dari Gemini AI...</i>
+    <div id="aiNarrationBox" style="margin-top:8px; padding:10px; background:var(--input-bg); border-radius:8px; border:1px solid var(--line); font-style:italic; color:var(--text);">
+      <i class="fa-solid fa-sparkles" style="color:var(--wa-primary);"></i> <i>Memuat analisis naratif dari Gemini AI...</i>
     </div>
     `;
   }
@@ -606,87 +654,9 @@ async function refreshGeminiDashboardAnalysis() {
 Berikan penilaian apakah keuangannya sehat serta peringatan jika ada selisih kas atau defisit.`;
 
   const res = await callGeminiAPI(prompt);
-  box.innerHTML = `🤖 <b>Analisis Gemini:</b> "${escapeHtml(res)}"`;
+  box.innerHTML = `<i class="fa-solid fa-sparkles" style="color:var(--wa-primary);"></i> <b>Analisis Gemini:</b> "${escapeHtml(res)}"`;
 }
 
-// --- HALAMAN ASISTEN AI / CHAT Q&A TERPISAH ---
-function renderAiChatPage() {
-  const contentEl = $('content');
-  if (!contentEl) return;
-  contentEl.innerHTML = `
-  <div class="top">
-    <div>
-      <div class="title">Asisten AI & Analisis</div>
-      <div class="subtitle">Tanya Jawab Pintar Berbasis Seluruh Data Usaha</div>
-    </div>
-  </div>
-  <div class="panel" style="display:flex; flex-direction:column; height: calc(100vh - 180px); max-height: 650px; padding: 15px;">
-    <div id="chatMessages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px;">
-      <div style="background:var(--card); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width: 85%;">
-        👋 Halo! Saya adalah Asisten AI untuk Rumah Makan Tahu Sumedang Sari Kedele Unit Subang. Saya telah membaca seluruh data keuangan, absensi, gaji, pengeluaran, dan kasbon Anda. Apa yang ingin Anda tanyakan atau analisis hari ini?
-      </div>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <input type="text" id="chatInput" placeholder="Ketik pertanyaan atau minta analisis..." onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:var(--card); color:var(--text);">
-      <button class="btn btn-primary" onclick="sendChatMessage()" style="padding: 0 16px;"><i class="fa-solid fa-paper-plane"></i></button>
-    </div>
-  </div>
-  `;
-}
-
-async function sendChatMessage() {
-  const input = $('chatInput');
-  const container = $('chatMessages');
-  if (!input || !container) return;
-  const text = input.value.trim();
-  if (!text) return;
-
-  container.innerHTML += `
-  <div style="align-self:flex-end; background:var(--wa-primary); color:white; padding:12px; border-radius:10px; font-size:13.5px; max-width:85%; word-break:break-word;">
-    ${escapeHtml(text)}
-  </div>
-  `;
-  input.value = '';
-  container.scrollTop = container.scrollHeight;
-
-  const loadingId = 'load_' + Date.now();
-  container.innerHTML += `
-  <div id="${loadingId}" style="align-self:flex-start; background:var(--card); color:var(--muted); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px;">
-    <i>🤖 Gemini sedang menganalisis data...</i>
-  </div>
-  `;
-  container.scrollTop = container.scrollHeight;
-
-  const summaryContext = `
-Data Ringkasan Aplikasi (Sari Kedele Subang):
-- Total Data Sales (Pendapatan): ${DB.sales.length} hari tercatat.
-- Total Data Pengeluaran Murni: ${DB.expenses.length} item tercatat.
-- Total Data Absensi: ${DB.attendance.length} record.
-- Total Karyawan Master Gaji: ${DB.masterSalary.length} orang.
-- Total Kasbon Aktif: ${DB.advances.length} catatan.
-- Total Cicilan Aktif: ${DB.installments.length} catatan.
-`;
-
-  const fullPrompt = `Anda adalah konsultan keuangan profesional dan asisten operasional cerdas untuk Rumah Makan Tahu Sumedang Sari Kedele Unit Subang. Berikut adalah konteks data saat ini:
-${summaryContext}
-
-Pertanyaan Pengguna: "${text}"
-Jawablah secara akurat, jelas, profesional dalam bahasa Indonesia, dan berikan saran praktis jika diperlukan.`;
-
-  const reply = await callGeminiAPI(fullPrompt);
-
-  const loadEl = $(loadingId);
-  if (loadEl) {
-    loadEl.outerHTML = `
-    <div style="align-self:flex-start; background:var(--card); color:var(--text); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width:85%; word-break:break-word;">
-      🤖 ${escapeHtml(reply).replace(/\n/g, '<br>')}
-    </div>
-    `;
-  }
-  container.scrollTop = container.scrollHeight;
-}
-
-// --- Modul Lainnya (Pendapatan, Pengeluaran, Absensi, Gaji, Limbah, Pengaturan) ---
 function renderSales() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -733,7 +703,7 @@ function showSalesSub(type) {
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan ESB</button></div>
       </form>
     </div>
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div class="panel-title">PENDAPATAN KONTER</div>
       <form id="counterForm">
         <div class="form-grid">
@@ -765,10 +735,10 @@ function showSalesSub(type) {
     };
   } else {
     container.innerHTML = `
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
         <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
-        <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--card); color:var(--text);">
+        <input type="date" id="reportDate" value="${today()}" onchange="loadReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--input-bg); color:var(--text);">
         <button class="btn btn-success" onclick="downloadDailyReportImage()"><i class="fa-solid fa-camera"></i> Download Gambar Laporan</button>
       </div>
       <div id="reportResult" style="margin-top: 15px; width: 100%;"></div>
@@ -930,10 +900,10 @@ function showExpenseSub(type) {
 
   if (type === 'input') {
     container.innerHTML = `
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
         <div class="panel-title" style="margin-bottom:0;">Input Pengeluaran Sekaligus</div>
-        <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%;">
+        <input type="date" id="batchExpenseDate" value="${today()}" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; width: 100%; background:var(--input-bg); color:var(--text);">
       </div>
       <div class="table-wrap" style="overflow-x: auto;">
         <table class="table" style="min-width: 800px;">
@@ -961,10 +931,10 @@ function showExpenseSub(type) {
     for (let i = 0; i < 3; i++) addExpenseRow();
   } else if (type === 'report') {
     container.innerHTML = `
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
         <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
-        <input type="date" id="expenseReportDate" value="${today()}" onchange="loadExpenseReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px;">
+        <input type="date" id="expenseReportDate" value="${today()}" onchange="loadExpenseReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--input-bg); color:var(--text);">
         <button class="btn btn-success" onclick="downloadExpenseReportImage()">📷 Download Gambar</button>
       </div>
       <div id="expenseReportResult" style="margin-top: 15px;"></div>
@@ -975,7 +945,7 @@ function showExpenseSub(type) {
     const currentDate = today();
     const cash = (DB.cash || []).find(c => formatDate(c.tanggal) === currentDate) || {};
     container.innerHTML = `
-    <div class="panel">
+    <div class="panel" style="padding-bottom: 120px;">
       <div class="panel-title">Posisi Saldo Kas</div>
       <form id="cashForm">
         <div class="form-grid">
@@ -1011,19 +981,19 @@ function addExpenseRow() {
   tr.className = 'expense-input-row';
   tr.innerHTML = `
   <td>
-    <select class="exp-kategori" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;">
+    <select class="exp-kategori" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);">
       <option value="LAIN-LAIN">Lain-lain</option>
       <option value="PASAR">Pasar</option>
       <option value="CIKUDA">Cikuda</option>
       <option value="SKF">SKF</option>
     </select>
   </td>
-  <td><input type="text" class="exp-sub" placeholder="Grup (Cth: AYAM)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
-  <td><input type="text" class="exp-sumber" placeholder="Nama Barang..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
-  <td><input type="number" class="exp-qty" placeholder="1" value="1" step="0.01" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
-  <td><input type="text" class="exp-satuan" placeholder="Kg/Pcs" value="PCS" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
-  <td><input type="number" class="exp-harga" placeholder="0" min="0" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px;"></td>
-  <td><input type="number" class="exp-nominal" placeholder="0" readonly style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:#f1f5f9;"></td>
+  <td><input type="text" class="exp-sub" placeholder="Grup (Cth: AYAM)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
+  <td><input type="text" class="exp-sumber" placeholder="Nama Barang..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
+  <td><input type="number" class="exp-qty" placeholder="1" value="1" step="0.01" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
+  <td><input type="text" class="exp-satuan" placeholder="Kg/Pcs" value="PCS" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
+  <td><input type="number" class="exp-harga" placeholder="0" min="0" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
+  <td><input type="number" class="exp-nominal" placeholder="0" readonly style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:rgba(120,120,128,0.1); color:var(--text);"></td>
   <td class="center"><button type="button" class="btn btn-outline-danger" onclick="this.closest('tr').remove()">✕</button></td>
   `;
   $('batchExpenseBody')?.appendChild(tr);
@@ -1145,6 +1115,64 @@ function downloadExpenseReportImage() {
   downloadElementAsImage('captureExpenseReport', 'LAPORAN_PENGELUARAN_' + date);
 }
 
+function renderExpenseTracker() {
+  const contentEl = $('content');
+  if (!contentEl) return;
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  contentEl.innerHTML = `
+  <div class="top">
+    <div>
+      <div class="title">Pemantauan Pengeluaran</div>
+      <div class="subtitle">Riwayat & Fitur Edit Data Langsung</div>
+    </div>
+  </div>
+  <div class="panel" style="padding-bottom: 120px;">
+    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+      <label style="font-weight:700;">Filter Bulan:</label>
+      <input type="month" id="trackerMonth" value="${currentMonth}" onchange="renderExpenseTrackerTable()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--input-bg); color:var(--text);">
+      <p style="font-size:11.5px; color:var(--muted); margin-top:4px;">💡 Ketuk nama barang atau nominal yang memiliki ikon pensil untuk mengubah data secara kilat.</p>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:65px;">Tgl</th>
+            <th>Nama Barang</th>
+            <th>Kategori</th>
+            <th class="right">Total (Rp)</th>
+          </tr>
+        </thead>
+        <tbody id="trackerTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+  `;
+  renderExpenseTrackerTable();
+}
+
+window.renderExpenseTrackerTable = function() {
+  const tMonth = $('trackerMonth')?.value || new Date().toISOString().slice(0, 7);
+  const tbody = $('trackerTableBody');
+  if (!tbody) return;
+
+  const list = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(tMonth)).sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="center empty">Tidak ada data pengeluaran.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(item => `
+    <tr style="border-bottom: 1px solid var(--line);">
+      <td style="font-size:12px; color:var(--muted);">${formatDate(item.tanggal).slice(8, 10)}/${formatDate(item.tanggal).slice(5, 7)}</td>
+      <td class="editable-cell" onclick="editInline('expenses', '${item.id}', 'sumber', '${escapeHtml(item.sumber)}')"><b>${escapeHtml(item.sumber)}</b></td>
+      <td><span class="badge badge-dept">${escapeHtml(item.kategori)}</span></td>
+      <td class="right editable-cell" onclick="editInline('expenses', '${item.id}', 'nominal', ${item.nominal})" style="font-weight:800; color:var(--danger);">${money(item.nominal)}</td>
+    </tr>
+  `).join('');
+};
+
 function renderAttendancePage() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -1198,11 +1226,11 @@ function showAttendanceSub(type) {
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
-          <input type="date" id="attLogStart" value="${defaultStart}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+          <input type="date" id="attLogStart" value="${defaultStart}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
-          <input type="date" id="attLogEnd" value="${defaultEnd}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+          <input type="date" id="attLogEnd" value="${defaultEnd}" onchange="renderAttendanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
       </div>
       <div class="table-wrap">
@@ -1219,7 +1247,7 @@ function showAttendanceSub(type) {
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:flex; flex-direction: column; gap: 8px; margin-bottom:14px;">
         <label style="font-weight:700;">Pilih Tanggal:</label>
-        <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px;">
+        <input type="date" id="allowanceFilterDate" value="${today()}" onchange="renderAllowanceTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--input-bg); color:var(--text);">
       </div>
       <div class="table-wrap">
         <table class="table">
@@ -1236,11 +1264,11 @@ function showAttendanceSub(type) {
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
-          <input type="date" id="hoursStart" value="${defaultStart}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+          <input type="date" id="hoursStart" value="${defaultStart}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
-          <input type="date" id="hoursEnd" value="${defaultEnd}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+          <input type="date" id="hoursEnd" value="${defaultEnd}" onchange="renderWorkHoursTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
       </div>
       <div class="table-wrap">
@@ -1269,11 +1297,11 @@ function showAttendanceSub(type) {
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
-          <input type="date" id="liburStart" value="${defaultStart}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+          <input type="date" id="liburStart" value="${defaultStart}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Sampai Tanggal:</label>
-          <input type="date" id="liburEnd" value="${defaultEnd}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%;">
+          <input type="date" id="liburEnd" value="${defaultEnd}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
       </div>
       <div id="liburListContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
@@ -1490,7 +1518,7 @@ function renderLiburList() {
       const dObj = new Date(tgl + 'T00:00:00');
       const dateText = isNaN(dObj) ? tgl : dObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       return `
-      <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--card);">
+      <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--input-bg);">
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 8px;">
           <b style="color: var(--text);">${dateText}</b>
           <span class="badge badge-danger">${items.length} Orang Libur</span>
@@ -1695,15 +1723,15 @@ function showPayrollSub(type) {
       <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-          <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+          <input type="date" id="payrollStartDate" value="${defaultStart}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-          <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+          <input type="date" id="payrollEndDate" value="${defaultEnd}" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-          <select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+          <select id="payrollFilterDept" onchange="renderPayrollCards()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background:var(--input-bg); color:var(--text);">
             <option value="ALL">Semua Divisi</option>
             ${deptOptionsHtml}
           </select>
@@ -1719,22 +1747,22 @@ function showPayrollSub(type) {
       <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Awal:</label>
-          <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+          <input type="date" id="slipStartDate" value="${defaultStart}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Periode Akhir:</label>
-          <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+          <input type="date" id="slipEndDate" value="${defaultEnd}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Filter Divisi:</label>
-          <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+          <select id="slipFilterDept" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background:var(--input-bg); color:var(--text);">
             <option value="ALL">Semua Divisi</option>
             ${deptOptionsHtml}
           </select>
         </div>
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Tanggal Cetak Slip:</label>
-          <input type="text" id="slipPrintDate" value="Subang, ${todayFormatted}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%;">
+          <input type="text" id="slipPrintDate" value="Subang, ${todayFormatted}" onchange="renderSlipPages()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
         <button class="btn btn-primary" onclick="exportSlipsToPDF()">📥 Download PDF Slip Gaji</button>
       </div>
@@ -1753,14 +1781,14 @@ function showPayrollSub(type) {
           ${inputField('tanggal', 'Tanggal', today(), 'date')}
           <div class="field">
             <label>Nama Karyawan</label>
-            <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+            <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--input-bg); color:var(--text);">
               ${empOptionsHtml}
             </select>
           </div>
           ${inputField('nominal', 'Nominal Kasbon (Rp)', 0)}
           <div class="field">
             <label>Keterangan</label>
-            <input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+            <input name="keterangan" type="text" placeholder="Keperluan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--input-bg); color:var(--text);">
           </div>
         </div>
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan Kasbon</button></div>
@@ -1769,7 +1797,7 @@ function showPayrollSub(type) {
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
         <label style="font-weight:700;">Lihat Histori Kasbon Bulan:</label>
-        <input type="month" id="kasbonFilterMonth" value="${currentMonth}" onchange="renderKasbonTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
+        <input type="month" id="kasbonFilterMonth" value="${currentMonth}" onchange="renderKasbonTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--input-bg); color:var(--text);">
       </div>
       <div class="table-wrap">
         <table class="table">
@@ -1812,7 +1840,7 @@ function showPayrollSub(type) {
           ${inputField('tanggal', 'Tanggal', today(), 'date')}
           <div class="field">
             <label>Nama Karyawan</label>
-            <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+            <select name="nama" style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--input-bg); color:var(--text);">
               ${empOptionsHtml}
             </select>
           </div>
@@ -1820,7 +1848,7 @@ function showPayrollSub(type) {
           ${inputField('tenor', 'Tenor (Bulan)', 1)}
           <div class="field">
             <label>Keterangan</label>
-            <input name="keterangan" type="text" placeholder="Keperluan/Sisa Cicilan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--card); color:var(--text);">
+            <input name="keterangan" type="text" placeholder="Keperluan/Sisa Cicilan..." style="padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width:100%; background:var(--input-bg); color:var(--text);">
           </div>
         </div>
         <div class="actions"><button class="btn btn-primary" type="submit">Simpan Cicilan</button></div>
@@ -1829,7 +1857,7 @@ function showPayrollSub(type) {
     <div class="panel" style="padding-bottom: 120px;">
       <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
         <label style="font-weight:700;">Lihat Histori Cicilan (Bulan Masuk):</label>
-        <input type="month" id="cicilanFilterMonth" value="${currentMonth}" onchange="renderCicilanTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--card); color:var(--text);">
+        <input type="month" id="cicilanFilterMonth" value="${currentMonth}" onchange="renderCicilanTable()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background:var(--input-bg); color:var(--text);">
       </div>
       <div class="table-wrap">
         <table class="table">
@@ -2369,7 +2397,7 @@ window.renderRincianPembagian = function (jenis, total, containerId) {
   const jatahPabrik3 = pabrik * 0.3;
 
   resultEl.innerHTML = `
-  <div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--card);">
+  <div style="border: 1px solid var(--line); border-radius: 8px; padding: 15px; background: var(--input-bg);">
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
       <div>
         <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">1. Perusahaan (50%)</div>
@@ -2478,7 +2506,6 @@ window.renderWasteSalesTable = function () {
     .join('');
 };
 
-// --- Halaman Asisten AI / Chat Q&A Terpisah ---
 function renderAiChatPage() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -2491,12 +2518,12 @@ function renderAiChatPage() {
   </div>
   <div class="panel" style="display:flex; flex-direction:column; height: calc(100vh - 180px); max-height: 650px; padding: 15px;">
     <div id="chatMessages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line); margin-bottom:10px;">
-      <div style="background:var(--card); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width: 85%;">
+      <div style="background:var(--input-bg); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width: 85%;">
         👋 Halo! Saya adalah Asisten AI untuk Rumah Makan Tahu Sumedang Sari Kedele Unit Subang. Saya telah membaca seluruh data keuangan, absensi, gaji, pengeluaran, dan kasbon Anda. Apa yang ingin Anda tanyakan atau analisis hari ini?
       </div>
     </div>
     <div style="display:flex; gap:8px;">
-      <input type="text" id="chatInput" placeholder="Ketik pertanyaan atau minta analisis..." onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:var(--card); color:var(--text);">
+      <input type="text" id="chatInput" placeholder="Ketik pertanyaan atau minta analisis..." onkeydown="if(event.key==='Enter') sendChatMessage()" style="flex:1; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:var(--input-bg); color:var(--text);">
       <button class="btn btn-primary" onclick="sendChatMessage()" style="padding: 0 16px;"><i class="fa-solid fa-paper-plane"></i></button>
     </div>
   </div>
@@ -2520,7 +2547,7 @@ async function sendChatMessage() {
 
   const loadingId = 'load_' + Date.now();
   container.innerHTML += `
-  <div id="${loadingId}" style="align-self:flex-start; background:var(--card); color:var(--muted); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px;">
+  <div id="${loadingId}" style="align-self:flex-start; background:var(--input-bg); color:var(--muted); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px;">
     <i>🤖 Gemini sedang menganalisis data...</i>
   </div>
   `;
@@ -2547,7 +2574,7 @@ Jawablah secara akurat, jelas, profesional dalam bahasa Indonesia, dan berikan s
   const loadEl = $(loadingId);
   if (loadEl) {
     loadEl.outerHTML = `
-    <div style="align-self:flex-start; background:var(--card); color:var(--text); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width:85%; word-break:break-word;">
+    <div style="align-self:flex-start; background:var(--input-bg); color:var(--text); padding:12px; border-radius:10px; border:1px solid var(--line); font-size:13.5px; max-width:85%; word-break:break-word;">
       🤖 ${escapeHtml(reply).replace(/\n/g, '<br>')}
     </div>
     `;
@@ -2555,25 +2582,82 @@ Jawablah secara akurat, jelas, profesional dalam bahasa Indonesia, dan berikan s
   container.scrollTop = container.scrollHeight;
 }
 
-// --- Halaman Pengaturan & Diagnostik Sistem ---
 function renderSettingsPage() {
   const contentEl = $('content');
   if (!contentEl) return;
   
   contentEl.innerHTML = `
   <div class="top">
-    <div><div class="title">Pengaturan Sistem</div></div>
+    <div>
+      <div class="title">Pengaturan Sistem</div>
+      <div class="subtitle">Manajemen Parameter & Master Data Pegawai</div>
+    </div>
   </div>
+  
   <div class="panel">
-    <div class="panel-title">Diagnostik & Kesehatan Aplikasi</div>
+    <div class="panel-title">1. Parameter Gaji & Tunjangan</div>
+    <div class="form-grid">
+       <div class="field">
+         <label>Uang Jajan Tepat Waktu Harian (Rp)</label>
+         <input type="number" id="setUangJajan" value="${DEFAULT_ALLOWANCE}">
+       </div>
+       <div class="field">
+         <label>Bonus Tambahan Khusus (Rp)</label>
+         <input type="number" id="setBonus" value="${DEFAULT_BONUS_LAIN}">
+       </div>
+       <button class="btn btn-primary" onclick="saveSystemParameters()"><i class="fa-solid fa-save"></i> Simpan Parameter</button>
+    </div>
+  </div>
+  
+  <div class="panel">
+    <div class="panel-title">2. Master Data Karyawan</div>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">💡 Ketuk sel tabel yang memiliki ikon pensil saat disentuh untuk mengubah Nama, Divisi, atau Gaji Pokok secara langsung.</p>
+    <div class="table-wrap">
+      <table class="table">
+         <thead>
+           <tr>
+             <th>Nama Karyawan</th>
+             <th>Divisi</th>
+             <th class="right">Gaji Pokok</th>
+           </tr>
+         </thead>
+         <tbody id="masterPegawaiBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:20px; padding-bottom: 120px;">
+    <div class="panel-title">3. Diagnostik Database</div>
     <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 15px;">
-      Gunakan tombol di bawah ini untuk memeriksa status koneksi database Supabase, jumlah baris data di memori tablet, serta memverifikasi keberadaan data karyawan penting.
+      Gunakan tombol di bawah ini untuk memeriksa status koneksi basis data Supabase, sinkronisasi memori, serta memverifikasi keberadaan data krusial.
     </p>
-    <button class="btn btn-primary" onclick="runSystemDiagnostics()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+    <button class="btn btn-secondary" onclick="runSystemDiagnostics()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
       <i class="fa-solid fa-stethoscope"></i> Jalankan Analisis Sistem
     </button>
   </div>
   `;
+  renderMasterPegawai();
+}
+
+window.saveSystemParameters = function() {
+   DEFAULT_ALLOWANCE = Number($('setUangJajan').value);
+   DEFAULT_BONUS_LAIN = Number($('setBonus').value);
+   localStorage.setItem('subang_allowance', DEFAULT_ALLOWANCE);
+   localStorage.setItem('subang_bonus', DEFAULT_BONUS_LAIN);
+   showToast("Parameter sistem berhasil diperbarui!");
+}
+
+window.renderMasterPegawai = function() {
+   const tbody = $('masterPegawaiBody');
+   if(!tbody) return;
+   const list = [...(DB.masterSalary || [])].sort((a,b) => (a.nama || '').localeCompare(b.nama || ''));
+   tbody.innerHTML = list.map(emp => `
+     <tr style="border-bottom: 1px solid var(--line);">
+       <td class="editable-cell" onclick="editInline('master_salary', '${emp.id}', 'nama', '${escapeHtml(emp.nama)}')"><b>${escapeHtml(emp.nama)}</b></td>
+       <td class="editable-cell" onclick="editInline('master_salary', '${emp.id}', 'departemen', '${escapeHtml(emp.departemen)}')">${escapeHtml(emp.departemen)}</td>
+       <td class="editable-cell right" onclick="editInline('master_salary', '${emp.id}', 'gaji_pokok', ${emp.gaji_pokok})" style="color:var(--wa-primary); font-weight:800;">${money(emp.gaji_pokok)}</td>
+     </tr>
+   `).join('');
 }
 
 function runSystemDiagnostics() {
@@ -2585,17 +2669,17 @@ function runSystemDiagnostics() {
     
     const sampleYusuf = (DB.attendance || []).find(r => String(r.no_absen) === '25' || String(r.nama || '').toUpperCase().includes('YUSUF'));
 
-    const report = `🩺 LAPORAN ANALISIS KESEHATAN SISTEM\n\n` +
-                   `• Status Koneksi Supabase: Terhubung Aktif\n` +
-                   `• Master Karyawan Terdaftar: ${totalMaster} orang\n` +
-                   `• Total Baris Absensi di Memori: ${totalAttendance} baris\n` +
-                   `• Status Data Yusuf (ID 25): ${sampleYusuf ? 'Terdeteksi Aman (Ada)' : 'Tidak Ditemukan'}\n` +
-                   `• Data Pendapatan Tersimpan: ${totalSales} hari\n` +
-                   `• Data Pengeluaran Tersimpan: ${totalExpenses} item\n\n` +
-                   `Kesimpulan: Sistem berjalan normal tanpa kendala batasan baris.`;
+    const report = `🩺 LAPORAN KESEHATAN SISTEM\n\n` +
+                   `• Status Supabase: Terhubung Aktif\n` +
+                   `• Master Karyawan: ${totalMaster} entitas\n` +
+                   `• Baris Absensi: ${totalAttendance} catatan\n` +
+                   `• Verifikasi Yusuf (ID 25): ${sampleYusuf ? 'Terdeteksi Aman' : 'Tidak Ditemukan'}\n` +
+                   `• Baris Pendapatan: ${totalSales} hari\n` +
+                   `• Baris Pengeluaran: ${totalExpenses} transaksi\n\n` +
+                   `Status Keseluruhan: Optimal.`;
     
     alert(report);
   } catch (err) {
-    alert('⚠️ Gagal menjalankan analisis sistem: ' + err.message);
+    alert('⚠️ Analisis sistem terganggu: ' + err.message);
   }
 }
