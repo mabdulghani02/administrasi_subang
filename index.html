@@ -9,8 +9,8 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=AS&background=1e1e1e&color=8ab4f8&size=192">
 
-  <!-- Versi 3.2 memaksa peramban membuang memori lama -->
-  <link rel="stylesheet" href="style.css?v=3.2">
+  <!-- Versi 3.0 memaksa peramban membuang memori lama -->
+  <link rel="stylesheet" href="style.css?v=3.0">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -63,11 +63,13 @@
       <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-wallet"></i> Daftar Gaji</button>
       <button data-page="limbah" onclick="showPage('limbah')"><i class="fa-solid fa-recycle"></i> Penjualan Limbah</button>
       <button data-page="settings" onclick="showPage('settings')"><i class="fa-solid fa-sliders"></i> Pengaturan Sistem</button>
+      <!-- Tombol Ekspor Excel di Hamburger Menu -->
+      <button onclick="toggleSidebar(); exportMonthlyFinancialReport();" style="background: rgba(5, 150, 105, 0.15); color: #059669; font-weight: 700; border-top: 1px solid var(--line); margin-top: 10px;"><i class="fa-solid fa-file-excel"></i> Ekspor Laporan Excel</button>
     </div>
   </aside>
 
   <main class="main">
-    <div id="content" class="page-transition active" style="opacity: 1 !important; visibility: visible !important; display: block !important;"></div>
+    <div id="content" class="page-transition"></div>
   </main>
 </div>
 
@@ -95,7 +97,7 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=3.2"></script>
+<script src="app.js?v=3.0"></script>
   
 <script>
   if ('serviceWorker' in navigator) {
