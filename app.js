@@ -356,6 +356,7 @@ function showPage(page) {
       if (page === 'attendance') renderAttendancePage();
       if (page === 'payroll') renderPayrollPage();
       if (page === 'limbah') renderLimbahPage();
+      if (page === 'export_excel') renderExportExcelPage();
       if (page === 'aichat') renderAiChatPage();
       if (page === 'settings') renderSettingsPage();
       
@@ -1071,8 +1072,7 @@ function loadExpenseReport() {
         </div>
         <div style="border-bottom: 2px dashed #94a3b8; margin-bottom: 10px;"></div>
         <div style="text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 14px;">
-          LAPORAN KAS & PENGELUARAN<br>
-          <span style="font-size:13px; font-weight:normal;">${formattedDate}</span>
+          ${formattedDate}
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 18px;">
           <div>
@@ -2504,6 +2504,36 @@ window.renderWasteSalesTable = function () {
     .join('');
 };
 
+function renderExportExcelPage() {
+  const contentEl = $('content');
+  if (!contentEl) return;
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  contentEl.innerHTML = `
+  <div class="top">
+    <div>
+      <div class="title">Ekspor Laporan Excel</div>
+      <div class="subtitle">Unduh Laporan Keuangan Bulanan Komprehensif</div>
+    </div>
+  </div>
+  <div class="panel" style="max-width: 600px; margin: 0 auto; border-left: 4px solid #059669;">
+    <div class="panel-title">Pilih Bulan & Tahun Laporan</div>
+    <p style="font-size:13.5px; color:var(--muted); margin-bottom:15px;">
+      Silakan pilih bulan dan tahun melalui dropdown pemilih di bawah ini. File Excel yang dihasilkan akan mencakup seluruh lembar kerja (Summary, Omset, Pasar, Cikuda, SKF, Gaji Karyawan, dan Lain-lain) secara presisi.
+    </p>
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <div class="field">
+        <label style="font-weight:700; margin-bottom:6px; display:block;">Bulan & Tahun:</label>
+        <input type="month" id="sidebarExportMonth" value="${currentMonth}" style="padding: 14px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background:var(--input-bg); color:var(--text);">
+      </div>
+      <button class="btn btn-primary" onclick="exportMonthlyFinancialReport($('sidebarExportMonth').value)" style="background: #059669; border-color: #059669; width: 100%; padding: 14px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <i class="fa-solid fa-file-excel"></i> Download Laporan Excel Bulanan
+      </button>
+    </div>
+  </div>
+  `;
+}
+
 function renderAiChatPage() {
   const contentEl = $('content');
   if (!contentEl) return;
@@ -2689,10 +2719,10 @@ function runSystemDiagnostics() {
 
 window.exportMonthlyFinancialReport = function(yearMonth) {
   if (!yearMonth) {
-    yearMonth = prompt("Masukkan bulan laporan (Format: YYYY-MM, cth: 2026-08):", new Date().toISOString().slice(0, 7));
+    yearMonth = $('sidebarExportMonth')?.value || new Date().toISOString().slice(0, 7);
   }
   if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
-    showToast("Format bulan tidak valid atau dibatalkan.");
+    showToast("Format bulan tidak valid.");
     return;
   }
 
