@@ -7,7 +7,7 @@
   <title>AS - Administrasi Subang</title>
 
   <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=AS&background=1e1e1e&color=8ab4f8&size=192">
+  <link rel="apple-touch-icon" href="logo.png">
 
   <!-- Versi 3.0 memaksa peramban membuang memori lama -->
   <link rel="stylesheet" href="style.css?v=3.0">
@@ -24,8 +24,9 @@
 <body>
 
 <div class="mobile-header">
-  <div class="mobile-header-title">
-    <i class="fa-solid fa-sparkles" style="color: #8ab4f8; margin-right: 5px;"></i> AS
+  <div class="mobile-header-title" style="display: flex; align-items: center; gap: 8px;">
+    <img src="logo.png" alt="Logo" style="height: 28px; width: 28px; border-radius: 4px; object-fit: contain;">
+    <span>AS</span>
   </div>
   <div style="display: flex; gap: 12px; align-items: center;">
     <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Dark Mode">
@@ -43,7 +44,7 @@
   <aside class="sidebar" id="appSidebar">
     <div class="brand">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <i class="fa-solid fa-sparkles" style="color: #8ab4f8; font-size: 24px;"></i>
+        <img src="logo.png" alt="Logo" style="height: 36px; width: 36px; border-radius: 6px; object-fit: contain;">
         <div>
           AS - SARI KEDELE
           <small>Administrasi Pintar</small>
@@ -63,7 +64,6 @@
       <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-wallet"></i> Daftar Gaji</button>
       <button data-page="limbah" onclick="showPage('limbah')"><i class="fa-solid fa-recycle"></i> Penjualan Limbah</button>
       <button data-page="settings" onclick="showPage('settings')"><i class="fa-solid fa-sliders"></i> Pengaturan Sistem</button>
-      <!-- Menu Ekspor Laporan Excel di Sidebar -->
       <button data-page="export_excel" onclick="showPage('export_excel')"><i class="fa-solid fa-file-excel"></i> Ekspor Laporan Excel</button>
     </div>
   </aside>
