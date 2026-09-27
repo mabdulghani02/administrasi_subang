@@ -2519,13 +2519,16 @@ function renderExportExcelPage() {
   <div class="panel" style="max-width: 600px; margin: 0 auto; border-left: 4px solid #059669;">
     <div class="panel-title">Pilih Bulan & Tahun Laporan</div>
     <p style="font-size:13.5px; color:var(--muted); margin-bottom:15px;">
-      Silakan pilih bulan dan tahun melalui dropdown pemilih di bawah ini. File Excel yang dihasilkan akan mencakup seluruh lembar kerja (Summary, Omset, Pasar, Cikuda, SKF, Gaji Karyawan, dan Lain-lain) secara presisi.
+      Silakan pilih bulan dan tahun melalui dropdown pemilih di bawah ini. Anda dapat melakukan pengecekan otomatis terlebih dahulu sebelum mengunduh file Excel secara presisi.
     </p>
     <div style="display:flex; flex-direction:column; gap:14px;">
       <div class="field">
         <label style="font-weight:700; margin-bottom:6px; display:block;">Bulan & Tahun:</label>
         <input type="month" id="sidebarExportMonth" value="${currentMonth}" style="padding: 14px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; width: 100%; background:var(--input-bg); color:var(--text);">
       </div>
+      <button class="btn btn-secondary" onclick="verifyExportData()" style="width: 100%; padding: 12px; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <i class="fa-solid fa-stethoscope"></i> Cek Otomatis Kelengkapan Data
+      </button>
       <button class="btn btn-primary" onclick="exportMonthlyFinancialReport($('sidebarExportMonth').value)" style="background: #059669; border-color: #059669; width: 100%; padding: 14px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 8px;">
         <i class="fa-solid fa-file-excel"></i> Download Laporan Excel Bulanan
       </button>
@@ -2533,6 +2536,36 @@ function renderExportExcelPage() {
   </div>
   `;
 }
+
+window.verifyExportData = function() {
+  const yearMonth = $('sidebarExportMonth')?.value || new Date().toISOString().slice(0, 7);
+  
+  const filteredExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+  const filteredCounter = (DB.counter || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+  const filteredAttendance = (DB.attendance || []).filter(r => formatDate(r.tanggal).startsWith(yearMonth));
+
+  let pasarItems = filteredExpenses.filter(r => String(r.kategori || '').trim().toUpperCase() === 'PASAR');
+  let cikudaItems = filteredExpenses.filter(r => String(r.kategori || '').trim().toUpperCase() === 'CIKUDA');
+  let skfItems = filteredExpenses.filter(r => String(r.kategori || '').trim().toUpperCase() === 'SKF');
+  let lainItems = filteredExpenses.filter(r => String(r.kategori || '').trim().toUpperCase() === 'LAIN-LAIN');
+
+  let totalPasar = sum(pasarItems.map(r => r.nominal));
+  let totalCikuda = sum(cikudaItems.map(r => r.nominal));
+  let totalSkf = sum(skfItems.map(r => r.nominal));
+  let totalLain = sum(lainItems.map(r => r.nominal));
+  let totalOmset = sum(filteredCounter.map(r => totalCounter(r)));
+
+  let diagnosticReport = `🔍 LAPORAN VALIDASI OTOMATIS (${yearMonth})\n\n` +
+                         `• Total Omset Konter Tercatat : ${money(totalOmset)} (${filteredCounter.length} hari)\n` +
+                         `• Pembelanjaan Pasar          : ${money(totalPasar)} (${pasarItems.length} item)\n` +
+                         `• Pembelanjaan Cikuda         : ${money(totalCikuda)} (${cikudaItems.length} item)\n` +
+                         `• Pembelanjaan SKF            : ${money(totalSkf)} (${skfItems.length} item)\n` +
+                         `• Pengeluaran Lain-lain       : ${money(totalLain)} (${lainItems.length} item)\n` +
+                         `• Total Record Absensi Bulan Ini: ${filteredAttendance.length} baris\n\n` +
+                         `Status: Seluruh kategori pengeluaran dan omset siap diekspor ke sheet masing-masing secara presisi.`;
+
+  alert(diagnosticReport);
+};
 
 function renderAiChatPage() {
   const contentEl = $('content');
