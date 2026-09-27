@@ -1,3 +1,6 @@
+window.onerror = function(msg, url, line) {
+  alert("Error di JS: " + msg + " (Baris: " + line + ")");
+};
 window.addEventListener('error', function(e) {
   alert("Error terdeteksi: " + e.message);
 });
