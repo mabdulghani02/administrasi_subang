@@ -934,7 +934,6 @@ function showExpenseSub(type) {
         <label style="font-weight:700;">Pilih Tanggal Laporan:</label>
         <input type="date" id="expenseReportDate" value="${today()}" onchange="loadExpenseReport()" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--input-bg); color:var(--text);">
         <button class="btn btn-success" onclick="downloadExpenseReportImage()">📷 Download Gambar</button>
-        <button class="btn btn-primary" onclick="exportMonthlyFinancialReport()" style="background: #059669; border-color: #059669; margin-top: 6px;"><i class="fa-solid fa-file-excel"></i> 📥 Ekspor Laporan Bulanan ke Excel</button>
       </div>
       <div id="expenseReportResult" style="margin-top: 15px;"></div>
     </div>
