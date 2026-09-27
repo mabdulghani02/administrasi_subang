@@ -394,3 +394,113 @@ button, input, select { font-family: inherit; }
   border-radius: 16px !important;
   color: var(--text) !important;
 }
+
+/* ==========================================
+   OPTIMASI RESPONSIF UNTUK SMARTPHONE / HP
+   ========================================== */
+@media screen and (max-width: 768px) {
+  body {
+    font-size: 13.5px;
+    padding-bottom: 95px;
+  }
+
+  .main {
+    padding: 12px 10px;
+  }
+
+  .top {
+    margin-bottom: 16px;
+  }
+
+  .title {
+    font-size: 21px !important;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    font-size: 12.5px;
+  }
+
+  .card {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .card-value {
+    font-size: 24px !important;
+  }
+
+  .panel {
+    padding: 16px;
+    border-radius: 20px;
+    margin-top: 14px;
+  }
+
+  .panel-title {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .form-grid {
+    gap: 12px;
+  }
+
+  .field input, .field select {
+    font-size: 14px;
+    padding: 12px 14px;
+    min-height: 46px;
+  }
+
+  .btn {
+    font-size: 14px;
+    padding: 12px 16px;
+    min-height: 46px;
+  }
+
+  .icon-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .chart-wrapper {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .donut-chart {
+    width: 160px;
+    height: 160px;
+  }
+
+  .donut-chart::before {
+    width: 105px;
+    height: 105px;
+  }
+
+  .donut-inner-text h3 {
+    font-size: 20px;
+  }
+
+  .table-wrap {
+    font-size: 12.5px;
+  }
+
+  .table th, .table td {
+    padding: 10px 12px;
+  }
+
+  .fab-ai {
+    bottom: 85px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+  }
+
+  .bottom-nav {
+    left: 12px;
+    right: 12px;
+    height: 60px;
+    bottom: 12px;
+  }
+}
