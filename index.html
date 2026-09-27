@@ -12,6 +12,8 @@
   <!-- Versi 3.0 memaksa peramban membuang memori lama -->
   <link rel="stylesheet" href="style.css?v=3.0">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts untuk aksara sambung artistik (Pacifico) -->
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -24,9 +26,9 @@
 <body>
 
 <div class="mobile-header">
-  <div class="mobile-header-title" style="display: flex; align-items: center; gap: 8px;">
-    <img src="logo.png" alt="Logo" style="height: 28px; width: 28px; border-radius: 4px; object-fit: contain;">
-    <span>AS</span>
+  <div class="mobile-header-title" style="display: flex; align-items: center; gap: 10px;">
+    <img src="logo.png" alt="Logo" style="height: 36px; width: 36px; border-radius: 6px; object-fit: contain;">
+    <span style="font-family: 'Pacifico', cursive; font-size: 18px; letter-spacing: 0.5px; color: var(--text);">Administrasi Subang</span>
   </div>
   <div style="display: flex; gap: 12px; align-items: center;">
     <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Dark Mode">
@@ -43,8 +45,8 @@
 <div class="app">
   <aside class="sidebar" id="appSidebar">
     <div class="brand">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <img src="logo.png" alt="Logo" style="height: 36px; width: 36px; border-radius: 6px; object-fit: contain;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <img src="logo.png" alt="Logo" style="height: 44px; width: 44px; border-radius: 8px; object-fit: contain;">
         <div>
           AS - SARI KEDELE
           <small>Administrasi Pintar</small>
