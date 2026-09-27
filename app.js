@@ -61,8 +61,8 @@ let DB = {
   cash: [],
   attendance: [],
   advances: [],
-  installments: [],
   masterSalary: [],
+  installments: [],
   wasteSales: []
 };
 
@@ -404,8 +404,6 @@ async function callGeminiAPI(promptText) {
     return `⚠️ Gagal terhubung ke jaringan: ${err.message}`;
   }
 }
-
-
 
 function renderDashboard() {
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -879,6 +877,7 @@ function renderExpense() {
       <button id="expBtnIn" class="sub-nav-btn active-sub" onclick="showExpenseSub('input')">Input</button>
       <button id="expBtnRep" class="sub-nav-btn" onclick="showExpenseSub('report')">Laporan</button>
       <button id="expBtnCash" class="sub-nav-btn" onclick="showExpenseSub('cash')">Posisi Kas</button>
+      <button id="expBtnExport" class="sub-nav-btn" onclick="showExpenseSub('export')">Ekspor Bulanan</button>
     </div>
   </div>
   <div id="expenseSubContent"></div>
@@ -892,10 +891,13 @@ function showExpenseSub(type) {
   const btnIn = $('expBtnIn');
   const btnRep = $('expBtnRep');
   const btnCash = $('expBtnCash');
-  if (btnIn && btnRep && btnCash) {
+  const btnExport = $('expBtnExport');
+  
+  if (btnIn && btnRep && btnCash && btnExport) {
     btnIn.classList.toggle('active-sub', type === 'input');
     btnRep.classList.toggle('active-sub', type === 'report');
     btnCash.classList.toggle('active-sub', type === 'cash');
+    btnExport.classList.toggle('active-sub', type === 'export');
   }
 
   if (type === 'input') {
@@ -909,14 +911,14 @@ function showExpenseSub(type) {
         <table class="table" style="min-width: 800px;">
           <thead>
             <tr>
-              <th style="width: 12%;">Sheet</th>
-              <th style="width: 13%;">Grup (Tabel)</th>
+              <th style="width: 15%;">Sheet (Kategori)</th>
+              <th style="width: 18%;">Grup (Sub-Kategori)</th>
               <th style="width: 18%;">Nama Barang</th>
               <th style="width: 8%;">Qty</th>
               <th style="width: 8%;">Satuan</th>
               <th style="width: 14%;">Harga</th>
               <th style="width: 14%;">Total</th>
-              <th style="width: 8%;" class="center">Aksi</th>
+              <th style="width: 5%;" class="center">Aksi</th>
             </tr>
           </thead>
           <tbody id="batchExpenseBody"></tbody>
@@ -941,7 +943,7 @@ function showExpenseSub(type) {
     </div>
     `;
     loadExpenseReport();
-  } else {
+  } else if (type === 'cash') {
     const currentDate = today();
     const cash = (DB.cash || []).find(c => formatDate(c.tanggal) === currentDate) || {};
     container.innerHTML = `
@@ -973,6 +975,18 @@ function showExpenseSub(type) {
         loadData('expense');
       }
     };
+  } else {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    container.innerHTML = `
+    <div class="panel" style="padding-bottom: 120px;">
+      <div class="panel-title">Ekspor Laporan Keuangan Bulanan</div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <label style="font-weight:700;">Pilih Bulan Laporan:</label>
+        <input type="month" id="exportMonth" value="${currentMonth}" style="padding:12px; border:1px solid var(--line); border-radius:8px; font-size:16px; background:var(--input-bg); color:var(--text);">
+        <button class="btn btn-success" onclick="exportMonthlyReportExcel()"><i class="fa-solid fa-file-excel"></i> Download Excel Laporan Bulanan (Struktur Asli)</button>
+      </div>
+    </div>
+    `;
   }
 }
 
@@ -981,22 +995,64 @@ function addExpenseRow() {
   tr.className = 'expense-input-row';
   tr.innerHTML = `
   <td>
-    <select class="exp-kategori" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);">
-      <option value="LAIN-LAIN">Lain-lain</option>
-      <option value="PASAR">Pasar</option>
-      <option value="CIKUDA">Cikuda</option>
+    <select class="exp-kategori" onchange="updateSubKategoriOptions(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);">
+      <option value="PASAR">PASAR</option>
+      <option value="CIKUDA">CIKUDA</option>
       <option value="SKF">SKF</option>
+      <option value="LAIN-LAIN">LAIN-LAIN</option>
     </select>
   </td>
-  <td><input type="text" class="exp-sub" placeholder="Grup (Cth: AYAM)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
-  <td><input type="text" class="exp-sumber" placeholder="Nama Barang..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
+  <td>
+    <select class="exp-sub" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);">
+      <option value="AYAM">AYAM</option>
+      <option value="IKAN NILA">IKAN NILA</option>
+      <option value="BERAS">BERAS</option>
+      <option value="IGA / DAGING">IGA / DAGING</option>
+      <option value="GAS">GAS</option>
+      <option value="BUMBU / SAYUR">BUMBU / SAYUR</option>
+    </select>
+  </td>
+  <td><input type="text" class="exp-sumber" placeholder="Nama Barang Detail..." style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
   <td><input type="number" class="exp-qty" placeholder="1" value="1" step="0.01" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
-  <td><input type="text" class="exp-satuan" placeholder="Kg/Pcs" value="PCS" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
+  <td><input type="text" class="exp-satuan" placeholder="Kg/Pcs" value="KG" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
   <td><input type="number" class="exp-harga" placeholder="0" min="0" oninput="calcExpRow(this)" style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:var(--input-bg); color:var(--text);"></td>
   <td><input type="number" class="exp-nominal" placeholder="0" readonly style="width:100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background:rgba(120,120,128,0.1); color:var(--text);"></td>
   <td class="center"><button type="button" class="btn btn-outline-danger" onclick="this.closest('tr').remove()">✕</button></td>
   `;
   $('batchExpenseBody')?.appendChild(tr);
+}
+
+window.updateSubKategoriOptions = function(selectEl) {
+  const tr = selectEl.closest('tr');
+  const subSelect = tr.querySelector('.exp-sub');
+  const kategori = selectEl.value;
+
+  let optionsHtml = '';
+  if (kategori === 'PASAR') {
+    optionsHtml = `
+      <option value="AYAM">AYAM</option>
+      <option value="IKAN NILA">IKAN NILA</option>
+      <option value="BERAS">BERAS</option>
+      <option value="IGA / DAGING">IGA / DAGING</option>
+      <option value="GAS">GAS</option>
+      <option value="BUMBU / SAYUR">BUMBU / SAYUR</option>
+    `;
+  } else if (kategori === 'CIKUDA') {
+    optionsHtml = `
+      <option value="BAHAN UTAMA CIKUDA">BAHAN UTAMA CIKUDA</option>
+      <option value="OPERASIONAL CIKUDA">OPERASIONAL CIKUDA</option>
+    `;
+  } else if (kategori === 'SKF') {
+    optionsHtml = `
+      <option value="PEMBELANJAAN SKF">PEMBELANJAAN SKF</option>
+    `;
+  } else {
+    optionsHtml = `
+      <option value="LAIN-LAIN">LAIN-LAIN</option>
+      <option value="ATK / PRINT">ATK / PRINT</option>
+    `;
+  }
+  subSelect.innerHTML = optionsHtml;
 }
 
 async function submitBatchExpenses() {
@@ -2683,3 +2739,167 @@ function runSystemDiagnostics() {
     alert('⚠️ Analisis sistem terganggu: ' + err.message);
   }
 }
+
+
+// --- FITUR EKSPOR LAPORAN BULANAN (STRUKTUR 100% MIRIP EXCEL ASLI) ---
+
+window.exportMonthlyReportExcel = function() {
+  const monthInput = $('exportMonth')?.value \vert{}\vert{}$('dashboardMonth')?.value;
+  if (!monthInput) {
+    showToast('Pilih bulan laporan terlebih dahulu.');
+    return;
+  }
+  
+  if (typeof XLSX === 'undefined') {
+    showToast('Library XLSX belum dimuat.');
+    return;
+  }
+
+  showToast('Membuat file Excel dengan struktur identik...');
+  
+  const [targetYear, targetMonthNum] = monthInput.split('-');
+  const monthNames = ["", "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"];
+  const monthNameStr = monthNames[parseInt(targetMonthNum, 10)] || targetMonthNum;
+  const periodLabel = `${targetYear}-${targetMonthNum}`;
+
+  const wb = XLSX.utils.book_new();
+
+  // 1. SHEET: SUMMARY
+  const monthCounters = (DB.counter || []).filter(r => formatDate(r.tanggal).startsWith(periodLabel));
+  const monthExpenses = (DB.expenses || []).filter(r => formatDate(r.tanggal).startsWith(periodLabel));
+  const monthSales = (DB.sales || []).filter(r => formatDate(r.tanggal).startsWith(periodLabel));
+  
+  const totalOmsetVal = sum(monthCounters.map(r => totalCounter(r)));
+
+  const summaryData = [
+    [],
+    ["", `LAPORAN KEUANGAN SARI KEDELE CABANG SUBANG ${monthNameStr} ${targetYear}`],
+    [], [], [], [],
+    ["", "OMSET SELURUH"],
+    ["", totalOmsetVal]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), "SUMMARY");
+
+  // 2. SHEET: OMSET
+  const omsetRows = [
+    [],
+    ["", "OMSET HARIAN UNIT SUBANG"],
+    ["", "No.", "TANGGAL", "CASH", "CARD", "QRIS", "GRAB", "PAJAK"]
+  ];
+  monthSales.forEach((s, idx) => {
+    omsetRows.push([
+      "",
+      idx + 1,
+      formatDate(s.tanggal),
+      Number(s.cash || 0),
+      Number(s.debit_card || 0),
+      Number(s.qris || 0),
+      Number(s.grab || 0),
+      Number(s.pajak || 0)
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(omsetRows), "OMSET");
+
+  // 3. SHEET: PEMBELANJAAN PASAR
+  const pasarExpenses = monthExpenses.filter(r => String(r.kategori).toUpperCase() === 'PASAR');
+  const pasarRows = [
+    ["", "Lampiran 5"],
+    [],
+    ["", "PEMBELANJAAN ALAT DAN BAHAN BAKU"],
+    [],
+    ["", "TOTAL", "", sum(pasarExpenses.map(e => e.nominal))]
+  ];
+
+  const groupedPasar = {};
+  pasarExpenses.forEach(item => {
+    const sub = (item.sub_kategori || 'LAINNYA').toUpperCase();
+    if (!groupedPasar[sub]) groupedPasar[sub] = [];
+    groupedPasar[sub].push(item);
+  });
+
+  for (const [subCat, items] of Object.entries(groupedPasar)) {
+    pasarRows.push([]);
+    pasarRows.push(["", subCat]);
+    pasarRows.push(["", "NO", "TANGGAL", "JENIS BARANG", "QTY", "SATUAN", "HARGA SATUAN", "JUMLAH (Rp)"]);
+    
+    items.forEach((exp, idx) => {
+      pasarRows.push([
+        "",
+        idx + 1,
+        formatDate(exp.tanggal),
+        exp.sumber,
+        exp.qty,
+        exp.satuan,
+        exp.harga_satuan,
+        exp.nominal
+      ]);
+    });
+    pasarRows.push(["", "", "", "", "", "", "", sum(items.map(i => i.nominal))]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pasarRows), "PEMBELANJAAN PASAR");
+
+  // 4. SHEET: GAJI KARYAWAN
+  const payrollList = getCalculatedPayrollList(`${periodLabel}-01`, `${periodLabel}-31`, 'ALL');
+  const totalGajiAll = sum(payrollList.map(p => p.gajiBersih));
+  
+  const payrollRows = [
+    ["", "GAJI KARYAWAN"],
+    ["", "TOTAL GAJI KARYAWAN", "", "", totalGajiAll],
+    [],
+    ["", "GAJI BULANAN"],
+    [
+      "", "NO", "Nama Pegawai", "GAJI POKOK", "Tunjangan", "", "", "", "", "", "", "TOTAL GAJI", "Potongan", "", "", "Gaji Bersih"
+    ],
+    [
+      "", "", "", "", "JABATAN", "PRESTASI", "KESEHATAN", "KELEBIHAN JAM KERJA", "ZAKAT", "KEBERSIHAN/LOYALITAS", "LAIN-LAIN", "", "KASBON", "BPJS", "CICILAN", ""
+    ]
+  ];
+
+  payrollList.forEach((emp, idx) => {
+    payrollRows.push([
+      "",
+      idx + 1,
+      emp.nama,
+      emp.pokok,
+      emp.jabatan,
+      emp.prestasi,
+      emp.kesehatan,
+      emp.jamKerja,
+      emp.zakat,
+      emp.loyalitas,
+      emp.lainLain,
+      (emp.pokok + emp.jabatan + emp.prestasi + emp.kesehatan + emp.jamKerja + emp.zakat + emp.loyalitas + emp.lainLain),
+      emp.kasbon,
+      emp.bpjs,
+      emp.cicilan,
+      emp.gajiBersih
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(payrollRows), "GAJI KARYAWAN");
+
+  // 5. SHEET: LAIN-LAIN
+  const lainExpenses = monthExpenses.filter(r => String(r.kategori).toUpperCase() === 'LAIN-LAIN');
+  const lainRows = [
+    ["", "", "Lampiran 8"],
+    ["", "", "PENGELUARAN ALAT DAN LAIN-LAIN", "", "TOTAL", "", "", sum(lainExpenses.map(e => e.nominal)), "LAIN-LAIN"],
+    ["", "", "NO", "TANGGAL", "JENIS BARANG", "QTY", "SATUAN", "HARGA SATUAN", "JUMLAH (Rp)"]
+  ];
+  
+  lainExpenses.forEach((exp, idx) => {
+    lainRows.push([
+      "", "",
+      idx + 1,
+      formatDate(exp.tanggal),
+      exp.sumber,
+      exp.qty,
+      exp.satuan,
+      exp.harga_satuan,
+      exp.nominal
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lainRows), "LAIN-LAIN");
+
+  // Unduh File
+  XLSX.writeFile(wb, `SUBANG LAPORAN KEUANGAN ${monthNameStr}-${targetYear}.xlsx`);
+  showToast('Laporan berhasil diunduh dengan struktur identik!');
+};
