@@ -335,7 +335,6 @@ async function loadData(targetPage = null) {
   }
 }
 
-let pageTransitionTimeout;
 function showPage(page) {
   document.querySelectorAll('.nav button, .b-nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.page === page);
@@ -345,22 +344,17 @@ function showPage(page) {
 
   const contentEl = $('content');
   if (contentEl) {
-    contentEl.classList.remove('active');
-    clearTimeout(pageTransitionTimeout);
+    if (page === 'dashboard') renderDashboard();
+    else if (page === 'sales') renderSales();
+    else if (page === 'expense') renderExpense();
+    else if (page === 'expense_tracker') renderExpenseTracker();
+    else if (page === 'attendance') renderAttendancePage();
+    else if (page === 'payroll') renderPayrollPage();
+    else if (page === 'limbah') renderLimbahPage();
+    else if (page === 'aichat') renderAiChatPage();
+    else if (page === 'settings') renderSettingsPage();
     
-    pageTransitionTimeout = setTimeout(() => {
-      if (page === 'dashboard') renderDashboard();
-      if (page === 'sales') renderSales();
-      if (page === 'expense') renderExpense();
-      if (page === 'expense_tracker') renderExpenseTracker();
-      if (page === 'attendance') renderAttendancePage();
-      if (page === 'payroll') renderPayrollPage();
-      if (page === 'limbah') renderLimbahPage();
-      if (page === 'aichat') renderAiChatPage();
-      if (page === 'settings') renderSettingsPage();
-      
-      setTimeout(() => contentEl.classList.add('active'), 20);
-    }, 60);
+    contentEl.classList.add('active');
   }
 }
 
