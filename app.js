@@ -1292,6 +1292,7 @@ function showAttendanceSub(type) {
   } else {
     container.innerHTML = `
     <div class="panel" style="padding-bottom: 120px;">
+      <div class="panel-title" style="margin-bottom: 10px;">Rekapitulasi Kehadiran & Libur Karyawan</div>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:14px;">
         <div>
           <label style="font-size: 13px; font-weight: 700; display: block; margin-bottom: 4px;">Dari Tanggal:</label>
@@ -1302,7 +1303,19 @@ function showAttendanceSub(type) {
           <input type="date" id="liburEnd" value="${defaultEnd}" onchange="renderLiburList()" style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; width: 100%; background:var(--input-bg); color:var(--text);">
         </div>
       </div>
-      <div id="liburListContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:50px;" class="center">Id</th>
+              <th>Nama</th>
+              <th class="center">Jumlah Hari Masuk</th>
+              <th class="center">Jumlah Hari Libur</th>
+            </tr>
+          </thead>
+          <tbody id="liburTableBody"></tbody>
+        </table>
+      </div>
     </div>
     `;
     renderLiburList();
@@ -1487,54 +1500,72 @@ function renderWorkHoursTable() {
 function renderLiburList() {
   const sDate = $('liburStart')?.value;
   const eDate = $('liburEnd')?.value;
-  const container = $('liburListContainer');
-  if (!container) return;
+  const tbody = $('liburTableBody');
+  if (!tbody) return;
 
-  const list = (DB.attendance || []).filter(r => {
+  const rawList = (DB.attendance || []).filter(r => {
     const d = formatDate(r.tanggal);
-    const inRange = (!sDate || d >= sDate) && (!eDate || d <= eDate);
-    const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
-    return inRange && isLibur;
+    return (!sDate || d >= sDate) && (!eDate || d <= eDate);
   });
 
-  if (!list.length) {
-    container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);">Tidak ada karyawan yang libur pada rentang tanggal ini.</div>`;
+  const employeeStats = {};
+  
+  // Inisialisasi daftar karyawan dari EMPLOYEE_MAP agar semua terdata meski belum ada record di tanggal terpilih
+  Object.keys(EMPLOYEE_MAP).forEach(id => {
+    employeeStats[id] = {
+      id: id,
+      nama: EMPLOYEE_MAP[id].masterName,
+      masuk: 0,
+      libur: 0
+    };
+  });
+
+  rawList.forEach(r => {
+    let empId = String(r.no_absen || resolveEmployeeId(r) || '').trim();
+    if (!empId || !employeeStats[empId]) {
+      const cleanName = String(r.nama || '').trim().toUpperCase();
+      for (const [id, val] of Object.entries(EMPLOYEE_MAP)) {
+        if (cleanName === val.absenName || cleanName === val.masterName) {
+          empId = id;
+          break;
+        }
+      }
+    }
+    if (!empId) return;
+
+    if (!employeeStats[empId]) {
+      employeeStats[empId] = {
+        id: empId,
+        nama: getDisplayNameById(empId, r.nama),
+        masuk: 0,
+        libur: 0
+      };
+    }
+
+    const isLibur = !r.masuk || r.status === 'Libur' || r.status === 'Tidak Hadir';
+    if (isLibur) {
+      employeeStats[empId].libur += 1;
+    } else {
+      employeeStats[empId].masuk += 1;
+    }
+  });
+
+  const sortedList = Object.values(employeeStats).sort((a, b) => Number(a.id) - Number(b.id));
+
+  if (!sortedList.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="center empty">Tidak ada data rekapitulasi libur.</td></tr>`;
     return;
   }
 
-  const grouped = {};
-  list.forEach(r => {
-    const tgl = formatDate(r.tanggal);
-    if (!grouped[tgl]) grouped[tgl] = [];
-    grouped[tgl].push(r);
-  });
-
-  const sortedDates = Object.keys(grouped).sort();
-  container.innerHTML = sortedDates
-    .map(tgl => {
-      const items = grouped[tgl];
-      const dObj = new Date(tgl + 'T00:00:00');
-      const dateText = isNaN(dObj) ? tgl : dObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      return `
-      <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--input-bg);">
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 8px;">
-          <b style="color: var(--text);">${dateText}</b>
-          <span class="badge badge-danger">${items.length} Orang Libur</span>
-        </div>
-        <div style="display:flex; flex-wrap:wrap; gap:6px;">
-          ${items
-            .map(
-              item => `
-            <span style="background: rgba(220, 38, 38, 0.1); color: #dc2626; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;">
-              ${escapeHtml(getDisplayNameById(resolveEmployeeId(item), item.nama))} <small style="color:var(--muted);">(${escapeHtml(item.departemen || '-')})</small>
-            </span>
-          `
-            )
-            .join('')}
-        </div>
-      </div>
-      `;
-    })
+  tbody.innerHTML = sortedList
+    .map(emp => `
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td class="center" style="font-weight:700; color:var(--muted);">${escapeHtml(emp.id)}</td>
+        <td style="font-weight:700;">${escapeHtml(emp.nama)}</td>
+        <td class="center" style="font-weight:600; color:var(--success);">${emp.masuk} Hari</td>
+        <td class="center" style="font-weight:600; color:var(--danger);">${emp.libur} Hari</td>
+      </tr>
+    `)
     .join('');
 }
 
