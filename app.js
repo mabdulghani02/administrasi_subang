@@ -685,6 +685,12 @@ function showSalesSub(type) {
     container.innerHTML = `
     <div class="panel">
       <div class="panel-title">PENDAPATAN ESB</div>
+      <div class="upload-zone" onclick="$('esbFileInput').click()" style="margin-bottom:14px;">
+        <div style="font-size:30px;">📥</div>
+        <div style="font-weight:700;">Import File Excel dari ESB</div>
+        <div style="font-size:12px; color:var(--muted);">Pilih 2 file sekaligus: Kategori Menu + Rekap Pembayaran</div>
+        <input type="file" id="esbFileInput" accept=".xls,.xlsx" multiple onchange="handleEsbImport(event)">
+      </div>
       <form id="salesForm">
         <div class="form-grid">
           ${inputField('tanggal', 'Tanggal', today(), 'date')}
@@ -754,6 +760,202 @@ function inputField(name, label, value = '', type = 'number') {
     <input name="${name}" type="${type}" value="${value}" ${type === 'number' ? 'min="0" step="1"' : ''}>
   </div>
   `;
+}
+
+// ===========================================
+// IMPORT EXCEL ESB (Kategori Menu + Rekap Pembayaran)
+// ===========================================
+
+function parseEsbNumber(v) {
+  if (typeof v === 'number') return v;
+  let s = String(v ?? '').replace(/[^0-9,.\-]/g, '');
+  if (!/\d/.test(s)) return 0;
+  if (s.includes('.') && s.includes(',')) {
+    s = s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s.replace(/,/g, '');
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, '');
+  } else if (/^-?\d{1,3}(,\d{3})+$/.test(s)) {
+    s = s.replace(/,/g, '');
+  } else {
+    s = s.replace(',', '.');
+  }
+  const n = Number(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// Tanggal dari sel: serial Excel, objek Date, atau teks dd-mm-yyyy / yyyy-mm-dd
+function parseEsbDate(v) {
+  if (typeof v === 'number' && v > 30000) {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000)); // UTC agar tidak geser hari
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  }
+  if (v instanceof Date && !isNaN(v)) {
+    return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+  }
+  const s = String(v || '').trim();
+  let m = s.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return null;
+}
+
+function readEsbFileRows(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }));
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = () => reject(new Error('File tidak bisa dibaca'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// "MAKANAN - GORENGAN" -> field form. GORENGAN dipisah dari MAKANAN.
+function mapEsbCategory(label) {
+  const parts = String(label || '').split(' - ');
+  const group = cleanText(parts[0]);
+  const detail = cleanText(parts.slice(1).join(' - '));
+  if (detail === 'gorengan' || group === 'gorengan') return 'gorengan';
+  if (group === 'makanan') return 'makanan';
+  if (group === 'minuman') return 'minuman';
+  if (group.startsWith('tahu')) return 'tahu';
+  if (group === 'lainlain') return 'lain_lain';
+  return null;
+}
+
+function mapEsbPayment(name) {
+  const k = cleanText(name);
+  if (k === 'cash' || k === 'tunai') return 'cash';
+  if (k.includes('debit')) return 'debit_card';
+  if (k.includes('qris')) return 'qris';
+  if (k.includes('grab')) return 'grab';
+  return null;
+}
+
+// ---- Parser file 1: kategori menu ----
+function parseEsbCategoryRows(rows, headerIdx) {
+  const values = { makanan: 0, minuman: 0, tahu: 0, gorengan: 0, lain_lain: 0 };
+  const dates = new Set();
+  const unknown = [];
+
+  // Kolom Total dicari dari judul header (aman kalau kolom bergeser)
+  const header = rows[headerIdx].map(cleanText);
+  let totalCol = header.indexOf('total');
+  if (totalCol === -1) totalCol = 2;
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const label = String(r[1] || '').trim();
+    if (!label) continue;
+    const tgl = parseEsbDate(r[0]);
+    if (tgl) dates.add(tgl);
+    const field = mapEsbCategory(label);
+    if (!field) { unknown.push(label); continue; }
+    values[field] += parseEsbNumber(r[totalCol]);
+  }
+  return { values, dates, unknown };
+}
+
+// ---- Parser file 2: rekap pembayaran ----
+function parseEsbPaymentRows(rows, headerIdx) {
+  const values = { cash: 0, debit_card: 0, grab: 0, qris: 0 }; // tidak ada di file = 0
+  const dates = new Set();
+  const unknown = [];
+
+  // Tanggal dari baris "Period", mis. "27-09-2026 - 27-09-2026"
+  const periodRow = rows.find(r => cleanText(r[0]) === 'period');
+  if (periodRow) {
+    const found = String(periodRow[1]).match(/\d{1,2}[-/]\d{1,2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2}/g) || [];
+    found.forEach(s => { const d = parseEsbDate(s); if (d) dates.add(d); });
+  }
+
+  const header = rows[headerIdx].map(cleanText);
+  const colName = header.indexOf('paymentmethodname');
+  const colAmount = header.indexOf('paymentamount');
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const name = String(r[colName] || '').trim();
+    if (!name) continue;
+    const field = mapEsbPayment(name);
+    if (!field) { unknown.push(name); continue; }
+    values[field] += parseEsbNumber(r[colAmount]); // Payment Amount (sebelum MDR)
+  }
+  return { values, dates, unknown };
+}
+
+async function handleEsbImport(event) {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+  showToast('Membaca file ESB...');
+
+  try {
+    const results = []; // { type, values, dates, unknown }
+    for (const file of files) {
+      const rows = await readEsbFileRows(file);
+      const catIdx = rows.findIndex(r => cleanText(r[0]) === 'salesdate' && cleanText(r[1]).includes('menucategory'));
+      const payIdx = rows.findIndex(r => r.some(c => cleanText(c) === 'paymentmethodname'));
+
+      if (catIdx !== -1) results.push({ type: 'kategori', ...parseEsbCategoryRows(rows, catIdx) });
+      else if (payIdx !== -1) results.push({ type: 'pembayaran', ...parseEsbPaymentRows(rows, payIdx) });
+      else {
+        showToast(`Format "${file.name}" tidak dikenali.`);
+        event.target.value = '';
+        return;
+      }
+    }
+
+    // Semua file harus untuk 1 tanggal yang sama
+    const allDates = new Set();
+    results.forEach(r => r.dates.forEach(d => allDates.add(d)));
+    if (allDates.size > 1) {
+      alert('File berisi tanggal berbeda:\n\n' + [...allDates].join('\n') + '\n\nExport ESB per hari dan pastikan tanggalnya sama.');
+      event.target.value = '';
+      return;
+    }
+
+    const form = $('salesForm');
+    if (allDates.size === 1) form.querySelector('[name="tanggal"]').value = [...allDates][0];
+
+    const unknown = [];
+    results.forEach(r => {
+      Object.keys(r.values).forEach(f => {
+        form.querySelector(`[name="${f}"]`).value = Math.round(r.values[f]);
+      });
+      unknown.push(...r.unknown);
+    });
+    if (unknown.length) {
+      alert('Item berikut tidak dikenali dan TIDAK dihitung:\n\n' + unknown.join('\n'));
+    }
+
+    // Cek kesesuaian total kategori (+pajak) vs total pembayaran
+    const v = n => Number(form.querySelector(`[name="${n}"]`).value || 0);
+    const totKategori = v('makanan') + v('minuman') + v('tahu') + v('gorengan') + v('lain_lain') + v('pajak');
+    const totBayar = v('cash') + v('debit_card') + v('grab') + v('qris');
+    const adaKategori = results.some(r => r.type === 'kategori');
+    const adaBayar = results.some(r => r.type === 'pembayaran');
+
+    if (adaKategori && adaBayar && totKategori !== totBayar) {
+      showToast(`Selisih kategori vs pembayaran: ${money(totKategori - totBayar)} (isi Pajak dulu jika belum)`);
+    } else if (adaKategori && !adaBayar) {
+      showToast('Kategori terisi. Upload rekap pembayaran & isi Pajak, lalu Simpan ESB.');
+    } else if (!adaKategori && adaBayar) {
+      showToast('Pembayaran terisi. Upload laporan kategori & isi Pajak, lalu Simpan ESB.');
+    } else {
+      showToast('Import berhasil. Cek angka lalu Simpan ESB.');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('Gagal membaca file: ' + err.message);
+  }
+  event.target.value = '';
 }
 
 function reportRow(label, value, forceDash = false) {
