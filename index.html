@@ -64,6 +64,7 @@
       <button data-page="sales" onclick="showPage('sales')"><i class="fa-solid fa-arrow-trend-up"></i> Pendapatan</button>
       <button data-page="expense" onclick="showPage('expense')"><i class="fa-solid fa-arrow-trend-down"></i> Pengeluaran Utama</button>
       <button data-page="expense_tracker" onclick="showPage('expense_tracker')"><i class="fa-solid fa-money-bill-transfer"></i> Pantau Pengeluaran</button>
+      <button data-page="laporan_harian" onclick="showPage('laporan_harian')"><i class="fa-brands fa-whatsapp"></i> Laporan Harian</button>
       <button data-page="attendance" onclick="showPage('attendance')"><i class="fa-solid fa-fingerprint"></i> Absensi</button>
       <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-wallet"></i> Daftar Gaji</button>
       <button data-page="limbah" onclick="showPage('limbah')"><i class="fa-solid fa-recycle"></i> Penjualan Limbah</button>
@@ -87,6 +88,9 @@
   <button class="b-nav-btn" data-page="expense" onclick="showPage('expense')" aria-label="Pengeluaran">
     <i class="fa-solid fa-arrow-trend-down"></i>
   </button>
+  <button class="b-nav-btn" data-page="laporan_harian" onclick="showPage('laporan_harian')" aria-label="Laporan Harian">
+    <i class="fa-brands fa-whatsapp"></i>
+  </button>
   <button class="b-nav-btn" data-page="attendance" onclick="showPage('attendance')" aria-label="Absensi">
     <i class="fa-solid fa-fingerprint"></i>
   </button>
@@ -104,6 +108,8 @@
 <script src="app.js?v=3.3"></script>
 <!-- Fitur tambahan pengeluaran (auto-suggest, harga janggal, import Excel, draft). Harus SETELAH app.js -->
 <script src="fitur_pengeluaran.js?v=1.0"></script>
+<!-- Halaman Laporan Harian (bagikan ke WhatsApp). Harus SETELAH app.js -->
+<script src="fitur_laporan_harian.js?v=1.0"></script>
 
 <script>
   if ('serviceWorker' in navigator) {
