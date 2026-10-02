@@ -68,6 +68,7 @@
       <button data-page="attendance" onclick="showPage('attendance')"><i class="fa-solid fa-fingerprint"></i> Absensi</button>
       <button data-page="payroll" onclick="showPage('payroll')"><i class="fa-solid fa-wallet"></i> Daftar Gaji</button>
       <button data-page="limbah" onclick="showPage('limbah')"><i class="fa-solid fa-recycle"></i> Penjualan Limbah</button>
+      <button data-page="karyawan" onclick="showPage('karyawan')"><i class="fa-solid fa-users-gear"></i> Manajemen Karyawan</button>
       <button data-page="settings" onclick="showPage('settings')"><i class="fa-solid fa-sliders"></i> Pengaturan Sistem</button>
       <button data-page="export_excel" onclick="showPage('export_excel')"><i class="fa-solid fa-file-excel"></i> Ekspor Laporan Excel</button>
     </div>
@@ -110,6 +111,8 @@
 <script src="fitur_pengeluaran.js?v=1.0"></script>
 <!-- Halaman Laporan Harian (bagikan ke WhatsApp). Harus SETELAH app.js -->
 <script src="fitur_laporan_harian.js?v=1.0"></script>
+<!-- Manajemen Karyawan (data karyawan dari Supabase). Harus SETELAH app.js -->
+<script src="fitur_karyawan.js?v=1.0"></script>
 
 <script>
   if ('serviceWorker' in navigator) {
