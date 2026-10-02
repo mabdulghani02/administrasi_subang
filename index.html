@@ -102,7 +102,9 @@
 <div id="toast" class="toast"></div>
 
 <script src="app.js?v=3.3"></script>
-  
+<!-- Fitur tambahan pengeluaran (auto-suggest, harga janggal, import Excel, draft). Harus SETELAH app.js -->
+<script src="fitur_pengeluaran.js?v=1.0"></script>
+
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js');
